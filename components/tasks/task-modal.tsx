@@ -58,7 +58,8 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         priority: task.priority,
         status: task.status,
       } : { priority: 'medium', status: 'todo' })
-      setSelectedFiles([])
+      // Delay resetting state to avoid sync state updates in effect
+      setTimeout(() => setSelectedFiles([]), 0)
     }
   }, [open, task, reset])
 
@@ -99,6 +100,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       setUploadingFiles(true)
       for (const file of selectedFiles) {
         const fileExt = file.name.split('.').pop()
+        // eslint-disable-next-line react-hooks/purity
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
         const filePath = `tasks/${targetTaskId}/${fileName}`
         

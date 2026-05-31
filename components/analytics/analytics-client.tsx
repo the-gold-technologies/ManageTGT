@@ -38,10 +38,13 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
   const completedTasks = tasks.filter(t => t.status === 'completed').length
   const pendingTasks = tasks.filter(t => t.status !== 'completed').length
 
-  const projectStatusData = ['in_progress', 'completed', 'pending', 'on_hold', 'delivered'].map(s => ({
-    name: s.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-    value: projects.filter(p => p.status === s).length,
-  })).filter(d => d.value > 0)
+  const projectStatusData = [
+    { name: 'Completed', value: projects.filter(p => p.status === 'completed').length, color: '#10B981' },
+    { name: 'Delivered', value: projects.filter(p => p.status === 'delivered').length, color: '#F59E0B' },
+    { name: 'In Progress', value: projects.filter(p => p.status === 'in_progress').length, color: '#6366F1' },
+    { name: 'On Hold', value: projects.filter(p => p.status === 'on_hold').length, color: '#06B6D4' },
+    { name: 'Pending', value: projects.filter(p => p.status === 'pending').length, color: '#9191A4' },
+  ].filter(d => d.value > 0)
 
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
@@ -128,17 +131,82 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
         <Card title="Project Status Breakdown" padding={false}>
           <div className="px-5 pb-5 pt-3">
             {projectStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie data={projectStatusData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
-                    {projectStatusData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                  <Legend formatter={v => <span style={{ color: '#9191A4', fontSize: 11 }}>{v}</span>} iconType="circle" iconSize={8} />
-                </PieChart>
-              </ResponsiveContainer>
+              (() => {
+                const totalProjects = projectStatusData.reduce((sum, entry) => sum + entry.value, 0);
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
+                    {/* Chart container */}
+                    <div className="sm:col-span-3 relative flex items-center justify-center h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={projectStatusData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={62}
+                            outerRadius={90}
+                            paddingAngle={5}
+                            cornerRadius={5}
+                            dataKey="value"
+                          >
+                            {projectStatusData.map((entry, index) => (
+                              <Cell 
+                                key={index} 
+                                fill={entry.color} 
+                                stroke="transparent"
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const entry = payload[0].payload;
+                                return (
+                                  <div className="bg-[#171717] border border-[#262626] rounded-lg p-2.5 shadow-2xl text-xs font-semibold z-50 pointer-events-none">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                      <span className="text-text-secondary">{entry.name}</span>
+                                    </div>
+                                    <span className="text-text font-bold">{payload[0].value} {payload[0].value === 1 ? 'Project' : 'Projects'}</span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Center Label */}
+                      <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                        <span className="text-3xl font-extrabold text-text tracking-tight">{totalProjects}</span>
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted mt-0.5">Projects</span>
+                      </div>
+                    </div>
+
+                    {/* Details Breakdown */}
+                    <div className="sm:col-span-2 space-y-0">
+                      <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown</p>
+                      {projectStatusData.map((entry, index) => {
+                        const percentage = totalProjects > 0 ? Math.round((entry.value / totalProjects) * 100) : 0;
+                        return (
+                          <div 
+                            key={index} 
+                            className="flex items-center justify-between py-2 border-b border-border/20 last:border-0"
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                              <span className="text-xs font-medium text-text-secondary truncate">{entry.name}</span>
+                            </div>
+                            <span className="text-xs font-bold text-text shrink-0 ml-2">{percentage}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-text-muted text-sm">No projects</div>
+              <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">No projects</div>
             )}
           </div>
         </Card>

@@ -39,10 +39,10 @@ export default async function ProfitabilityPage() {
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
-        <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={DollarSign} iconColor="bg-danger/10 text-danger" />
-        <StatCard title="Net Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} iconColor={totalProfit >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'} />
-        <StatCard title="Overall Margin" value={`${overallMargin}%`} icon={TrendingUp} iconColor="bg-accent-cyan/10 text-accent-cyan" />
+        <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={<DollarSign size={15} />} iconColor="bg-primary/10 text-primary" />
+        <StatCard title="Total Expenses" value={formatCurrency(totalExpenses)} icon={<DollarSign size={15} />} iconColor="bg-danger/10 text-danger" />
+        <StatCard title="Net Profit" value={formatCurrency(totalProfit)} icon={<TrendingUp size={15} />} iconColor={totalProfit >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'} />
+        <StatCard title="Overall Margin" value={`${overallMargin}%`} icon={<TrendingUp size={15} />} iconColor="bg-accent-cyan/10 text-accent-cyan" />
       </div>
 
       <Card title="Project Profitability" padding={false}>

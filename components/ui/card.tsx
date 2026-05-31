@@ -10,7 +10,7 @@ interface CardProps {
 
 export function Card({ children, className, title, action, padding = true }: CardProps) {
   return (
-    <div className={cn('rounded-xl bg-bg-secondary border border-border', className)}>
+    <div className={cn('relative overflow-hidden rounded-xl bg-bg-secondary border border-border group', className)}>
       {(title || action) && (
         <div className="flex items-center justify-between px-5 pt-5 pb-0">
           {title && (
@@ -19,7 +19,9 @@ export function Card({ children, className, title, action, padding = true }: Car
           {action && <div>{action}</div>}
         </div>
       )}
-      <div className={cn(padding && 'p-5')}>{children}</div>
+      <div className={cn(padding && 'p-5 relative z-10')}>{children}</div>
+      {/* Decorative orange glow */}
+      <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full opacity-20 group-hover:opacity-30 bg-orange-500/20 transition-opacity duration-300 blur-3xl pointer-events-none" />
     </div>
   )
 }

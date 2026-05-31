@@ -7,6 +7,7 @@ import {
 } from 'recharts'
 import StatCard from '@/components/ui/stat-card'
 import { Card } from '@/components/ui/card'
+import { Glow } from '@/components/ui/glow'
 import { formatCurrency } from '@/lib/utils'
 import {
   DollarSign, TrendingUp, Wallet, FolderKanban,
@@ -29,6 +30,10 @@ interface DashboardClientProps {
     revenueTrend: Array<{ month: string; revenue: number }>
     profitTrend: Array<{ month: string; profit: number }>
     projectStatusData: Array<{ name: string; value: number; color: string }>
+    expensesTrend: number[]
+    pendingTrend: number[]
+    activeProjectsTrend: number[]
+    completedProjectsTrend: number[]
   }
 }
 
@@ -53,7 +58,7 @@ const CHART_COLORS = {
 }
 
 export default function DashboardClient({ data, userRole }: DashboardClientProps) {
-  const { stats, revenueTrend, profitTrend, projectStatusData } = data
+  const { stats, revenueTrend, profitTrend, projectStatusData, expensesTrend, pendingTrend, activeProjectsTrend, completedProjectsTrend } = data
   const role = userRole || data.userRole || 'team_member'
   
   const isFinanceVisible = ['admin'].includes(role)
@@ -63,6 +68,10 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
   const targetPct = stats.monthlyTarget.total > 0
     ? Math.round((stats.monthlyTarget.achieved / stats.monthlyTarget.total) * 100)
     : 0
+
+  // Real spark arrays from trend data
+  const revenueSparkData = revenueTrend.map(r => r.revenue)
+  const profitSparkData = profitTrend.map(r => r.profit)
 
   return (
     <motion.div
@@ -82,6 +91,9 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
               changeLabel="vs last month"
               icon={DollarSign}
               iconColor="bg-primary/10 text-primary"
+              sparkData={revenueSparkData}
+              sparkType="bar"
+              sparkColor="#6366F1"
             />
             <StatCard
               title="Net Profit"
@@ -90,6 +102,9 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
               changeLabel="vs last month"
               icon={TrendingUp}
               iconColor="bg-success/10 text-success"
+              sparkData={profitSparkData}
+              sparkType="area"
+              sparkColor="#10B981"
             />
             <StatCard
               title="Total Expenses"
@@ -98,6 +113,9 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
               changeLabel="vs last month"
               icon={Wallet}
               iconColor="bg-danger/10 text-danger"
+              sparkData={expensesTrend}
+              sparkType="area"
+              sparkColor="#EF4444"
             />
           </>
         )}
@@ -109,12 +127,18 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
               value={String(stats.activeProjects)}
               icon={FolderKanban}
               iconColor="bg-accent-cyan/10 text-accent-cyan"
+              sparkData={activeProjectsTrend}
+              sparkType="bar"
+              sparkColor="#06B6D4"
             />
             <StatCard
               title="Completed Projects"
               value={String(stats.completedProjects)}
               icon={CheckCircle2}
               iconColor="bg-success/10 text-success"
+              sparkData={completedProjectsTrend}
+              sparkType="bar"
+              sparkColor="#10B981"
             />
           </>
         )}
@@ -125,30 +149,36 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
             value={formatCurrency(stats.pendingPayments)}
             icon={Clock}
             iconColor="bg-warning/10 text-warning"
+            sparkData={pendingTrend}
+            sparkType="area"
+            sparkColor="#F59E0B"
           />
         )}
         {/* Monthly Target card */}
         {isSalesVisible && (
-        <div className="col-span-2 rounded-xl bg-bg-secondary border border-border p-5 hover:border-border-muted transition-all">
-          <div className="flex items-start justify-between mb-3">
-            <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">Monthly Target</span>
-            <Target size={14} className="text-primary" />
-          </div>
-          <div className="flex items-end gap-2 mb-3">
-            <span className="text-2xl font-bold text-text">{stats.monthlyTarget.achieved}</span>
-            <span className="text-sm text-text-secondary pb-0.5">/ {stats.monthlyTarget.total} closures</span>
-          </div>
-          <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${targetPct}%` }}
-              transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
-              className="absolute inset-y-0 left-0 bg-primary rounded-full"
-            />
-          </div>
-          <div className="flex justify-between mt-1.5">
-            <span className="text-xs text-text-muted">Progress</span>
-            <span className="text-xs font-semibold text-primary">{targetPct}%</span>
+        <div className="col-span-2 rounded-xl bg-bg-secondary border border-border p-5 hover:border-border-muted transition-all relative overflow-hidden group">
+          <Glow />
+          <div className="relative z-10">
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">Monthly Target</span>
+              <Target size={14} className="text-primary" />
+            </div>
+            <div className="flex items-end gap-2 mb-3">
+              <span className="text-2xl font-bold text-text">{stats.monthlyTarget.achieved}</span>
+              <span className="text-sm text-text-secondary pb-0.5">/ {stats.monthlyTarget.total} closures</span>
+            </div>
+            <div className="relative h-2 bg-bg-tertiary rounded-full overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${targetPct}%` }}
+                transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
+                className="absolute inset-y-0 left-0 bg-primary rounded-full"
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-xs text-text-muted">Progress</span>
+              <span className="text-xs font-semibold text-primary">{targetPct}%</span>
+            </div>
           </div>
         </div>
         )}
@@ -163,22 +193,30 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={revenueTrend} barSize={28} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={1} />
+                    <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.4} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2A" vertical={false} />
                 <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
                 <Tooltip
                   formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Revenue']}
-                  cursor={{ fill: '#1E1E2A' }}
+                  cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 6 }}
+                  contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: 10, fontSize: 12 }}
+                  labelStyle={{ color: '#9191A4' }}
+                  itemStyle={{ color: CHART_COLORS.primary }}
                 />
-                <Bar dataKey="revenue" fill={CHART_COLORS.primary} radius={[6, 6, 0, 0]} />
+                <Bar dataKey="revenue" fill="url(#revGradient)" radius={[6, 6, 2, 2]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
           )}
 
-          {/* Project Status Donut */}
           {isProjectsVisible && (
             <Card title="Project Status" className={!isFinanceVisible ? 'xl:col-span-3' : ''} padding={false}>
           <div className="p-5">
@@ -195,17 +233,17 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                             data={projectStatusData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={65}
-                            outerRadius={85}
-                            paddingAngle={4}
+                            innerRadius={62}
+                            outerRadius={90}
+                            paddingAngle={5}
+                            cornerRadius={5}
                             dataKey="value"
                           >
                             {projectStatusData.map((entry, index) => (
                               <Cell 
                                 key={index} 
                                 fill={entry.color} 
-                                className="stroke-[#171717] hover:opacity-85 transition-opacity outline-none" 
-                                strokeWidth={3} 
+                                stroke="transparent"
                               />
                             ))}
                           </Pie>
@@ -231,12 +269,13 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                       {/* Center Label */}
                       <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
                         <span className="text-3xl font-extrabold text-text tracking-tight">{totalProjects}</span>
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted mt-0.5">Total</span>
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted mt-0.5">Projects</span>
                       </div>
                     </div>
 
                     {/* Details Breakdown */}
-                    <div className="sm:col-span-2 space-y-1">
+                    <div className="sm:col-span-2 space-y-0">
+                      <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown</p>
                       {projectStatusData.map((entry, index) => {
                         const percentage = totalProjects > 0 ? Math.round((entry.value / totalProjects) * 100) : 0;
                         return (
@@ -246,12 +285,9 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                           >
                             <div className="flex items-center gap-2.5 overflow-hidden">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                              <span className="text-xs font-semibold text-text-secondary truncate">{entry.name}</span>
+                              <span className="text-xs font-medium text-text-secondary truncate">{entry.name}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                              <span className="text-xs font-bold text-text">{entry.value}</span>
-                              <span className="text-[10px] font-medium text-text-muted">({percentage}%)</span>
-                            </div>
+                            <span className="text-xs font-bold text-text shrink-0 ml-2">{percentage}%</span>
                           </div>
                         )
                       })}
@@ -287,15 +323,21 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                 <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-                <Tooltip formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Profit']} />
+                <Tooltip
+                  formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Profit']}
+                  cursor={{ stroke: CHART_COLORS.success, strokeWidth: 1, strokeDasharray: '4 4' }}
+                  contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: 10, fontSize: 12 }}
+                  labelStyle={{ color: '#9191A4' }}
+                  itemStyle={{ color: CHART_COLORS.success }}
+                />
                 <Area
                   type="monotone"
                   dataKey="profit"
                   stroke={CHART_COLORS.success}
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   fill="url(#profitGradient)"
-                  dot={{ fill: CHART_COLORS.success, r: 3 }}
-                  activeDot={{ r: 5, fill: CHART_COLORS.success }}
+                  dot={false}
+                  activeDot={{ r: 5, fill: CHART_COLORS.success, strokeWidth: 2, stroke: '#171717' }}
                 />
               </AreaChart>
             </ResponsiveContainer>

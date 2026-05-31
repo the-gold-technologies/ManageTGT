@@ -101,6 +101,47 @@ async function getDashboardData() {
     }
   })
 
+  // Expenses per month (last 7 months)
+  const expensesTrend = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - (6 - i), 1)
+    return (expenses ?? [])
+      .filter(exp => {
+        const expDate = new Date(exp.created_at)
+        return expDate.getMonth() === d.getMonth() && expDate.getFullYear() === d.getFullYear()
+      })
+      .reduce((s, exp) => s + (exp.amount || 0), 0)
+  })
+
+  // Pending payments per month (invoices not fully paid, by created_at month)
+  const pendingTrend = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - (6 - i), 1)
+    return (invoices ?? [])
+      .filter(inv => {
+        const invDate = new Date(inv.created_at)
+        return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear() && inv.status !== 'paid'
+      })
+      .reduce((s, inv) => s + Math.max(0, (inv.final_billing || 0) - (inv.amount_received || 0)), 0)
+  })
+
+  // Active projects count per month (by created_at)
+  const activeProjectsTrend = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - (6 - i), 1)
+    return (projects ?? []).filter(p => {
+      const pd = new Date(p.created_at)
+      return pd.getFullYear() < d.getFullYear() ||
+        (pd.getFullYear() === d.getFullYear() && pd.getMonth() <= d.getMonth())
+    }).filter(p => p.status === 'in_progress').length
+  })
+
+  // Completed projects per month (by created_at)
+  const completedProjectsTrend = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(currentYear, currentMonth - (6 - i), 1)
+    return (projects ?? []).filter(p => {
+      const pd = new Date(p.created_at)
+      return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear() && p.status === 'completed'
+    }).length
+  })
+
   const projectStatusData = [
     { name: 'Active', value: active, color: '#3B82F6' },
     { name: 'Completed', value: completed, color: '#10B981' },
@@ -124,6 +165,10 @@ async function getDashboardData() {
     revenueTrend,
     profitTrend,
     projectStatusData,
+    expensesTrend,
+    pendingTrend,
+    activeProjectsTrend,
+    completedProjectsTrend,
   }
 }
 

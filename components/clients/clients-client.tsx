@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Glow } from '@/components/ui/glow'
 import { formatDate } from '@/lib/utils'
 import ClientModal from './client-modal'
 
@@ -94,58 +95,61 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
             <motion.div
               key={client.id}
               variants={itemVariants}
-              className="bg-bg-secondary border border-border rounded-xl p-5 hover:border-border-muted transition-all group"
+              className="relative overflow-hidden bg-bg-secondary border border-border rounded-xl p-5 hover:border-border-muted transition-all group"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
-                    {client.name.charAt(0).toUpperCase()}
+              <Glow />
+              <div className="relative z-10">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">
+                      {client.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-text text-sm">{client.name}</p>
+                      {client.company_name && (
+                        <p className="text-xs text-text-muted">{client.company_name}</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-text text-sm">{client.name}</p>
-                    {client.company_name && (
-                      <p className="text-xs text-text-muted">{client.company_name}</p>
-                    )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditingClient(client); setModalOpen(true) }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this client?')) deleteClient.mutate(client.id)
+                      }}
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger-muted transition-all"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => { setEditingClient(client); setModalOpen(true) }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
-                  >
-                    <Pencil size={12} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm('Delete this client?')) deleteClient.mutate(client.id)
-                    }}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger-muted transition-all"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+
+                <div className="space-y-2">
+                  {client.email && (
+                    <div className="flex items-center gap-2 text-xs text-text-secondary">
+                      <Mail size={11} className="text-text-muted shrink-0" />
+                      <span className="truncate">{client.email}</span>
+                    </div>
+                  )}
+                  {client.mobile && (
+                    <div className="flex items-center gap-2 text-xs text-text-secondary">
+                      <Phone size={11} className="text-text-muted shrink-0" />
+                      <span>{client.mobile}</span>
+                    </div>
+                  )}
+                  {client.gst_number && (
+                    <div className="text-xs text-text-muted">GST: {client.gst_number}</div>
+                  )}
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                {client.email && (
-                  <div className="flex items-center gap-2 text-xs text-text-secondary">
-                    <Mail size={11} className="text-text-muted shrink-0" />
-                    <span className="truncate">{client.email}</span>
-                  </div>
-                )}
-                {client.mobile && (
-                  <div className="flex items-center gap-2 text-xs text-text-secondary">
-                    <Phone size={11} className="text-text-muted shrink-0" />
-                    <span>{client.mobile}</span>
-                  </div>
-                )}
-                {client.gst_number && (
-                  <div className="text-xs text-text-muted">GST: {client.gst_number}</div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-                <span className="text-xs text-text-muted">Added {formatDate(client.created_at)}</span>
+                <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                  <span className="text-xs text-text-muted">Added {formatDate(client.created_at)}</span>
+                </div>
               </div>
             </motion.div>
           ))}

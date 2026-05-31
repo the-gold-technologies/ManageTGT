@@ -101,8 +101,12 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
     <motion.aside
       animate={{ width: collapsed ? 68 : 220 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
-      className="relative flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-2 bg-bg-secondary rounded-2xl shrink-0 z-20 shadow-card border border-white/[0.03]"
+      className="relative flex flex-col h-[calc(100vh-1.5rem)] my-3 ml-2 bg-bg-secondary rounded-2xl shrink-0 z-20 shadow-card border border-white/[0.03] group/sidebar"
     >
+      {/* Decorative orange glow */}
+      <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+        <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full opacity-10 group-hover/sidebar:opacity-25 bg-orange-500/20 transition-opacity duration-500 blur-3xl pointer-events-none" />
+      </div>
       {/* Header */}
       <div className={cn("flex items-center h-16 shrink-0 pl-3 overflow-hidden transition-all duration-200", collapsed ? "justify-center" : "justify-between")}>
         {!collapsed && (

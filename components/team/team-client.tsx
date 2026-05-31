@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, UserCog, User, Shield, Briefcase, Target } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Plus, Search, UserCog, User, Shield, Briefcase, Target, type LucideIcon } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -32,7 +32,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   team_member: 'Team Member',
 }
 
-const ROLE_ICONS: Record<UserRole, any> = {
+const ROLE_ICONS: Record<UserRole, LucideIcon> = {
   admin: Shield,
   team_lead: Briefcase,
   sales_executive: Target,

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, Calendar, FileDown, CheckSquare, AlertCircle } from 'lucide-react'
+import { Plus, Search, FileDown, CheckSquare, AlertCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import { parseISO, startOfDay } from 'date-fns'
 import type { Task, Project, Profile, TaskStatus } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Glow } from '@/components/ui/glow'
 import { formatDate, isOverdue } from '@/lib/utils'
 import TaskModal from './task-modal'
 import { cn } from '@/lib/utils'
@@ -123,7 +124,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
         <div className="flex items-center gap-2">
           <select
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as any)}
+            onChange={(e) => setDateFilter(e.target.value as 'all' | 'today' | 'upcoming' | 'overdue')}
             className="px-3 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 cursor-pointer"
           >
             <option value="all">All Dates</option>
@@ -160,43 +161,46 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
                     <motion.div
                       key={task.id}
                       variants={itemVariants}
-                      className="bg-bg border border-border rounded-lg p-3 hover:border-border-muted transition-all cursor-pointer group"
+                      className="relative overflow-hidden bg-bg border border-border rounded-lg p-3 hover:border-border-muted transition-all cursor-pointer group"
                       onClick={() => { setEditingTask(task); setModalOpen(true) }}
                     >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <Badge variant={PRIORITY_BADGE_MAP[task.priority]} className="text-[10px]">
-                          {task.priority}
-                        </Badge>
-                        {overdue && (
-                          <AlertCircle size={12} className="text-danger shrink-0 mt-0.5" />
+                      <Glow />
+                      <div className="relative z-10">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <Badge variant={PRIORITY_BADGE_MAP[task.priority]} className="text-[10px]">
+                            {task.priority}
+                          </Badge>
+                          {overdue && (
+                            <AlertCircle size={12} className="text-danger shrink-0 mt-0.5" />
+                          )}
+                        </div>
+
+                        {/* Title */}
+                        <p className="text-sm font-medium text-text mb-2 leading-snug">{task.title}</p>
+
+                        {/* Project */}
+                        {task.project && (
+                          <p className="text-[10px] text-text-muted mb-2">{task.project.project_code} · {task.project.name}</p>
                         )}
-                      </div>
 
-                      {/* Title */}
-                      <p className="text-sm font-medium text-text mb-2 leading-snug">{task.title}</p>
-
-                      {/* Project */}
-                      {task.project && (
-                        <p className="text-[10px] text-text-muted mb-2">{task.project.project_code} · {task.project.name}</p>
-                      )}
-
-                      {/* Bottom row */}
-                      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border">
-                        {task.assignee ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
-                              {task.assignee.full_name.charAt(0)}
+                        {/* Bottom row */}
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border">
+                          {task.assignee ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
+                                {task.assignee.full_name.charAt(0)}
+                              </div>
+                              <span className="text-[10px] text-text-muted">{task.assignee.full_name.split(' ')[0]}</span>
                             </div>
-                            <span className="text-[10px] text-text-muted">{task.assignee.full_name.split(' ')[0]}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-text-muted">Unassigned</span>
-                        )}
-                        {task.deadline && (
-                          <span className={cn('text-[10px]', overdue ? 'text-danger font-semibold' : 'text-text-muted')}>
-                            {formatDate(task.deadline)}
-                          </span>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-text-muted">Unassigned</span>
+                          )}
+                          {task.deadline && (
+                            <span className={cn('text-[10px]', overdue ? 'text-danger font-semibold' : 'text-text-muted')}>
+                              {formatDate(task.deadline)}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Status move buttons */}

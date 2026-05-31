@@ -47,9 +47,7 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-primary mb-4 shadow-glow">
-            <div className="w-5 h-5 rounded-md bg-white opacity-90" />
-          </div>
+          <img src="/logo.png" alt="" className="mx-auto" height={100} width={100} />
           <h1 className="text-2xl font-bold text-text">AgencyOS</h1>
           <p className="text-sm text-text-secondary mt-1">Sign in to your workspace</p>
         </div>
@@ -124,7 +122,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-text-muted mt-6">
-          Internal tool — contact your admin to get access
+          Internal tool contact your admin to get access
         </p>
       </motion.div>
     </div>

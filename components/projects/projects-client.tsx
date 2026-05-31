@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency, PROJECT_STATUS_CONFIG, isOverdue } from '@/lib/utils'
 import ProjectModal from './project-modal'
+import { Glow } from '@/components/ui/glow'
 import { cn } from '@/lib/utils'
 
 interface ProjectsClientProps {
@@ -176,8 +177,9 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           <p className="text-sm text-text-muted mt-1">Create your first project to get started</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="relative group bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
+          <Glow />
+          <div className="relative z-10 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
