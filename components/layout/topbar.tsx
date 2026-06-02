@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, Search, LogOut, User } from 'lucide-react'
+import { Bell, Search, LogOut, User, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/types'
@@ -19,6 +20,12 @@ export default function TopBar({ user }: TopBarProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const now = new Date()
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
@@ -98,6 +105,16 @@ export default function TopBar({ user }: TopBarProps) {
             className="pl-8 pr-4 py-2 text-sm bg-bg-secondary border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 w-48 transition-all focus:w-64"
           />
         </div>
+
+        {/* Theme Toggle */}
+        {mounted && (
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="w-9 h-9 rounded-lg bg-bg-secondary border border-border flex items-center justify-center text-text-secondary hover:text-text hover:border-border-muted transition-all"
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        )}
 
         {/* Notifications */}
         <button className="relative w-9 h-9 rounded-lg bg-bg-secondary border border-border flex items-center justify-center text-text-secondary hover:text-text hover:border-border-muted transition-all">

@@ -65,6 +65,23 @@
   --animate-pulse-slow: pulse 3s ease-in-out infinite;
 }
 
+.light {
+  --color-bg: #F8F9FA;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-tertiary: #F1F3F5;
+
+  --color-border: #E5E7EB;
+  --color-border-muted: #D1D5DB;
+
+  --color-text: #171717;
+  --color-text-secondary: #525252;
+  --color-text-muted: #A3A3A3;
+
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-glow: 0 0 20px rgba(224, 106, 38, 0.3);
+  --shadow-glow-sm: 0 0 10px rgba(224, 106, 38, 0.15);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
