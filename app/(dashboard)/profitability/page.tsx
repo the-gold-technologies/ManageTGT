@@ -43,7 +43,7 @@ export default async function ProfitabilityPage() {
         <StatCard title="Overall Margin" value={`${overallMargin}%`} icon={<TrendingUp size={15} />} iconColor="bg-accent-cyan/10 text-accent-cyan" />
       </div>
 
-      <Card title="Project Profitability" padding={false}>
+      <Card padding={false}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

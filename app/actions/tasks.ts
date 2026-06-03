@@ -33,12 +33,24 @@ export async function getTasks() {
 
 export async function updateTaskStatus(id: string, status: any, completion_date?: string) {
   try {
-    await prisma.task.update({
-      where: { id },
-      data: { 
-        status, 
-        ...(completion_date ? { completion_date: new Date(completion_date) } : {})
-      }
+    const session = await auth()
+    await prisma.$transaction(async (tx) => {
+      const task = await tx.task.update({
+        where: { id },
+        data: { 
+          status, 
+          ...(completion_date ? { completion_date: new Date(completion_date) } : {})
+        }
+      })
+      
+      await tx.activityLog.create({
+        data: {
+          task_id: task.id,
+          project_id: task.project_id,
+          action: `Task status changed to ${status}`,
+          performed_by: session?.user?.id || null,
+        }
+      })
     })
     revalidatePath('/tasks')
     return { success: true }
@@ -69,16 +81,30 @@ export async function createTask(data: any) {
     const { project_id, assigned_to, assigned_by, ...restData } = data
     const assignerId = session?.user?.id || assigned_by
 
-    const task = await prisma.task.create({
-      data: {
-        ...restData,
-        ...(project_id ? { project: { connect: { id: project_id } } } : {}),
-        ...(assigned_to ? { assignee: { connect: { id: assigned_to } } } : {}),
-        ...(assignerId ? { assigner: { connect: { id: assignerId } } } : {})
-      }
+    const result = await prisma.$transaction(async (tx) => {
+      const task = await tx.task.create({
+        data: {
+          ...restData,
+          ...(project_id ? { project: { connect: { id: project_id } } } : {}),
+          ...(assigned_to ? { assignee: { connect: { id: assigned_to } } } : {}),
+          ...(assignerId ? { assigner: { connect: { id: assignerId } } } : {})
+        }
+      })
+
+      await tx.activityLog.create({
+        data: {
+          task_id: task.id,
+          project_id: task.project_id,
+          action: 'Task created',
+          performed_by: session?.user?.id || null,
+        }
+      })
+
+      return task
     })
+    
     revalidatePath('/tasks')
-    return { success: true, task }
+    return { success: true, task: result }
   } catch (error) {
     console.error('Error creating task:', error)
     return { success: false, error: 'Failed to create task' }
@@ -87,19 +113,34 @@ export async function createTask(data: any) {
 
 export async function updateTask(id: string, data: any) {
   try {
+    const session = await auth()
     const { project_id, assigned_to, assigned_by, ...restData } = data
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: {
-        ...restData,
-        ...(project_id !== undefined ? { project: project_id ? { connect: { id: project_id } } : { disconnect: true } } : {}),
-        ...(assigned_to !== undefined ? { assignee: assigned_to ? { connect: { id: assigned_to } } : { disconnect: true } } : {}),
-        ...(assigned_by !== undefined ? { assigner: assigned_by ? { connect: { id: assigned_by } } : { disconnect: true } } : {})
-      }
+    const result = await prisma.$transaction(async (tx) => {
+      const task = await tx.task.update({
+        where: { id },
+        data: {
+          ...restData,
+          ...(project_id !== undefined ? { project: project_id ? { connect: { id: project_id } } : { disconnect: true } } : {}),
+          ...(assigned_to !== undefined ? { assignee: assigned_to ? { connect: { id: assigned_to } } : { disconnect: true } } : {}),
+          ...(assigned_by !== undefined ? { assigner: assigned_by ? { connect: { id: assigned_by } } : { disconnect: true } } : {})
+        }
+      })
+
+      await tx.activityLog.create({
+        data: {
+          task_id: task.id,
+          project_id: task.project_id,
+          action: 'Task details updated',
+          performed_by: session?.user?.id || null,
+        }
+      })
+
+      return task
     })
+
     revalidatePath('/tasks')
-    return { success: true, task }
+    return { success: true, task: result }
   } catch (error) {
     console.error('Error updating task:', error)
     return { success: false, error: 'Failed to update task' }

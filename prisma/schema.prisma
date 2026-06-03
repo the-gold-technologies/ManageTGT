@@ -175,6 +175,9 @@ model Project {
 
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
+
+  @@index([status])
+  @@index([client_id])
 }
 
 model Task {
@@ -197,6 +200,10 @@ model Task {
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
+
+  @@index([status])
+  @@index([assigned_to])
+  @@index([project_id])
 }
 
 model TaskFile {
@@ -221,6 +228,9 @@ model ActivityLog {
   performer    User?    @relation("PerformedBy", fields: [performed_by], references: [id], onDelete: SetNull)
   metadata     Json?
   performed_at DateTime @default(now())
+
+  @@index([task_id])
+  @@index([project_id])
 }
 
 model Invoice {
@@ -243,6 +253,10 @@ model Invoice {
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+  @@index([project_id])
+  @@index([client_id])
 }
 
 model Expense {
@@ -258,6 +272,9 @@ model Expense {
 
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([expense_type])
+  @@index([project_id])
 }
 
 model SalesTarget {
@@ -284,4 +301,8 @@ model SalesClosure {
   project    Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
   closed_at  DateTime @default(now())
   notes      String?  @db.Text
+
+  @@index([target_id])
+  @@index([project_id])
+  @@index([client_id])
 }
