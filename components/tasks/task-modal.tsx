@@ -169,7 +169,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Project</label>
                   <select {...register('project_id')} className={inputClass} disabled={isRestricted}>
                     <option value="">No project</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>)}
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.name}</option>)}
                   </select>
                 </div>
                 <div>

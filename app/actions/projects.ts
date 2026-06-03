@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { createNotification } from './notifications'
 
 export async function getProjects() {
   try {
@@ -59,6 +60,18 @@ export async function createProject(data: any) {
         ...(team_lead_id ? { teamLead: { connect: { id: team_lead_id } } } : {})
       }
     })
+    
+    // Notify the team lead if they are assigned and they are not the creator
+    if (team_lead_id && team_lead_id !== session?.user?.id) {
+      await createNotification({
+        user_id: team_lead_id,
+        type: 'project_assigned',
+        title: 'Assigned as Team Lead',
+        message: `You have been assigned as the team lead for project: ${restData.name}`,
+        link: '/projects'
+      })
+    }
+    
     revalidatePath('/projects')
     return { success: true, project }
   } catch (error) {

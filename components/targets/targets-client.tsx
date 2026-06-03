@@ -86,7 +86,7 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-text">Sales Targets — {now.getFullYear()}</h2>
+          <h2 className="text-xl font-bold text-text">Sales Targets - {now.getFullYear()}</h2>
           <p className="text-sm text-text-secondary mt-0.5">Monthly service-wise targets and achievements</p>
         </div>
         <Button onClick={() => setAddTargetOpen(true)}><Plus size={15} /> Set Target</Button>

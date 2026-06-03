@@ -54,6 +54,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
       return data as unknown as Task[]
     },
     initialData: initialTasks,
+    refetchInterval: 15000, // Poll every 15 seconds
   })
 
   const updateStatus = useMutation({

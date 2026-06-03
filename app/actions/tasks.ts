@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { createNotification } from './notifications'
 
 export async function getTasks() {
   try {
@@ -34,7 +35,7 @@ export async function getTasks() {
 export async function updateTaskStatus(id: string, status: any, completion_date?: string) {
   try {
     const session = await auth()
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
         where: { id },
         data: { 
@@ -51,7 +52,31 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
           performed_by: session?.user?.id || null,
         }
       })
+      
+      return task
     })
+
+    // Notify assignee if someone else changed the status
+    if (result.assigned_to && result.assigned_to !== session?.user?.id) {
+      await createNotification({
+        user_id: result.assigned_to,
+        type: 'task_status',
+        title: 'Task Status Updated',
+        message: `Status changed to ${status} for task: ${result.title}`,
+        link: '/tasks'
+      })
+    }
+    // Notify assigner if someone else changed the status
+    if (result.assigned_by && result.assigned_by !== session?.user?.id) {
+      await createNotification({
+        user_id: result.assigned_by,
+        type: 'task_status',
+        title: 'Task Status Updated',
+        message: `Status changed to ${status} for task: ${result.title}`,
+        link: '/tasks'
+      })
+    }
+
     revalidatePath('/tasks')
     return { success: true }
   } catch (error) {
@@ -103,6 +128,17 @@ export async function createTask(data: any) {
       return task
     })
     
+    // Notify the assignee
+    if (result.assigned_to && result.assigned_to !== session?.user?.id) {
+      await createNotification({
+        user_id: result.assigned_to,
+        type: 'task_assigned',
+        title: 'New Task Assigned',
+        message: `You have been assigned to task: ${result.title}`,
+        link: '/tasks'
+      })
+    }
+
     revalidatePath('/tasks')
     return { success: true, task: result }
   } catch (error) {

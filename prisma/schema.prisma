@@ -30,6 +30,7 @@ model User {
   tasksAssignedTo   Task[]        @relation("AssignedTo")
   activityLogs      ActivityLog[] @relation("PerformedBy")
   salesClosures     SalesClosure[] @relation("ClosedBy")
+  notifications     Notification[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -305,4 +306,19 @@ model SalesClosure {
   @@index([target_id])
   @@index([project_id])
   @@index([client_id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  message   String   @db.Text
+  link      String?
+  is_read   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([user_id])
+  @@index([is_read])
 }

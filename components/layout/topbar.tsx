@@ -10,6 +10,7 @@ import type { Profile } from '@/types'
 import { signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
+import NotificationsPopover from './notifications-popover'
 
 interface TopBarProps {
   user: Profile
@@ -125,10 +126,7 @@ export default function TopBar({ user }: TopBarProps) {
         )}
 
         {/* Notifications */}
-        <button className="relative w-9 h-9 rounded-lg bg-bg-secondary border border-border flex items-center justify-center text-text-secondary hover:text-text hover:border-border-muted transition-all">
-          <Bell size={15} />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-primary rounded-full" />
-        </button>
+        <NotificationsPopover />
 
         {/* Avatar */}
         <div className="relative" ref={menuRef}>
