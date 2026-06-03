@@ -66,9 +66,9 @@
 }
 
 .light {
-  --color-bg: #F8F9FA;
+  --color-bg: #F3F4F6;
   --color-bg-secondary: #FFFFFF;
-  --color-bg-tertiary: #F1F3F5;
+  --color-bg-tertiary: #F9FAFB;
 
   --color-border: #E5E7EB;
   --color-border-muted: #D1D5DB;

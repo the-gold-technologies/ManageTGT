@@ -1,38 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
 import ActivityClient from '@/components/activity/activity-client'
+import { getActivities } from '@/app/actions/activity'
 import { redirect } from 'next/navigation'
+import { auth } from '@/auth'
+import prisma from '@/lib/prisma'
 
 export const metadata = {
   title: 'Activity Logs | AgencyOS',
 }
 
 export default async function ActivityPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  if (!session?.user) redirect('/login')
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } })
+  const role = dbUser?.role || 'team_member'
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const activities = await getActivities()
 
-  const role = profile?.role || 'team_member'
-
-  const { data: activities } = await supabase
-    .from('activity_logs')
-    .select(`
-      id,
-      action,
-      performed_at,
-      metadata,
-      performed_by:profiles!activity_logs_performed_by_fkey(full_name, avatar_url),
-      task:tasks(title),
-      project:projects(name)
-    `)
-    .order('performed_at', { ascending: false })
-    .limit(100)
-
-  return <ActivityClient initialActivities={(activities as any) || []} userRole={role} />
+  return <ActivityClient initialActivities={activities as any} userRole={role} />
 }

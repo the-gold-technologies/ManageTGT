@@ -1,12 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
 import ClientsClient from '@/components/clients/clients-client'
+import { getClients } from '@/app/actions/clients'
+import type { Client } from '@/types'
 
 export default async function ClientsPage() {
-  const supabase = await createClient()
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const clients = await getClients()
 
-  return <ClientsClient initialClients={clients ?? []} />
+  return <ClientsClient initialClients={(clients as unknown as Client[]) ?? []} />
 }

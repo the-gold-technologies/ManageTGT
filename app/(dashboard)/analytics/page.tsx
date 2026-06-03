@@ -1,15 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
 import AnalyticsClient from '@/components/analytics/analytics-client'
+import prisma from '@/lib/prisma'
 
 export default async function AnalyticsPage() {
-  const supabase = await createClient()
   const now = new Date()
 
-  const [{ data: invoices }, { data: expenses }, { data: projects }, { data: tasks }] = await Promise.all([
-    supabase.from('invoices').select('amount_received, final_billing, created_at, status'),
-    supabase.from('expenses').select('amount, created_at'),
-    supabase.from('projects').select('status, service_type, quoted_price, created_at'),
-    supabase.from('tasks').select('status, created_at, completion_date, assigned_to'),
+  const [invoices, expenses, projects, tasks] = await Promise.all([
+    prisma.invoice.findMany({ select: { amount_received: true, final_billing: true, createdAt: true, status: true } }),
+    prisma.expense.findMany({ select: { amount: true, createdAt: true } }),
+    prisma.project.findMany({ select: { status: true, service_type: true, quoted_price: true, createdAt: true } }),
+    prisma.task.findMany({ select: { status: true, createdAt: true, completion_date: true, assigned_to: true } }),
   ])
 
   // Build 12-month data
@@ -17,11 +16,11 @@ export default async function AnalyticsPage() {
     const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)
     const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
     const revenue = (invoices ?? []).filter(inv => {
-      const id = new Date(inv.created_at)
+      const id = new Date(inv.createdAt)
       return id.getMonth() === d.getMonth() && id.getFullYear() === d.getFullYear()
     }).reduce((s, inv) => s + (inv.amount_received || 0), 0)
     const expense = (expenses ?? []).filter(exp => {
-      const ed = new Date(exp.created_at)
+      const ed = new Date(exp.createdAt)
       return ed.getMonth() === d.getMonth() && ed.getFullYear() === d.getFullYear()
     }).reduce((s, exp) => s + (exp.amount || 0), 0)
     return { month: label, revenue, expenses: expense, profit: revenue - expense }
@@ -36,5 +35,16 @@ export default async function AnalyticsPage() {
 
   const serviceData = Object.entries(serviceRevenue).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 
-  return <AnalyticsClient monthlyData={monthlyData} serviceData={serviceData} projects={projects ?? []} tasks={tasks ?? []} />
+  const formattedProjects = projects.map(p => ({
+    ...p,
+    createdAt: p.createdAt.toISOString(),
+  }))
+  
+  const formattedTasks = tasks.map(t => ({
+    ...t,
+    createdAt: t.createdAt.toISOString(),
+    completion_date: t.completion_date?.toISOString() || null,
+  }))
+
+  return <AnalyticsClient monthlyData={monthlyData} serviceData={serviceData} projects={formattedProjects as any} tasks={formattedTasks as any} />
 }

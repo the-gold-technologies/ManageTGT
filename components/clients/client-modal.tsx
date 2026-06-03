@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createClient } from '@/lib/supabase/client'
+import { createClient as createClientAction, updateClient as updateClientAction } from '@/app/actions/clients'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -45,7 +45,6 @@ const FIELDS = [
 ]
 
 export default function ClientModal({ open, onClose, client }: ClientModalProps) {
-  const supabase = createClient()
   const qc = useQueryClient()
   const isEdit = !!client
 
@@ -73,13 +72,12 @@ export default function ClientModal({ open, onClose, client }: ClientModalProps)
     const payload = { ...data }
 
     if (isEdit && client) {
-      const { error } = await supabase.from('clients').update(payload).eq('id', client.id)
-      if (error) { toast.error('Failed to update client'); return }
+      const result = await updateClientAction(client.id, payload)
+      if (!result.success) { toast.error(result.error); return }
       toast.success('Client updated')
     } else {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { error } = await supabase.from('clients').insert({ ...payload, created_by: user?.id })
-      if (error) { toast.error('Failed to create client'); return }
+      const result = await createClientAction(payload)
+      if (!result.success) { toast.error(result.error); return }
       toast.success('Client created')
     }
 

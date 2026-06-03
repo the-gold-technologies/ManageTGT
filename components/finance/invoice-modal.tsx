@@ -6,11 +6,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
+import { createInvoice, updateInvoice } from '@/app/actions/finance'
 
 const schema = z.object({
   project_id: z.string().optional(),
@@ -38,7 +38,6 @@ interface InvoiceModalProps {
 }
 
 export default function InvoiceModal({ open, onClose, invoice, projects, clients }: InvoiceModalProps) {
-  const supabase = createClient()
   const qc = useQueryClient()
   const isEdit = !!invoice
 
@@ -55,9 +54,9 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         quoted_value: invoice.quoted_value,
         final_billing: invoice.final_billing,
         amount_received: invoice.amount_received,
-        invoice_date: invoice.invoice_date,
-        due_date: invoice.due_date ?? '',
-        payment_date: invoice.payment_date ?? '',
+        invoice_date: invoice.invoice_date ? new Date(invoice.invoice_date).toISOString().split('T')[0] : '',
+        due_date: invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '',
+        payment_date: invoice.payment_date ? new Date(invoice.payment_date).toISOString().split('T')[0] : '',
         payment_mode: invoice.payment_mode ?? '',
         status: invoice.status,
         notes: invoice.notes ?? '',
@@ -66,16 +65,23 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
   }, [open, invoice, reset])
 
   const onSubmit = async (data: FormData) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const payload = { ...data, project_id: data.project_id || null, client_id: data.client_id || null, payment_mode: data.payment_mode || null, due_date: data.due_date || null, payment_date: data.payment_date || null }
+    const payload = { 
+      ...data, 
+      project_id: data.project_id || null, 
+      client_id: data.client_id || null, 
+      payment_mode: data.payment_mode || null, 
+      invoice_date: data.invoice_date ? new Date(data.invoice_date).toISOString() : new Date().toISOString(),
+      due_date: data.due_date ? new Date(data.due_date).toISOString() : null, 
+      payment_date: data.payment_date ? new Date(data.payment_date).toISOString() : null 
+    }
 
     if (isEdit && invoice) {
-      const { error } = await supabase.from('invoices').update(payload).eq('id', invoice.id)
-      if (error) { toast.error('Failed to update invoice'); return }
+      const result = await updateInvoice(invoice.id, payload)
+      if (!result.success) { toast.error('Failed to update invoice'); return }
       toast.success('Invoice updated')
     } else {
-      const { error } = await supabase.from('invoices').insert({ ...payload, created_by: user?.id })
-      if (error) { toast.error('Failed to create invoice'); return }
+      const result = await createInvoice(payload)
+      if (!result.success) { toast.error('Failed to create invoice'); return }
       toast.success('Invoice created')
     }
 

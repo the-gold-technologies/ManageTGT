@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, UserCog, User, Shield, Briefcase, Target, type LucideIcon } from 'lucide-react'
+import { Plus, Search, UserCog, User, Shield, Briefcase, Target, Trash2, Edit2, type LucideIcon } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
 import TeamModal from './team-modal'
-import { updateMemberRole } from '@/app/actions/team'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { updateMemberRole, getTeamMembers, removeTeamMember } from '@/app/actions/team'
 
 interface TeamClientProps {
   initialProfiles: Profile[]
@@ -42,16 +43,15 @@ const ROLE_ICONS: Record<UserRole, LucideIcon> = {
 export default function TeamClient({ initialProfiles, userRole }: TeamClientProps) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [selectedMember, setSelectedMember] = useState<Profile | null>(null)
+  const [memberToDelete, setMemberToDelete] = useState<Profile | null>(null)
   const qc = useQueryClient()
   const supabase = createClient()
 
   const { data: profiles } = useQuery({
     queryKey: ['team'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: true })
+      const data = await getTeamMembers()
       return data as Profile[]
     },
     initialData: initialProfiles,
@@ -67,7 +67,24 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
       qc.invalidateQueries({ queryKey: ['team'] })
       toast.success('Role updated successfully')
     },
-    onError: (err) => toast.error(err.message || 'Failed to update role'),
+    onError: (err: any) => toast.error(err.message || 'Failed to update role'),
+  })
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await removeTeamMember(id)
+      if (res.error) throw new Error(res.error)
+      return res
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team'] })
+      toast.success('Member removed successfully')
+      setMemberToDelete(null)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to remove member')
+      setMemberToDelete(null)
+    }
   })
 
   const filtered = (profiles ?? []).filter(p => 
@@ -79,6 +96,8 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
   const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
   
   const isAdmin = userRole === 'admin'
+  const isLead = userRole === 'team_lead'
+  const canManage = isAdmin || isLead
 
   return (
     <div className="space-y-5">
@@ -88,8 +107,12 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
           <h2 className="text-xl font-bold text-text">Team Members</h2>
           <p className="text-sm text-text-secondary mt-0.5">{profiles?.length ?? 0} total members</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus size={15} /> Add Member
+        <Button onClick={() => {
+          setSelectedMember(null)
+          setModalOpen(true)
+        }}>
+          <Plus size={16} className="mr-2" />
+          Add Member
         </Button>
       </div>
 
@@ -121,6 +144,7 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                   <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Member</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Role</th>
                   <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Joined Date</th>
+                  {canManage && <th className="text-right px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>}
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
@@ -165,8 +189,33 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                         )}
                       </td>
                       <td className="px-6 py-3 text-text-secondary">
-                        {formatDate(profile.created_at)}
+                        {formatDate(profile.createdAt)}
                       </td>
+                      {canManage && (
+                        <td className="px-6 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedMember(profile)
+                                setModalOpen(true)
+                              }}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
+                              title="Edit Member"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => setMemberToDelete(profile)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-danger/70 hover:text-danger hover:bg-danger/10 transition-all"
+                                title="Remove Member"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </motion.tr>
                   )
                 })}
@@ -178,9 +227,25 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
 
       <TeamModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false)
+          setTimeout(() => setSelectedMember(null), 200)
+        }}
         userRole={userRole}
+        member={selectedMember}
+      />
+
+      <ConfirmModal
+        open={!!memberToDelete}
+        onClose={() => setMemberToDelete(null)}
+        onConfirm={() => memberToDelete && removeMemberMutation.mutate(memberToDelete.id)}
+        title="Remove Team Member"
+        description={`Are you sure you want to completely remove ${memberToDelete?.full_name} from the team? This action will revoke their access and cannot be undone.`}
+        confirmText="Remove Member"
+        isDestructive={true}
+        loading={removeMemberMutation.isPending}
       />
     </div>
   )
 }
+

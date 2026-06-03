@@ -9,10 +9,11 @@ export type ExpenseType = 'freelancer' | 'designer' | 'developer' | 'advertising
 export interface Profile {
   id: string
   full_name: string
+  email?: string
   avatar_url?: string
   role: UserRole
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Client {
@@ -27,8 +28,8 @@ export interface Client {
   pan_number?: string
   notes?: string
   created_by?: string
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Project {
@@ -44,10 +45,10 @@ export interface Project {
   status: ProjectStatus
   delivery_date?: string
   completion_date?: string
-  deliverable_url?: string
+  deliverable_urls?: string[]
   created_by?: string
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   // Joined
   client?: Client
   team_lead?: Profile
@@ -64,8 +65,8 @@ export interface Task {
   completion_date?: string
   status: TaskStatus
   priority: Priority
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   // Joined
   project?: Project
   assignee?: Profile
@@ -110,8 +111,8 @@ export interface Invoice {
   status: InvoiceStatus
   notes?: string
   created_by?: string
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   // Joined
   project?: Project
   client?: Client
@@ -124,10 +125,10 @@ export interface Expense {
   description?: string
   amount: number
   date: string
-  bill_url?: string
+  bill_urls?: string[]
   created_by?: string
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
   project?: Project
 }
 
@@ -138,7 +139,7 @@ export interface SalesTarget {
   year: number
   target_count: number
   created_by?: string
-  created_at: string
+  createdAt: string
   // Computed
   achieved?: number
   remaining?: number
@@ -179,3 +180,5 @@ export interface ProjectProfitability {
   profit: number
   margin: number
 }
+
+

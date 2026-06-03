@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes'
 import { format } from 'date-fns'
 import { getInitials } from '@/lib/utils'
 import type { Profile } from '@/types'
-import { createClient } from '@/lib/supabase/client'
+import { signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -25,7 +25,16 @@ export default function TopBar({ user }: TopBarProps) {
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    
+    // Show welcome toast once per session
+    if (!sessionStorage.getItem('welcome_toast_shown')) {
+      // Small timeout to allow hydration and avoid immediate flicker
+      setTimeout(() => {
+        toast.success(`Welcome back, ${user.full_name}!`)
+      }, 500)
+      sessionStorage.setItem('welcome_toast_shown', 'true')
+    }
+  }, [user.full_name])
 
   const now = new Date()
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
@@ -60,8 +69,7 @@ export default function TopBar({ user }: TopBarProps) {
   }, [])
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOut({ redirect: false })
     toast.success('Signed out successfully')
     router.push('/login')
     router.refresh()

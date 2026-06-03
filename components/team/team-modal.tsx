@@ -11,11 +11,12 @@ import { addTeamMember } from '@/app/actions/team'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
+import type { Profile } from '@/types'
 
 const schema = z.object({
   full_name: z.string().min(1, 'Required'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Min 6 characters'),
+  password: z.string().optional(),
   role: z.enum(['admin', 'team_lead', 'team_member', 'sales_executive']),
 })
 
@@ -25,9 +26,10 @@ interface TeamModalProps {
   open: boolean
   onClose: () => void
   userRole: string
+  member: Profile | null
 }
 
-export default function TeamModal({ open, onClose, userRole }: TeamModalProps) {
+export default function TeamModal({ open, onClose, userRole, member }: TeamModalProps) {
   const qc = useQueryClient()
   const [showPassword, setShowPassword] = useState(false)
 
@@ -40,23 +42,40 @@ export default function TeamModal({ open, onClose, userRole }: TeamModalProps) {
 
   useEffect(() => {
     if (open) {
-      reset({ role: 'team_member', full_name: '', email: '', password: '' })
+      reset({ 
+        role: member?.role || 'team_member', 
+        full_name: member?.full_name || '', 
+        email: member?.email || '', 
+        password: '' 
+      })
       setShowPassword(false)
     }
-  }, [open, reset])
+  }, [open, member, reset])
   
   const onSubmit = async (data: FormData) => {
     if (isRestricted) {
       data.role = 'team_member'
     }
 
-    const res = await addTeamMember(data)
+    if (!member && !data.password) {
+      toast.error('Password is required for new members')
+      return
+    }
+
+    let res
+    if (member) {
+      const { updateTeamMember } = await import('@/app/actions/team')
+      res = await updateTeamMember(member.id, data)
+    } else {
+      res = await addTeamMember(data)
+    }
+
     if (res.error) {
       toast.error(res.error)
       return
     }
 
-    toast.success('Member added successfully')
+    toast.success(member ? 'Member updated successfully' : 'Member added successfully')
     qc.invalidateQueries({ queryKey: ['team'] })
     onClose()
   }
@@ -83,7 +102,7 @@ export default function TeamModal({ open, onClose, userRole }: TeamModalProps) {
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-semibold text-text">Add New Member</h3>
+              <h3 className="font-semibold text-text">{member ? 'Edit Member' : 'Add New Member'}</h3>
               <button
                 onClick={onClose}
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
@@ -120,12 +139,12 @@ export default function TeamModal({ open, onClose, userRole }: TeamModalProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">Initial Password *</label>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">{member ? 'New Password (optional)' : 'Initial Password *'}</label>
                 <div className="relative">
                   <input
                     {...register('password')}
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter a secure password"
+                    placeholder={member ? 'Leave blank to keep current password' : 'Enter a secure password'}
                     className={inputClass}
                   />
                   <button
@@ -165,7 +184,7 @@ export default function TeamModal({ open, onClose, userRole }: TeamModalProps) {
                 Cancel
               </Button>
               <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting}>
-                Add Member
+                {member ? 'Save Changes' : 'Add Member'}
               </Button>
             </div>
           </motion.div>

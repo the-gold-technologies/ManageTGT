@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { SERVICE_TYPES } from '@/lib/utils'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { upsertTarget as upsertTargetAction, getSalesTargets, getSalesClosures } from '@/app/actions/targets'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -43,8 +44,8 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const { data: targets } = useQuery({
     queryKey: ['sales_targets'],
     queryFn: async () => {
-      const { data } = await supabase.from('sales_targets').select('*').eq('year', now.getFullYear()).order('month')
-      return data as SalesTarget[]
+      const data = await getSalesTargets()
+      return data.filter((t: any) => t.year === now.getFullYear()) as unknown as SalesTarget[]
     },
     initialData: initialTargets,
   })
@@ -52,8 +53,8 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const { data: closures } = useQuery({
     queryKey: ['sales_closures'],
     queryFn: async () => {
-      const { data } = await supabase.from('sales_closures').select('*, closer:profiles(full_name), client:clients(name)').order('closed_at', { ascending: false })
-      return data as SalesClosure[]
+      const data = await getSalesClosures()
+      return data as any[]
     },
     initialData: initialClosures,
   })
@@ -64,12 +65,8 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   })
 
   const onSubmitTarget = async (data: TargetFormData) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('sales_targets').upsert(
-      { ...data, created_by: user?.id },
-      { onConflict: 'service_type,month,year' }
-    )
-    if (error) { toast.error('Failed to set target'); return }
+    const result = await upsertTargetAction(data)
+    if (!result.success) { toast.error(result.error); return }
     toast.success('Target set!')
     qc.invalidateQueries({ queryKey: ['sales_targets'] })
     setAddTargetOpen(false)
@@ -170,19 +167,19 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
         {addTargetOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setAddTargetOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" />
+              onClick={() => setAddTargetOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 'calc(100% + 1rem)' }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-bg-secondary border border-border rounded-2xl z-50 shadow-2xl"
+              className="fixed right-4 top-4 bottom-4 w-[calc(100%-2rem)] max-w-lg bg-bg-secondary border border-border rounded-2xl z-50 flex flex-col shadow-2xl overflow-hidden !m-0"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <h3 className="font-semibold text-text">Set Monthly Target</h3>
                 <button onClick={() => setAddTargetOpen(false)} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
               </div>
-              <form onSubmit={handleSubmit(onSubmitTarget)} className="p-6 space-y-4">
+              <form onSubmit={handleSubmit(onSubmitTarget)} className="flex-1 overflow-y-auto p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Type</label>
                   <select {...register('service_type')} className={inputClass}>
@@ -205,11 +202,11 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Target Count</label>
                   <input {...register('target_count')} type="number" min="1" placeholder="10" className={inputClass} />
                 </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="secondary" type="button" onClick={() => setAddTargetOpen(false)}>Cancel</Button>
-                  <Button type="submit" loading={isSubmitting}>Set Target</Button>
-                </div>
               </form>
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border mt-auto">
+                <Button variant="secondary" type="button" onClick={() => setAddTargetOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmit(onSubmitTarget)} loading={isSubmitting}>Set Target</Button>
+              </div>
             </motion.div>
           </>
         )}

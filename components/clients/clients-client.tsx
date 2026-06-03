@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, Building2, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Client } from '@/types'
+import { getClients, deleteClient as deleteClientAction } from '@/app/actions/clients'
 import { Button } from '@/components/ui/button'
 import { Glow } from '@/components/ui/glow'
 import { formatDate } from '@/lib/utils'
@@ -21,21 +21,20 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const qc = useQueryClient()
-  const supabase = createClient()
 
   const { data: clients } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
-      const { data } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
-      return data as Client[]
+      const data = await getClients()
+      return data as unknown as Client[]
     },
     initialData: initialClients,
   })
 
   const deleteClient = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('clients').delete().eq('id', id)
-      if (error) throw error
+      const result = await deleteClientAction(id)
+      if (!result.success) throw new Error(result.error)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] })
@@ -148,7 +147,7 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
-                  <span className="text-xs text-text-muted">Added {formatDate(client.created_at)}</span>
+                  <span className="text-xs text-text-muted">Added {formatDate(client.createdAt)}</span>
                 </div>
               </div>
             </motion.div>
@@ -165,3 +164,4 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
     </div>
   )
 }
+

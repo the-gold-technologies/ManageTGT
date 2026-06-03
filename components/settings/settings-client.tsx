@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Users, User, Shield } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { updateMemberRole } from '@/app/actions/team'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Profile } from '@/types'
@@ -25,13 +25,12 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ profiles, currentProfile }: SettingsClientProps) {
   const [updatingRole, setUpdatingRole] = useState<string | null>(null)
-  const supabase = createClient()
 
   const updateRole = async (userId: string, role: string) => {
     setUpdatingRole(userId)
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
-    if (error) {
-      toast.error('Failed to update role')
+    const result = await updateMemberRole(userId, role as any)
+    if (!result.success) {
+      toast.error(result.error || 'Failed to update role')
     } else {
       toast.success('Role updated')
     }
@@ -64,7 +63,7 @@ export default function SettingsClient({ profiles, currentProfile }: SettingsCli
                 <Badge variant={ROLE_BADGE_MAP[currentProfile.role] ?? 'muted'}>
                   {currentProfile.role.replace('_', ' ')}
                 </Badge>
-                <span className="text-xs text-text-muted">Member since {formatDate(currentProfile.created_at)}</span>
+                <span className="text-xs text-text-muted">Member since {formatDate(currentProfile.createdAt)}</span>
               </div>
             </div>
           </div>
@@ -87,7 +86,7 @@ export default function SettingsClient({ profiles, currentProfile }: SettingsCli
                   </div>
                   <div>
                     <p className="text-sm font-medium text-text">{profile.full_name}</p>
-                    <p className="text-xs text-text-muted">Joined {formatDate(profile.created_at)}</p>
+                    <p className="text-xs text-text-muted">Joined {formatDate(profile.createdAt)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -113,18 +112,7 @@ export default function SettingsClient({ profiles, currentProfile }: SettingsCli
         </div>
       )}
 
-      {/* Supabase Setup Reminder */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-5">
-        <div className="flex items-start gap-3">
-          <Shield size={16} className="text-primary mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-text mb-1">Database Setup</p>
-            <p className="text-xs text-text-secondary leading-relaxed">
-              Run the schema SQL from <code className="px-1 py-0.5 bg-bg-tertiary rounded text-primary text-[11px]">supabase/schema.sql</code> in your Supabase SQL Editor to initialize all tables and policies.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
+

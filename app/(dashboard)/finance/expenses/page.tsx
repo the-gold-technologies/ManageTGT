@@ -1,11 +1,16 @@
-import { createClient } from '@/lib/supabase/server'
 import ExpensesClient from '@/components/finance/expenses-client'
+import { getExpenses } from '@/app/actions/finance'
+import { getProjects } from '@/app/actions/projects'
+import type { Expense, Project } from '@/types'
 
 export default async function ExpensesPage() {
-  const supabase = await createClient()
-  const [{ data: expenses }, { data: projects }] = await Promise.all([
-    supabase.from('expenses').select('*, project:projects(id,name,project_code)').order('date', { ascending: false }),
-    supabase.from('projects').select('id, name, project_code'),
-  ])
-  return <ExpensesClient initialExpenses={expenses ?? []} projects={projects ?? []} />
+  const expenses = await getExpenses()
+  const projects = await getProjects()
+
+  return (
+    <ExpensesClient 
+      initialExpenses={(expenses as unknown as Expense[]) ?? []} 
+      projects={(projects as unknown as Project[]) ?? []} 
+    />
+  )
 }

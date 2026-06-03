@@ -11,6 +11,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Task, Project, Profile, TaskFile } from '@/types'
+import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile } from '@/app/actions/tasks'
+import { uploadFileAction } from '@/app/actions/upload'
 
 const schema = z.object({
   title: z.string().min(1, 'Required'),
@@ -54,7 +56,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         description: task.description ?? '',
         project_id: task.project_id ?? '',
         assigned_to: task.assigned_to ?? '',
-        deadline: task.deadline ? task.deadline.split('T')[0] : '',
+        deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
         priority: task.priority,
         status: task.status,
       } : { priority: 'medium', status: 'todo' })
@@ -78,50 +80,53 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
 
     let targetTaskId = isEdit && task ? task.id : ''
 
-    if (isEdit && task) {
-      const { error } = await supabase.from('tasks').update(payload).eq('id', task.id)
-      if (error) { toast.error('Failed to update task'); return }
+    try {
+      if (isEdit && task) {
+      const result = await updateTask(task.id, payload)
+      if (!result.success) { toast.error('Failed to update task'); return }
       // Log activity
-      await supabase.from('activity_logs').insert({
-        task_id: task.id, action: 'Task Updated', performed_by: user?.id
+      await logActivity({
+        task_id: task.id, action: 'Task Updated'
       })
       toast.success('Task updated')
     } else {
-      const { data: newTask, error } = await supabase.from('tasks').insert(payload).select().single()
-      if (error) { toast.error('Failed to create task'); return }
-      await supabase.from('activity_logs').insert({
-        task_id: newTask.id, action: 'Task Created', performed_by: user?.id
+      const result = await createTask(payload)
+      if (!result.success) { toast.error('Failed to create task'); return }
+      await logActivity({
+        task_id: result.task?.id || '', action: 'Task Created'
       })
       toast.success('Task created')
-      targetTaskId = newTask.id
+      targetTaskId = result.task?.id || ''
     }
 
     if (targetTaskId && selectedFiles.length > 0) {
       setUploadingFiles(true)
       for (const file of selectedFiles) {
-        const fileExt = file.name.split('.').pop()
-        // eslint-disable-next-line react-hooks/purity
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-        const filePath = `tasks/${targetTaskId}/${fileName}`
+        const formData = new window.FormData()
+        formData.append('file', file)
+        formData.append('folder', `tasks/${targetTaskId}`)
         
-        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, file)
+        const uploadResult = await uploadFileAction(formData)
         
-        if (!uploadError) {
-          const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
-          await supabase.from('task_files').insert({
+        if (uploadResult.success) {
+          await addTaskFile({
             task_id: targetTaskId,
             file_name: file.name,
-            file_url: publicUrlData.publicUrl,
-            file_size: file.size,
-            uploaded_by: user?.id
+            file_url: uploadResult.url,
+            file_size: file.size
           })
         }
       }
+        setUploadingFiles(false)
+      }
+
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred. Please try again.')
+      console.error('Submit error:', err)
       setUploadingFiles(false)
     }
-
-    qc.invalidateQueries({ queryKey: ['tasks'] })
-    onClose()
   }
 
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -262,7 +267,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                     <Plus size={16} className="text-text-muted" /> Add more files
                   </div>
                 ) : (
-                  <div className="relative border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                  <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
                     <input 
                       type="file" 
                       multiple 

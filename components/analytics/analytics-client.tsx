@@ -25,8 +25,8 @@ const itemVariants: Variants = {
 interface AnalyticsClientProps {
   monthlyData: Array<{ month: string; revenue: number; expenses: number; profit: number }>
   serviceData: Array<{ name: string; value: number }>
-  projects: Array<{ status: string; service_type: string; quoted_price: number; created_at: string }>
-  tasks: Array<{ status: string; created_at: string; completion_date: string | null; assigned_to: string | null }>
+  projects: Array<{ status: string; service_type: string; quoted_price: number; createdAt: string }>
+  tasks: Array<{ status: string; createdAt: string; completion_date: string | null; assigned_to: string | null }>
 }
 
 export default function AnalyticsClient({ monthlyData, serviceData, projects, tasks }: AnalyticsClientProps) {
@@ -244,3 +244,4 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
     </motion.div>
   )
 }
+

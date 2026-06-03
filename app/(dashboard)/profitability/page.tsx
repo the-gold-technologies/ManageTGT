@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 import { formatCurrency, calculateProfit, calculateMargin } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import StatCard from '@/components/ui/stat-card'
@@ -6,12 +6,10 @@ import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default async function ProfitabilityPage() {
-  const supabase = await createClient()
-
-  const [{ data: projects }, { data: invoices }, { data: expenses }] = await Promise.all([
-    supabase.from('projects').select('id, project_code, name, client:clients(name)'),
-    supabase.from('invoices').select('project_id, amount_received'),
-    supabase.from('expenses').select('project_id, amount'),
+  const [projects, invoices, expenses] = await Promise.all([
+    prisma.project.findMany({ select: { id: true, project_code: true, name: true, client: { select: { name: true } } } }),
+    prisma.invoice.findMany({ select: { project_id: true, amount_received: true } }),
+    prisma.expense.findMany({ select: { project_id: true, amount: true } }),
   ])
 
   const profitData = (projects ?? []).map(project => {

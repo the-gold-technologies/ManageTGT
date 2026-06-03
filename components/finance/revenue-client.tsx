@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, Receipt } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
+import { getInvoices } from '@/app/actions/finance'
 import { toast } from 'sonner'
 import type { Invoice, Project, Client } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -39,16 +39,12 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
   const [modalOpen, setModalOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const qc = useQueryClient()
-  const supabase = createClient()
 
   const { data: invoices } = useQuery({
     queryKey: ['invoices'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('invoices')
-        .select('*, project:projects(id,name,project_code), client:clients(id,name)')
-        .order('created_at', { ascending: false })
-      return data as Invoice[]
+      const data = await getInvoices()
+      return data as unknown as Invoice[]
     },
     initialData: initialInvoices,
   })

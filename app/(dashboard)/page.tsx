@@ -1,35 +1,29 @@
-import { createClient } from '@/lib/supabase/server'
-import { formatCurrency } from '@/lib/utils'
+import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
 import DashboardClient from '@/components/dashboard/dashboard-client'
 
 async function getDashboardData() {
-  const supabase = await createClient()
+  const session = await auth()
+  const dbUser = await prisma.user.findUnique({ where: { id: session?.user?.id || '' } })
+  const userRole = dbUser?.role || 'team_member'
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user?.id || '').single()
-  const userRole = profile?.role || 'team_member'
-
-  let projectsQuery = supabase.from('projects').select('id, status, expected_completion, created_at')
+  let projectsWhere: any = {}
   if (userRole === 'team_lead') {
-    projectsQuery = projectsQuery.eq('team_lead_id', user?.id || '')
+    projectsWhere = { team_lead_id: session?.user?.id }
   }
 
-  let targetsQuery = supabase.from('sales_targets').select('*').eq('month', new Date().getMonth() + 1).eq('year', new Date().getFullYear())
-  let closuresQuery = supabase.from('sales_closures').select('target_id, closed_at')
-
-  // Parallel queries for speed
   const [
-    { data: projects },
-    { data: invoices },
-    { data: expenses },
-    { data: targets },
-    { data: closures },
+    projects,
+    invoices,
+    expenses,
+    targets,
+    closures,
   ] = await Promise.all([
-    ['admin', 'team_lead'].includes(userRole) ? projectsQuery : Promise.resolve({ data: [] }),
-    userRole === 'admin' ? supabase.from('invoices').select('final_billing, amount_received, status, created_at') : Promise.resolve({ data: [] }),
-    userRole === 'admin' ? supabase.from('expenses').select('amount, created_at') : Promise.resolve({ data: [] }),
-    ['admin', 'sales_executive'].includes(userRole) ? targetsQuery : Promise.resolve({ data: [] }),
-    ['admin', 'sales_executive'].includes(userRole) ? closuresQuery : Promise.resolve({ data: [] }),
+    ['admin', 'team_lead'].includes(userRole) ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true } }) : Promise.resolve([]),
+    userRole === 'admin' ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true } }) : Promise.resolve([]),
+    userRole === 'admin' ? prisma.expense.findMany({ select: { amount: true, createdAt: true } }) : Promise.resolve([]),
+    ['admin', 'sales_executive'].includes(userRole) ? prisma.salesTarget.findMany({ where: { month: new Date().getMonth() + 1, year: new Date().getFullYear() } }) : Promise.resolve([]),
+    ['admin', 'sales_executive'].includes(userRole) ? prisma.salesClosure.findMany({ select: { target_id: true, closed_at: true } }) : Promise.resolve([]),
   ])
 
   const now = new Date()
@@ -71,7 +65,7 @@ async function getDashboardData() {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     const monthRevenue = (invoices ?? [])
       .filter(inv => {
-        const invDate = new Date(inv.created_at)
+        const invDate = new Date(inv.createdAt)
         return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear()
       })
       .reduce((s, inv) => s + (inv.amount_received || 0), 0)
@@ -85,13 +79,13 @@ async function getDashboardData() {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     const monthRevenue = (invoices ?? [])
       .filter(inv => {
-        const invDate = new Date(inv.created_at)
+        const invDate = new Date(inv.createdAt)
         return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear()
       })
       .reduce((s, inv) => s + (inv.amount_received || 0), 0)
     const monthExpenses = (expenses ?? [])
       .filter(exp => {
-        const expDate = new Date(exp.created_at)
+        const expDate = new Date(exp.createdAt)
         return expDate.getMonth() === d.getMonth() && expDate.getFullYear() === d.getFullYear()
       })
       .reduce((s, exp) => s + (exp.amount || 0), 0)
@@ -106,38 +100,38 @@ async function getDashboardData() {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     return (expenses ?? [])
       .filter(exp => {
-        const expDate = new Date(exp.created_at)
+        const expDate = new Date(exp.createdAt)
         return expDate.getMonth() === d.getMonth() && expDate.getFullYear() === d.getFullYear()
       })
       .reduce((s, exp) => s + (exp.amount || 0), 0)
   })
 
-  // Pending payments per month (invoices not fully paid, by created_at month)
+  // Pending payments per month (invoices not fully paid, by createdAt month)
   const pendingTrend = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     return (invoices ?? [])
       .filter(inv => {
-        const invDate = new Date(inv.created_at)
+        const invDate = new Date(inv.createdAt)
         return invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear() && inv.status !== 'paid'
       })
       .reduce((s, inv) => s + Math.max(0, (inv.final_billing || 0) - (inv.amount_received || 0)), 0)
   })
 
-  // Active projects count per month (by created_at)
+  // Active projects count per month (by createdAt)
   const activeProjectsTrend = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     return (projects ?? []).filter(p => {
-      const pd = new Date(p.created_at)
+      const pd = new Date(p.createdAt)
       return pd.getFullYear() < d.getFullYear() ||
         (pd.getFullYear() === d.getFullYear() && pd.getMonth() <= d.getMonth())
     }).filter(p => p.status === 'in_progress').length
   })
 
-  // Completed projects per month (by created_at)
+  // Completed projects per month (by createdAt)
   const completedProjectsTrend = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(currentYear, currentMonth - (6 - i), 1)
     return (projects ?? []).filter(p => {
-      const pd = new Date(p.created_at)
+      const pd = new Date(p.createdAt)
       return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear() && p.status === 'completed'
     }).length
   })

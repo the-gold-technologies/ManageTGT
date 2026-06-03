@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, FileDown, CheckSquare, AlertCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Task, Project, Profile, TaskStatus } from '@/types'
+import { getTasks, updateTaskStatus as updateTaskStatusAction } from '@/app/actions/tasks'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Glow } from '@/components/ui/glow'
@@ -46,26 +46,22 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
   const [customDateStart, setCustomDateStart] = useState<Date | null>(null)
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const qc = useQueryClient()
-  const supabase = createClient()
 
   const { data: tasks } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('tasks')
-        .select('*, assignee:profiles!tasks_assigned_to_fkey(id,full_name), assigner:profiles!tasks_assigned_by_fkey(id,full_name), project:projects(id,name,project_code), files:task_files(*)')
-        .order('created_at', { ascending: false })
-      return data as Task[]
+      const data = await getTasks()
+      return data as unknown as Task[]
     },
     initialData: initialTasks,
   })
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const payload: Record<string, unknown> = { status }
-      if (status === 'completed') payload.completion_date = new Date().toISOString()
-      const { error } = await supabase.from('tasks').update(payload).eq('id', id)
-      if (error) throw error
+      let completion_date: string | undefined
+      if (status === 'completed') completion_date = new Date().toISOString()
+      const result = await updateTaskStatusAction(id, status, completion_date)
+      if (!result.success) throw new Error(result.error)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] })
@@ -79,8 +75,8 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
                           t.project?.name.toLowerCase().includes(search.toLowerCase()) || ''
                           
     let matchesDate = true
-    if (dateFilter !== 'all' && t.created_at) {
-      const expected = startOfDay(new Date(t.created_at))
+    if (dateFilter !== 'all' && t.createdAt) {
+      const expected = startOfDay(new Date(t.createdAt))
       const today = startOfDay(new Date())
       
       if (dateFilter === 'today') matchesDate = isSameDay(expected, today)
@@ -92,7 +88,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
         if (customDateStart && expected < startOfDay(customDateStart)) matchesDate = false
         if (customDateEnd && expected > startOfDay(customDateEnd)) matchesDate = false
       }
-    } else if (dateFilter !== 'all' && !t.created_at) {
+    } else if (dateFilter !== 'all' && !t.createdAt) {
       matchesDate = false
     }
     return matchesSearch && matchesDate
@@ -106,7 +102,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
     t.status,
     t.priority,
     t.deadline ? new Date(t.deadline).toLocaleDateString() : 'N/A',
-    new Date(t.created_at).toLocaleDateString()
+    new Date(t.createdAt).toLocaleDateString()
   ]
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
@@ -237,3 +233,4 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
     </div>
   )
 }
+

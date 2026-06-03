@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, UploadCloud, FileText } from 'lucide-react'
+import { X, UploadCloud, FileText, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
@@ -12,6 +12,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Project, Client, Profile } from '@/types'
 import { SERVICE_TYPES } from '@/lib/utils'
+import { createProject as createProjectAction, updateProject as updateProjectAction } from '@/app/actions/projects'
+import { uploadMultipleFilesAction } from '@/app/actions/upload'
 
 const schema = z.object({
   name: z.string().min(1, 'Required'),
@@ -41,7 +43,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const qc = useQueryClient()
   const isEdit = !!project
   
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [existingUrls, setExistingUrls] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
   const teamLeads = profiles.filter(p => ['admin', 'team_lead'].includes(p.role))
@@ -53,17 +56,27 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
 
   useEffect(() => {
     if (open) {
-      setFile(null)
+      setFiles([])
+      setExistingUrls(project?.deliverable_urls || [])
       reset(project ? {
         name: project.name,
         client_id: project.client_id ?? '',
         service_type: project.service_type,
         quoted_price: project.quoted_price,
-        start_date: project.start_date ?? '',
-        expected_completion: project.expected_completion ?? '',
+        start_date: project.start_date ? new Date(project.start_date).toISOString().split('T')[0] : '',
+        expected_completion: project.expected_completion ? new Date(project.expected_completion).toISOString().split('T')[0] : '',
         team_lead_id: project.team_lead_id ?? '',
         status: project.status,
-      } : { status: 'pending', quoted_price: 0 })
+      } : { 
+        name: '', 
+        client_id: '', 
+        service_type: 'Website Development', 
+        quoted_price: 0, 
+        start_date: '', 
+        expected_completion: '', 
+        team_lead_id: '', 
+        status: 'pending' 
+      })
     }
   }, [open, project, reset])
 
@@ -73,46 +86,51 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       client_id: data.client_id || null,
       service_type: data.service_type,
       quoted_price: data.quoted_price,
-      start_date: data.start_date || null,
-      expected_completion: data.expected_completion || null,
+      start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
+      expected_completion: data.expected_completion ? new Date(data.expected_completion).toISOString() : null,
       team_lead_id: data.team_lead_id || null,
       status: data.status,
     } as any
 
     setIsUploading(true)
     try {
-      if (file) {
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
-        const filePath = `deliverables/${fileName}`
+      let uploadedUrls: string[] = []
 
-        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, file)
+      if (files.length > 0) {
+        const formData = new window.FormData()
+        files.forEach(f => formData.append('files', f))
+        formData.append('folder', 'deliverables')
+
+        const uploadResult = await uploadMultipleFilesAction(formData)
         
-        if (uploadError) {
-          toast.error('Failed to upload deliverable file')
-          console.error(uploadError)
+        if (!uploadResult.success) {
+          toast.error('Failed to upload deliverable files')
+          console.error(uploadResult.error)
         } else {
-          const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
-          payload.deliverable_url = publicUrlData.publicUrl
+          uploadedUrls = uploadResult.urls || []
         }
       }
+      
+      payload.deliverable_urls = [...existingUrls, ...uploadedUrls]
 
-      if (isEdit) {
+      if (isEdit && project) {
         if (data.status === 'completed' && !project?.completion_date) {
           payload.completion_date = new Date().toISOString()
         }
-        const { error } = await supabase.from('projects').update(payload).eq('id', project.id)
-        if (error) { toast.error('Failed to update project'); return }
+        const result = await updateProjectAction(project.id, payload)
+        if (!result.success) { toast.error('Failed to update project'); return }
         toast.success('Project updated')
       } else {
-        const { data: { user } } = await supabase.auth.getUser()
-        const { error } = await supabase.from('projects').insert({ ...payload, created_by: user?.id })
-        if (error) { toast.error('Failed to create project'); return }
+        const result = await createProjectAction(payload)
+        if (!result.success) { toast.error('Failed to create project'); return }
         toast.success('Project created')
       }
 
       qc.invalidateQueries({ queryKey: ['projects'] })
       onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred. Please try again.')
+      console.error('Submit error:', err)
     } finally {
       setIsUploading(false)
     }
@@ -205,34 +223,92 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               <div className="pt-2">
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Final Deliverable (Optional)</label>
                 
-                {project?.deliverable_url && !file && (
-                  <div className="mb-3 p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText size={16} className="text-primary shrink-0" />
-                      <span className="text-sm text-text truncate">Existing Deliverable File</span>
-                    </div>
-                    <a href={project.deliverable_url} target="_blank" className="text-xs font-medium text-primary hover:underline whitespace-nowrap">View</a>
+                {existingUrls.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {existingUrls.map((url, idx) => {
+                      // Extract filename from our format: random_timestamp_originalName.ext
+                      const urlParts = url.split('/')
+                      const lastPart = urlParts[urlParts.length - 1]
+                      // Try to remove the random_timestamp_ prefix if it exists, otherwise use the whole thing
+                      const nameParts = lastPart.split('_')
+                      const displayName = nameParts.length >= 3 ? nameParts.slice(2).join('_') : lastPart
+
+                      return (
+                        <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <FileText size={16} className="text-primary shrink-0" />
+                            <span className="text-sm text-text truncate" title={displayName}>{displayName}</span>
+                          </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View</a>
+                          <button 
+                            type="button" 
+                            onClick={() => setExistingUrls(existingUrls.filter(u => u !== url))}
+                            className="text-text-muted hover:text-danger"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )})}
                   </div>
                 )}
 
-                <div className="relative border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
-                  <input 
-                    type="file" 
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setFile(e.target.files[0])
-                      }
-                    }}
-                  />
-                  <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
-                    <UploadCloud size={18} />
+                {files.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {files.map((f, idx) => (
+                      <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText size={16} className="text-text-secondary shrink-0" />
+                          <span className="text-sm text-text truncate">{f.name}</span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                          className="text-text-muted hover:text-danger"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-sm font-medium text-text">
-                    {file ? file.name : (project?.deliverable_url ? 'Replace deliverable file' : 'Click or drag file to upload')}
-                  </p>
-                  <p className="text-[11px] text-text-muted mt-0.5">Upload final project files/zip</p>
-                </div>
+                )}
+
+                {(existingUrls.length > 0 || files.length > 0) ? (
+                  <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
+                    <input 
+                      type="file" 
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                        }
+                      }}
+                    />
+                    <Plus size={16} className="text-text-muted" /> Add more files
+                  </div>
+                ) : (
+                  <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                    <input 
+                      type="file" 
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                        }
+                      }}
+                    />
+                    <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
+                      <UploadCloud size={18} />
+                    </div>
+                    <p className="text-sm font-medium text-text">
+                      Click or drag files to upload
+                    </p>
+                    <p className="text-[11px] text-text-muted mt-0.5">Upload final project files/zip</p>
+                  </div>
+                )}
               </div>
             </form>
 

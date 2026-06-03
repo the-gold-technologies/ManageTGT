@@ -3,6 +3,7 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import QueryProvider from '@/components/providers/query-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+import { AuthProvider } from '@/components/providers/session-provider'
 
 export const metadata: Metadata = {
   title: 'AgencyOS - Business Management Platform',
@@ -16,17 +17,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-bg text-text font-sans antialiased transition-colors duration-300">
+      <body className="bg-bg text-text font-sans antialiased transition-colors duration-300" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <QueryProvider>
-            {children}
+          <AuthProvider>
+            <QueryProvider>
+              {children}
             <Toaster
               position="top-right"
               toastOptions={{
                 className: 'bg-bg border border-border text-text',
               }}
             />
-          </QueryProvider>
+            </QueryProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

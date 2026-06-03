@@ -1,14 +1,42 @@
-import { createClient } from '@/lib/supabase/server'
 import TargetsClient from '@/components/targets/targets-client'
+import { getSalesTargets } from '@/app/actions/targets'
+import prisma from '@/lib/prisma'
 
 export default async function TargetsPage() {
-  const supabase = await createClient()
   const now = new Date()
-  const [{ data: targets }, { data: closures }, { data: profiles }] = await Promise.all([
-    supabase.from('sales_targets').select('*').eq('year', now.getFullYear()).order('month'),
-    supabase.from('sales_closures').select('*, closer:profiles(full_name), client:clients(name)').order('closed_at', { ascending: false }),
-    supabase.from('profiles').select('id, full_name, role').in('role', ['admin', 'sales_executive']),
-  ])
+  
+  const targets = await getSalesTargets()
+  const currentYearTargets = targets.filter(t => t.year === now.getFullYear())
+  
+  const closures = await prisma.salesClosure.findMany({
+    include: {
+      closer: { select: { name: true } },
+      client: { select: { name: true } }
+    },
+    orderBy: { closed_at: 'desc' }
+  })
+  
+  const formattedClosures = closures.map(c => ({
+    ...c,
+    closer: c.closer ? { full_name: c.closer.name } : null
+  }))
 
-  return <TargetsClient initialTargets={targets ?? []} initialClosures={closures ?? []} profiles={profiles ?? []} />
+  const profiles = await prisma.user.findMany({
+    where: { role: { in: ['admin', 'sales_executive'] } },
+    select: { id: true, name: true, role: true }
+  })
+
+  const formattedProfiles = profiles.map(p => ({
+    id: p.id,
+    full_name: p.name || 'User',
+    role: p.role
+  }))
+
+  return (
+    <TargetsClient 
+      initialTargets={(currentYearTargets as any) ?? []} 
+      initialClosures={(formattedClosures as any) ?? []} 
+      profiles={(formattedProfiles as any) ?? []} 
+    />
+  )
 }

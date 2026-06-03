@@ -13,6 +13,7 @@ import {
   DollarSign, TrendingUp, Wallet, FolderKanban,
   CheckCircle2, Clock, Target
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
 interface DashboardClientProps {
   userRole?: string
@@ -58,6 +59,11 @@ const CHART_COLORS = {
 }
 
 export default function DashboardClient({ data, userRole }: DashboardClientProps) {
+  const { resolvedTheme } = useTheme()
+  const gridColor = resolvedTheme === 'dark' ? '#1E1E2A' : '#E5E7EB'
+  const tooltipBgColor = resolvedTheme === 'dark' ? '#171717' : '#FFFFFF'
+  const tooltipBorderColor = resolvedTheme === 'dark' ? '#262626' : '#E5E7EB'
+
   const { stats, revenueTrend, profitTrend, projectStatusData, expensesTrend, pendingTrend, activeProjectsTrend, completedProjectsTrend } = data
   const role = userRole || data.userRole || 'team_member'
   
@@ -199,14 +205,14 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                     <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.4} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2A" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                 <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
                 <Tooltip
                   formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Revenue']}
-                  cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 6 }}
-                  contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: 10, fontSize: 12 }}
+                  cursor={{ fill: resolvedTheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', radius: 6 }}
+                  contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
                   labelStyle={{ color: '#9191A4' }}
                   itemStyle={{ color: CHART_COLORS.primary }}
                 />
@@ -319,14 +325,14 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
                     <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2A" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                 <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
                 <Tooltip
                   formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Profit']}
                   cursor={{ stroke: CHART_COLORS.success, strokeWidth: 1, strokeDasharray: '4 4' }}
-                  contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: 10, fontSize: 12 }}
+                  contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
                   labelStyle={{ color: '#9191A4' }}
                   itemStyle={{ color: CHART_COLORS.success }}
                 />

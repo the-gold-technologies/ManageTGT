@@ -1,31 +1,46 @@
-import { createClient } from '@/lib/supabase/server'
 import TasksClient from '@/components/tasks/tasks-client'
+import { getTasks } from '@/app/actions/tasks'
+import { getProjects } from '@/app/actions/projects'
+import prisma from '@/lib/prisma'
+import { auth } from '@/auth'
+import type { Task, Project, Profile } from '@/types'
 
 export default async function TasksPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user?.id || '').single()
-  const userRole = profile?.role || 'team_member'
+  const session = await auth()
+  const dbUser = await prisma.user.findUnique({ where: { id: session?.user?.id || '' } })
+  const userRole = dbUser?.role || 'team_member'
 
-  const { data: teamLeadProjects } = await supabase.from('projects').select('id').eq('team_lead_id', user?.id || '')
-  const projectIds = teamLeadProjects?.map(p => p.id) || []
+  const allProjects = await getProjects()
+  const teamLeadProjectIds = allProjects.filter(p => p.team_lead_id === session?.user?.id).map(p => p.id)
 
-  let tasksQuery = supabase.from('tasks')
-    .select('*, assignee:profiles!tasks_assigned_to_fkey(id,full_name), assigner:profiles!tasks_assigned_by_fkey(id,full_name), project:projects(id,name,project_code), files:task_files(*)')
-    .order('created_at', { ascending: false })
+  const allTasks = await getTasks()
+  let tasks = allTasks
 
   if (userRole === 'team_lead') {
-    const projectFilter = projectIds.length > 0 ? `project_id.in.(${projectIds.join(',')}),` : ''
-    tasksQuery = tasksQuery.or(`${projectFilter}assigned_by.eq.${user?.id || ''},assigned_to.eq.${user?.id || ''}`)
+    tasks = allTasks.filter(t => 
+      teamLeadProjectIds.includes(t.project_id || '') || 
+      t.assigned_by === session?.user?.id || 
+      t.assigned_to === session?.user?.id
+    )
   } else if (userRole === 'team_member') {
-    tasksQuery = tasksQuery.eq('assigned_to', user?.id || '')
+    tasks = allTasks.filter(t => t.assigned_to === session?.user?.id)
   }
 
-  const [{ data: tasks }, { data: projects }, { data: profiles }] = await Promise.all([
-    tasksQuery,
-    supabase.from('projects').select('id, name, project_code').in('status', ['pending','in_progress','on_hold']),
-    supabase.from('profiles').select('id, full_name, role'),
-  ])
+  const projects = allProjects.filter(p => ['pending', 'in_progress', 'on_hold'].includes(p.status))
+  const profiles = await prisma.user.findMany({ select: { id: true, name: true, role: true } })
 
-  return <TasksClient initialTasks={tasks ?? []} projects={projects ?? []} profiles={profiles ?? []} userRole={userRole} />
+  const formattedProfiles = profiles.map(p => ({
+    id: p.id,
+    full_name: p.name || 'User',
+    role: p.role
+  }))
+
+  return (
+    <TasksClient 
+      initialTasks={(tasks as unknown as Task[]) ?? []} 
+      projects={(projects as unknown as Project[]) ?? []} 
+      profiles={(formattedProfiles as unknown as Profile[]) ?? []} 
+      userRole={userRole} 
+    />
+  )
 }

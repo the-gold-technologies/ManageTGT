@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, FolderKanban, Calendar, User, MoreHorizontal, Pencil, Trash2, Eye, FileDown } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Project, Client, Profile } from '@/types'
+import { getProjects, deleteProject as deleteProjectAction } from '@/app/actions/projects'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency, PROJECT_STATUS_CONFIG, isOverdue } from '@/lib/utils'
@@ -41,24 +41,20 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const qc = useQueryClient()
-  const supabase = createClient()
 
   const { data: projects } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('projects')
-        .select('*, client:clients(id,name,company_name), team_lead:profiles!projects_team_lead_id_fkey(id,full_name)')
-        .order('created_at', { ascending: false })
-      return data as Project[]
+      const data = await getProjects()
+      return data as unknown as Project[]
     },
     initialData: initialProjects,
   })
 
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('projects').delete().eq('id', id)
-      if (error) throw error
+      const result = await deleteProjectAction(id)
+      if (!result.success) throw new Error(result.error)
     },
     onSuccess: () => {
       toast.success('Project deleted')
@@ -75,8 +71,8 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     const matchStatus = statusFilter === 'all' || p.status === statusFilter
     
     let matchDate = true
-    if (dateFilter !== 'all' && p.created_at) {
-      const expected = startOfDay(new Date(p.created_at))
+    if (dateFilter !== 'all' && p.createdAt) {
+      const expected = startOfDay(new Date(p.createdAt))
       const today = startOfDay(new Date())
       
       if (dateFilter === 'today') matchDate = isSameDay(expected, today)
@@ -88,7 +84,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         if (customDateStart && expected < startOfDay(customDateStart)) matchDate = false
         if (customDateEnd && expected > startOfDay(customDateEnd)) matchDate = false
       }
-    } else if (dateFilter !== 'all' && !p.created_at) {
+    } else if (dateFilter !== 'all' && !p.createdAt) {
       matchDate = false
     }
 
@@ -261,3 +257,4 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     </div>
   )
 }
+

@@ -1,0 +1,287 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- NextAuth Models ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  
+  // Custom fields for AgencyOS
+  role          UserRole  @default(team_member)
+  
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Domain relations
+  projectsLed       Project[]     @relation("TeamLead")
+  tasksAssignedBy   Task[]        @relation("AssignedBy")
+  tasksAssignedTo   Task[]        @relation("AssignedTo")
+  activityLogs      ActivityLog[] @relation("PerformedBy")
+  salesClosures     SalesClosure[] @relation("ClosedBy")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- AgencyOS Domain Models ---
+
+enum UserRole {
+  admin
+  team_lead
+  team_member
+  sales_executive
+}
+
+enum ProjectStatus {
+  pending
+  in_progress
+  on_hold
+  delivered
+  completed
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  review
+  completed
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum InvoiceStatus {
+  paid
+  partially_paid
+  pending
+  overdue
+}
+
+enum PaymentMode {
+  bank_transfer
+  upi
+  cash
+  cheque
+  card
+  other
+}
+
+enum ExpenseType {
+  freelancer
+  designer
+  developer
+  advertising
+  travel
+  software
+  hosting
+  miscellaneous
+}
+
+model Client {
+  id             String    @id @default(cuid())
+  name           String
+  company_name   String?
+  contact_person String?
+  mobile         String?
+  email          String?
+  address        String?
+  gst_number     String?
+  pan_number     String?
+  notes          String?   @db.Text
+  createdBy      String?
+  
+  projects       Project[]
+  invoices       Invoice[]
+  salesClosures  SalesClosure[]
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Project {
+  id                  String        @id @default(cuid())
+  project_code        String        @unique
+  name                String
+  client_id           String?
+  client              Client?       @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  service_type        String
+  quoted_price        Float
+  start_date          DateTime?
+  expected_completion DateTime?
+  team_lead_id        String?
+  teamLead            User?         @relation("TeamLead", fields: [team_lead_id], references: [id], onDelete: SetNull)
+  status              ProjectStatus @default(pending)
+  delivery_date       DateTime?
+  completion_date     DateTime?
+  deliverable_urls    String[]      @default([])
+  created_by          String?
+  
+  tasks               Task[]
+  invoices            Invoice[]
+  expenses            Expense[]
+  activityLogs        ActivityLog[]
+  salesClosures       SalesClosure[]
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model Task {
+  id              String      @id @default(cuid())
+  project_id      String?
+  project         Project?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  title           String
+  description     String?     @db.Text
+  assigned_by     String?
+  assigner        User?       @relation("AssignedBy", fields: [assigned_by], references: [id], onDelete: SetNull)
+  assigned_to     String?
+  assignee        User?       @relation("AssignedTo", fields: [assigned_to], references: [id], onDelete: SetNull)
+  deadline        DateTime?
+  completion_date DateTime?
+  status          TaskStatus  @default(todo)
+  priority        Priority    @default(medium)
+  
+  files           TaskFile[]
+  logs            ActivityLog[]
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model TaskFile {
+  id          String   @id @default(cuid())
+  task_id     String
+  task        Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  file_name   String
+  file_url    String
+  file_size   Int?
+  uploaded_by String?
+  uploaded_at DateTime @default(now())
+}
+
+model ActivityLog {
+  id           String   @id @default(cuid())
+  task_id      String?
+  task         Task?    @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  project_id   String?
+  project      Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  action       String
+  performed_by String?
+  performer    User?    @relation("PerformedBy", fields: [performed_by], references: [id], onDelete: SetNull)
+  metadata     Json?
+  performed_at DateTime @default(now())
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoice_number  String        @unique
+  project_id      String?
+  project         Project?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  client_id       String?
+  client          Client?       @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  quoted_value    Float
+  final_billing   Float
+  amount_received Float         @default(0)
+  invoice_date    DateTime
+  due_date        DateTime?
+  payment_date    DateTime?
+  payment_mode    PaymentMode?
+  status          InvoiceStatus @default(pending)
+  notes           String?       @db.Text
+  created_by      String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Expense {
+  id           String      @id @default(cuid())
+  project_id   String?
+  project      Project?    @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  expense_type ExpenseType
+  description  String?     @db.Text
+  amount       Float
+  date         DateTime
+  bill_urls    String[]    @default([])
+  created_by   String?
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model SalesTarget {
+  id           String   @id @default(cuid())
+  service_type String
+  month        Int
+  year         Int
+  target_count Int
+  created_by   String?
+
+  createdAt    DateTime @default(now())
+  
+  @@unique([service_type, month, year])
+}
+
+model SalesClosure {
+  id         String   @id @default(cuid())
+  target_id  String
+  closed_by  String?
+  closer     User?    @relation("ClosedBy", fields: [closed_by], references: [id], onDelete: SetNull)
+  client_id  String?
+  client     Client?  @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  project_id String?
+  project    Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  closed_at  DateTime @default(now())
+  notes      String?  @db.Text
+}

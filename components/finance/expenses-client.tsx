@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, Wallet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
+import { getExpenses, addExpense } from '@/app/actions/finance'
+import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -50,16 +51,15 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const [customDateStart, setCustomDateStart] = useState<Date | null>(null)
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const qc = useQueryClient()
-  const supabase = createClient()
 
   const { data: expenses } = useQuery({
     queryKey: ['expenses'],
     queryFn: async () => {
-      const { data } = await supabase.from('expenses').select('*, project:projects(id,name,project_code)').order('date', { ascending: false })
-      return data as Expense[]
+      const data = await getExpenses()
+      return data as unknown as Expense[]
     },
     initialData: initialExpenses,
   })
@@ -112,46 +112,31 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
     defaultValues: { expense_type: 'miscellaneous', date: new Date().toISOString().split('T')[0], amount: 0 },
   })
 
+  const { data: session } = useSession()
+
   const onSubmit = async (data: FormData) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    let billUrl = null
     setIsUploading(true)
 
     try {
-      if (file) {
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
-        const filePath = `receipts/${fileName}`
+      const formData = new window.FormData()
+      formData.append('expense_type', data.expense_type)
+      formData.append('amount', data.amount.toString())
+      formData.append('date', data.date)
+      if (data.project_id) formData.append('project_id', data.project_id)
+      if (data.description) formData.append('description', data.description)
+      if (session?.user?.id) formData.append('created_by', session.user.id)
+      files.forEach(f => formData.append('files', f))
 
-        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, file)
-        
-        if (uploadError) {
-          toast.error('Failed to upload receipt')
-          console.error(uploadError)
-        } else {
-          const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
-          billUrl = publicUrlData.publicUrl
-        }
-      }
+      await addExpense(formData)
 
-      const payload: any = {
-        ...data, 
-        project_id: data.project_id || null, 
-        created_by: user?.id,
-      }
-      
-      if (billUrl) {
-        payload.bill_url = billUrl
-      }
-
-      const { error } = await supabase.from('expenses').insert(payload)
-      if (error) { toast.error('Failed to add expense'); return }
       toast.success('Expense added')
       qc.invalidateQueries({ queryKey: ['expenses'] })
       setModalOpen(false)
       reset()
-      setFile(null)
+      setFiles([])
+    } catch (err: any) {
+      toast.error('Failed to add expense')
+      console.error(err)
     } finally {
       setIsUploading(false)
     }
@@ -226,10 +211,14 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                   <td className="px-4 py-3 text-text-secondary">{e.project?.name || '—'}</td>
                   <td className="px-4 py-3 font-medium text-danger">{formatCurrency(e.amount)}</td>
                   <td className="px-4 py-3">
-                    {e.bill_url ? (
-                      <a href={e.bill_url} target="_blank" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline bg-primary/10 px-2 py-1 rounded-md transition-colors">
-                        <ExternalLink size={12} /> View
-                      </a>
+                    {e.bill_urls && e.bill_urls.length > 0 ? (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {e.bill_urls.map((url, i) => (
+                          <a key={i} href={url} target="_blank" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline bg-primary/10 px-2 py-1 rounded-md transition-colors">
+                            <ExternalLink size={12} /> View {e.bill_urls!.length > 1 ? i + 1 : ''}
+                          </a>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-xs text-text-muted">—</span>
                     )}
@@ -258,7 +247,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <h3 className="font-semibold text-text">Add Expense</h3>
-                <button onClick={() => { setModalOpen(false); setFile(null) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
+                <button onClick={() => { setModalOpen(false); setFiles([]) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
               </div>
               <form onSubmit={handleSubmit(onSubmit)} className="flex-1 p-6 space-y-4 overflow-y-auto">
                 <div>
@@ -288,29 +277,67 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                   <textarea {...register('description')} placeholder="e.g. Freelancer payment for landing page" rows={3}
                     className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none" />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Receipt / Bill (Optional)</label>
-                  <div className="relative border border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
-                    <input 
-                      type="file" 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setFile(e.target.files[0])
-                        }
-                      }}
-                    />
-                    <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
-                      {file ? <FileText size={18} className="text-primary" /> : <UploadCloud size={18} />}
+                <div className="pt-2">
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Receipts / Attachments (Optional)</label>
+                  
+                  {files.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {files.map((f, idx) => (
+                        <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <FileText size={16} className="text-primary shrink-0" />
+                            <span className="text-sm text-text truncate">{f.name}</span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                            className="text-text-muted hover:text-danger"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-sm font-medium text-text">
-                      {file ? file.name : 'Click or drag file to upload'}
-                    </p>
-                  </div>
+                  )}
+
+                  {files.length > 0 ? (
+                    <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
+                      <input 
+                        type="file" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                          }
+                        }}
+                      />
+                      <Plus size={16} className="text-text-muted" /> Add more files
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                      <input 
+                        type="file" 
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                          }
+                        }}
+                      />
+                      <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
+                        <UploadCloud size={18} />
+                      </div>
+                      <p className="text-sm font-medium text-text">
+                        Click or drag files to upload
+                      </p>
+                    </div>
+                  )}
                 </div>
               </form>
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-                <Button variant="secondary" onClick={() => { setModalOpen(false); setFile(null) }} disabled={isSubmitting || isUploading}>Cancel</Button>
+                <Button variant="secondary" onClick={() => { setModalOpen(false); setFiles([]) }} disabled={isSubmitting || isUploading}>Cancel</Button>
                 <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading}>Add Expense</Button>
               </div>
             </motion.div>

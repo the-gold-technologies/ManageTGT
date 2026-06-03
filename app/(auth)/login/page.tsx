@@ -1,36 +1,49 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { toast } from 'sonner'
+import { useActionState } from 'react'
+import { loginAction } from '@/app/actions/auth'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { useFormStatus } from 'react-dom'
+import { toast } from 'sonner'
+
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-glow-sm mt-2"
+    >
+      {pending ? (
+        <>
+          <Loader2 size={15} className="animate-spin" />
+          Signing in...
+        </>
+      ) : (
+        <>
+          Sign in
+          <ArrowRight size={15} />
+        </>
+      )}
+    </button>
+  )
+}
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  
+  // In React 19 / Next.js 15, we use useActionState. If not available, we could use useFormState from react-dom.
+  // We'll use the modern signature which takes (action, initialState)
+  const [state, formAction] = useActionState(loginAction, undefined)
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      toast.error(error.message)
-      setLoading(false)
-      return
+  useEffect(() => {
+    if (state?.error) {
+      toast.error(state.error)
     }
-
-    toast.success('Welcome back!')
-    router.push('/')
-    router.refresh()
-  }
+  }, [state?.error])
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center p-4 relative overflow-hidden">
@@ -54,7 +67,13 @@ export default function LoginPage() {
 
         {/* Form card */}
         <div className="bg-bg-secondary border border-border rounded-2xl p-8 shadow-card">
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form action={formAction} className="space-y-5">
+            {state?.error && (
+              <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg">
+                {state.error}
+              </div>
+            )}
+            
             {/* Email */}
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium text-text-secondary">
@@ -64,9 +83,8 @@ export default function LoginPage() {
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
                 <input
                   id="email"
+                  name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@agency.com"
                   required
                   className="w-full pl-10 pr-4 py-3 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
@@ -83,9 +101,8 @@ export default function LoginPage() {
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   className="w-full pl-10 pr-10 py-3 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
@@ -101,23 +118,7 @@ export default function LoginPage() {
             </div>
 
             {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary-hover active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-glow-sm mt-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRight size={15} />
-                </>
-              )}
-            </button>
+            <SubmitButton />
           </form>
         </div>
 
