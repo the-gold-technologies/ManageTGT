@@ -14,6 +14,9 @@ import {
   CheckCircle2, Clock, Target
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useEffect, Suspense } from 'react'
+import { toast } from 'sonner'
 
 interface DashboardClientProps {
   userRole?: string
@@ -58,8 +61,18 @@ const CHART_COLORS = {
   danger: '#EF4444',
 }
 
-export default function DashboardClient({ data, userRole }: DashboardClientProps) {
+function DashboardContent({ data, userRole }: DashboardClientProps) {
   const { resolvedTheme } = useTheme()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (searchParams?.get('login') === 'success') {
+      toast.success('Welcome back to your workspace!', { duration: 4000 })
+      router.replace('/')
+    }
+  }, [searchParams, router])
+
   const gridColor = resolvedTheme === 'dark' ? '#1E1E2A' : '#E5E7EB'
   const tooltipBgColor = resolvedTheme === 'dark' ? '#171717' : '#FFFFFF'
   const tooltipBorderColor = resolvedTheme === 'dark' ? '#262626' : '#E5E7EB'
@@ -352,5 +365,13 @@ export default function DashboardClient({ data, userRole }: DashboardClientProps
       </motion.div>
       )}
     </motion.div>
+  )
+}
+
+export default function DashboardClient(props: DashboardClientProps) {
+  return (
+    <Suspense fallback={<div className="flex-1 flex items-center justify-center p-8">Loading dashboard...</div>}>
+      <DashboardContent {...props} />
+    </Suspense>
   )
 }

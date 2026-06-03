@@ -16,6 +16,7 @@ import { DollarSign, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
+import { TablePagination } from '@/components/ui/table-pagination'
 
 interface RevenueClientProps {
   initialInvoices: Invoice[]
@@ -38,6 +39,8 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
   const { data: invoices } = useQuery({
@@ -95,9 +98,13 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
     i.due_date ? formatDate(i.due_date) : 'N/A'
   ]
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-text">Revenue & Invoices</h2>
           <p className="text-sm text-text-secondary mt-0.5">{inv.length} total invoices</p>
@@ -108,7 +115,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
         <StatCard title="Total Billed" value={formatCurrency(totalBilled)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
         <StatCard title="Amount Received" value={formatCurrency(totalReceived)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
         <StatCard title="Pending Amount" value={formatCurrency(totalPending)} icon={Clock} iconColor="bg-warning/10 text-warning" />
@@ -116,16 +123,16 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
         <div className="flex gap-3 w-full sm:w-auto flex-1">
           <div className="relative flex-1 max-w-sm">
             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search invoices..."
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search invoices..."
               className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all" />
           </div>
           <div className="flex items-center gap-2 overflow-x-auto">
             {STATUSES.map(s => (
-              <button key={s} onClick={() => setStatusFilter(s)}
+              <button key={s} onClick={() => { setStatusFilter(s); setPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${statusFilter === s ? 'bg-primary text-white' : 'bg-bg-secondary border border-border text-text-secondary hover:text-text'}`}>
                 {s === 'all' ? 'All' : INVOICE_STATUS_CONFIG[s as keyof typeof INVOICE_STATUS_CONFIG]?.label}
               </button>
@@ -133,13 +140,11 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
           </div>
         </div>
         <div className="flex gap-3 items-center w-full sm:w-auto">
-          <DateFilterDropdown 
-            value={dateFilter} 
-            onChange={setDateFilter} 
+          <DateFilterDropdown
+            value={dateFilter}
+            onChange={v => { setDateFilter(v); setPage(1) }}
             onCustomDateChange={(start, end) => {
-              setCustomDateStart(start)
-              setCustomDateEnd(end)
-              setDateFilter('custom')
+              setCustomDateStart(start); setCustomDateEnd(end); setDateFilter('custom'); setPage(1)
             }} 
           />
           <ExportDropdown 
@@ -153,13 +158,13 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <Receipt size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No invoices found</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
@@ -169,7 +174,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inv, idx) => (
+                {paginated.map((inv, idx) => (
                   <tr key={inv.id} onClick={() => { setEditingInvoice(inv); setModalOpen(true) }}
                     className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <td className="px-4 py-3 font-medium text-text">{inv.invoice_number}</td>
@@ -189,6 +194,14 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
               </tbody>
             </table>
           </div>
+          <TablePagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={s => { setPageSize(s); setPage(1) }}
+            itemLabel="invoices"
+          />
         </div>
       )}
 

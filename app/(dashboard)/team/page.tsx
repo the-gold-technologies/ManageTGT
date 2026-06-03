@@ -10,8 +10,8 @@ export default async function TeamPage() {
     return redirect('/login')
   }
 
-  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } })
-  const userRole = dbUser?.role || 'team_member'
+  // Role is already in JWT — no extra DB call needed
+  const userRole = (session.user as any)?.role || 'team_member'
 
   if (!['admin', 'team_lead'].includes(userRole)) {
     return redirect('/') // Restrict access to Team Members and Sales Executives

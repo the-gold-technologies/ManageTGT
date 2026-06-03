@@ -63,11 +63,20 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
       const result = await updateTaskStatusAction(id, status, completion_date)
       if (!result.success) throw new Error(result.error)
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] })
-      toast.success('Task updated')
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: ['tasks'] })
+      const previous = qc.getQueryData<Task[]>(['tasks'])
+      qc.setQueryData<Task[]>(['tasks'], old =>
+        (old ?? []).map(t => t.id === id ? { ...t, status } : t)
+      )
+      return { previous }
     },
-    onError: () => toast.error('Failed to update task'),
+    onSuccess: () => toast.success('Task updated'),
+    onError: (err, _, context) => {
+      if (context?.previous) qc.setQueryData(['tasks'], context.previous)
+      toast.error('Failed to update task')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 
   const filteredTasks = (tasks ?? []).filter(t => {

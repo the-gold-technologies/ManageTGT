@@ -17,12 +17,14 @@ export default async function DashboardLayout({
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
+    select: { id: true, name: true, image: true, createdAt: true, updatedAt: true }
   })
 
   const userProfile = {
     id: dbUser?.id || session.user.id || '',
     full_name: dbUser?.name || session.user.name || session.user.email || 'User',
-    role: dbUser?.role || 'team_member',
+    // Role comes from JWT — no extra query needed
+    role: (session.user as any).role || 'team_member',
     avatar_url: dbUser?.image || undefined,
     createdAt: dbUser?.createdAt.toISOString() || new Date().toISOString(),
     updatedAt: dbUser?.updatedAt.toISOString() || new Date().toISOString(),

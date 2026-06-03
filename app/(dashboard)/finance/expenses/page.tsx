@@ -4,13 +4,16 @@ import { getProjects } from '@/app/actions/projects'
 import type { Expense, Project } from '@/types'
 
 export default async function ExpensesPage() {
-  const expenses = await getExpenses()
-  const projects = await getProjects()
+  // Run both queries in parallel
+  const [expenses, projects] = await Promise.all([
+    getExpenses(),
+    getProjects(),
+  ])
 
   return (
-    <ExpensesClient 
-      initialExpenses={(expenses as unknown as Expense[]) ?? []} 
-      projects={(projects as unknown as Project[]) ?? []} 
+    <ExpensesClient
+      initialExpenses={(expenses as unknown as Expense[]) ?? []}
+      projects={(projects as unknown as Project[]) ?? []}
     />
   )
 }

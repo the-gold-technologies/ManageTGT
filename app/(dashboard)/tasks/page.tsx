@@ -7,19 +7,25 @@ import type { Task, Project, Profile } from '@/types'
 
 export default async function TasksPage() {
   const session = await auth()
-  const dbUser = await prisma.user.findUnique({ where: { id: session?.user?.id || '' } })
-  const userRole = dbUser?.role || 'team_member'
+  // Role is already in JWT — no extra DB call needed
+  const userRole = (session?.user as any)?.role || 'team_member'
 
-  const allProjects = await getProjects()
-  const teamLeadProjectIds = allProjects.filter(p => p.team_lead_id === session?.user?.id).map(p => p.id)
+  // Run all independent queries in parallel instead of sequentially
+  const [allProjects, allTasks, profiles] = await Promise.all([
+    getProjects(),
+    getTasks(),
+    prisma.user.findMany({ select: { id: true, name: true, role: true } }),
+  ])
 
-  const allTasks = await getTasks()
+  const teamLeadProjectIds = allProjects
+    .filter(p => p.team_lead_id === session?.user?.id)
+    .map(p => p.id)
+
   let tasks = allTasks
-
   if (userRole === 'team_lead') {
-    tasks = allTasks.filter(t => 
-      teamLeadProjectIds.includes(t.project_id || '') || 
-      t.assigned_by === session?.user?.id || 
+    tasks = allTasks.filter(t =>
+      teamLeadProjectIds.includes(t.project_id || '') ||
+      t.assigned_by === session?.user?.id ||
       t.assigned_to === session?.user?.id
     )
   } else if (userRole === 'team_member') {
@@ -27,7 +33,6 @@ export default async function TasksPage() {
   }
 
   const projects = allProjects.filter(p => ['pending', 'in_progress', 'on_hold'].includes(p.status))
-  const profiles = await prisma.user.findMany({ select: { id: true, name: true, role: true } })
 
   const formattedProfiles = profiles.map(p => ({
     id: p.id,
@@ -36,11 +41,11 @@ export default async function TasksPage() {
   }))
 
   return (
-    <TasksClient 
-      initialTasks={(tasks as unknown as Task[]) ?? []} 
-      projects={(projects as unknown as Project[]) ?? []} 
-      profiles={(formattedProfiles as unknown as Profile[]) ?? []} 
-      userRole={userRole} 
+    <TasksClient
+      initialTasks={(tasks as unknown as Task[]) ?? []}
+      projects={(projects as unknown as Project[]) ?? []}
+      profiles={(formattedProfiles as unknown as Profile[]) ?? []}
+      userRole={userRole}
     />
   )
 }

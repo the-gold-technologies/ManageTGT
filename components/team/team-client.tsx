@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/utils'
 import TeamModal from './team-modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { updateMemberRole, getTeamMembers, removeTeamMember } from '@/app/actions/team'
+import { TablePagination } from '@/components/ui/table-pagination'
 
 interface TeamClientProps {
   initialProfiles: Profile[]
@@ -45,6 +46,8 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null)
   const [memberToDelete, setMemberToDelete] = useState<Profile | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
   const supabase = createClient()
 
@@ -63,11 +66,20 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
       if (result.error) throw new Error(result.error)
       return result
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['team'] })
-      toast.success('Role updated successfully')
+    onMutate: async ({ id, newRole }) => {
+      await qc.cancelQueries({ queryKey: ['team'] })
+      const previous = qc.getQueryData<Profile[]>(['team'])
+      qc.setQueryData<Profile[]>(['team'], old =>
+        (old ?? []).map(p => p.id === id ? { ...p, role: newRole } : p)
+      )
+      return { previous }
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to update role'),
+    onSuccess: () => toast.success('Role updated successfully'),
+    onError: (err: any, _, context) => {
+      if (context?.previous) qc.setQueryData(['team'], context.previous)
+      toast.error(err.message || 'Failed to update role')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team'] }),
   })
 
   const removeMemberMutation = useMutation({
@@ -76,21 +88,32 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
       if (res.error) throw new Error(res.error)
       return res
     },
+    onMutate: async (deletedId: string) => {
+      await qc.cancelQueries({ queryKey: ['team'] })
+      const previous = qc.getQueryData<Profile[]>(['team'])
+      qc.setQueryData<Profile[]>(['team'], old => (old ?? []).filter(p => p.id !== deletedId))
+      return { previous }
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['team'] })
       toast.success('Member removed successfully')
       setMemberToDelete(null)
     },
-    onError: (error: any) => {
+    onError: (error: any, _, context) => {
+      if (context?.previous) qc.setQueryData(['team'], context.previous)
       toast.error(error.message || 'Failed to remove member')
       setMemberToDelete(null)
-    }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['team'] }),
   })
 
   const filtered = (profiles ?? []).filter(p => 
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
     ROLE_LABELS[p.role].toLowerCase().includes(search.toLowerCase())
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
   const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -100,9 +123,9 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
   const canManage = isAdmin || isLead
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col h-full gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-text">Team Members</h2>
           <p className="text-sm text-text-secondary mt-0.5">{profiles?.length ?? 0} total members</p>
@@ -117,12 +140,12 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search members..."
             className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
           />
@@ -131,13 +154,13 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <UserCog size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No team members found</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
@@ -148,7 +171,7 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
-                {filtered.map(profile => {
+                {paginated.map(profile => {
                   const RoleIcon = ROLE_ICONS[profile.role] || User
                   return (
                     <motion.tr
@@ -222,6 +245,14 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
               </motion.tbody>
             </table>
           </div>
+          <TablePagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={s => { setPageSize(s); setPage(1) }}
+            itemLabel="members"
+          />
         </div>
       )}
 

@@ -7,17 +7,20 @@ import type { Project, Client, Profile } from '@/types'
 
 export default async function ProjectsPage() {
   const session = await auth()
-  const dbUser = await prisma.user.findUnique({ where: { id: session?.user?.id || '' } })
-  const userRole = dbUser?.role || 'team_member'
+  // Role is already in JWT — no extra DB call needed
+  const userRole = (session?.user as any)?.role || 'team_member'
 
-  const allProjects = await getProjects()
+  // Run all independent queries in parallel instead of sequentially
+  const [allProjects, clients, profiles] = await Promise.all([
+    getProjects(),
+    getClients(),
+    prisma.user.findMany({ select: { id: true, name: true, role: true } }),
+  ])
+
   let projects = allProjects
   if (userRole === 'team_lead') {
     projects = allProjects.filter(p => p.team_lead_id === session?.user?.id)
   }
-
-  const clients = await getClients()
-  const profiles = await prisma.user.findMany({ select: { id: true, name: true, role: true } })
 
   const formattedProfiles = profiles.map(p => ({
     id: p.id,
@@ -26,11 +29,11 @@ export default async function ProjectsPage() {
   }))
 
   return (
-    <ProjectsClient 
-      initialProjects={(projects as unknown as Project[]) ?? []} 
-      clients={(clients as unknown as Client[]) ?? []} 
-      profiles={(formattedProfiles as unknown as Profile[]) ?? []} 
-      userRole={userRole} 
+    <ProjectsClient
+      initialProjects={(projects as unknown as Project[]) ?? []}
+      clients={(clients as unknown as Client[]) ?? []}
+      profiles={(formattedProfiles as unknown as Profile[]) ?? []}
+      userRole={userRole}
     />
   )
 }

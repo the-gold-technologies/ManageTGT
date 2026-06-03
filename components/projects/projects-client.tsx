@@ -16,6 +16,8 @@ import { Glow } from '@/components/ui/glow'
 import { cn } from '@/lib/utils'
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
+import { ConfirmModal } from '@/components/ui/confirm-modal'
+import { TablePagination } from '@/components/ui/table-pagination'
 
 interface ProjectsClientProps {
   initialProjects: Project[]
@@ -40,6 +42,9 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
   const { data: projects } = useQuery({
@@ -56,10 +61,22 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       const result = await deleteProjectAction(id)
       if (!result.success) throw new Error(result.error)
     },
-    onSuccess: () => {
-      toast.success('Project deleted')
-      qc.invalidateQueries({ queryKey: ['projects'] })
-    }
+    onMutate: async (deletedId: string) => {
+      // Cancel any outgoing refetches so they don't overwrite our optimistic update
+      await qc.cancelQueries({ queryKey: ['projects'] })
+      // Snapshot the previous value for rollback
+      const previous = qc.getQueryData<Project[]>(['projects'])
+      // Optimistically remove from cache immediately
+      qc.setQueryData<Project[]>(['projects'], old => (old ?? []).filter(p => p.id !== deletedId))
+      return { previous }
+    },
+    onSuccess: () => toast.success('Project deleted'),
+    onError: (err, _, context) => {
+      // Rollback to previous state if mutation fails
+      if (context?.previous) qc.setQueryData(['projects'], context.previous)
+      toast.error('Failed to delete project')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['projects'] }),
   })
 
   const STATUSES = ['all', 'pending', 'in_progress', 'on_hold', 'delivered', 'completed']
@@ -103,13 +120,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     p.team_lead?.full_name || 'N/A'
   ]
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
+  const handleFilter = (fn: () => void) => { fn(); setPage(1) }
+
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } }
   const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col h-full gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-text">Projects</h2>
           <p className="text-sm text-text-secondary mt-0.5">{projects?.length ?? 0} total projects</p>
@@ -120,12 +143,12 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
         <div className="relative flex-1 max-w-sm">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
           <input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search projects..."
             className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
           />
@@ -134,7 +157,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           {STATUSES.map(s => (
             <button
               key={s}
-              onClick={() => setStatusFilter(s)}
+              onClick={() => { setStatusFilter(s); setPage(1) }}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
                 statusFilter === s
@@ -147,35 +170,36 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <DateFilterDropdown 
-            value={dateFilter} 
-            onChange={setDateFilter} 
+          <DateFilterDropdown
+            value={dateFilter}
+            onChange={v => { setDateFilter(v); setPage(1) }}
             onCustomDateChange={(start, end) => {
               setCustomDateStart(start)
               setCustomDateEnd(end)
               setDateFilter('custom')
-            }} 
+              setPage(1)
+            }}
           />
-          <ExportDropdown 
-            data={filtered} 
-            headers={exportHeaders} 
-            filename={`projects_export_${new Date().toISOString().split('T')[0]}`} 
-            mapData={mapExportData} 
+          <ExportDropdown
+            data={filtered}
+            headers={exportHeaders}
+            filename={`projects_export_${new Date().toISOString().split('T')[0]}`}
+            mapData={mapExportData}
           />
         </div>
       </div>
 
       {/* Content */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <FolderKanban size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No projects found</p>
           <p className="text-sm text-text-muted mt-1">Create your first project to get started</p>
         </div>
       ) : (
-        <div className="relative group bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
+        <div className="relative flex flex-col flex-1 min-h-0 group bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
           <Glow />
-          <div className="relative z-10 overflow-x-auto">
+          <div className="relative z-10 overflow-x-auto overflow-y-auto flex-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
@@ -189,7 +213,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
-                {filtered.map(project => {
+                {paginated.map(project => {
                   const overdue = isOverdue(project.expected_completion) && !['completed', 'delivered'].includes(project.status)
                   return (
                     <motion.tr
@@ -230,7 +254,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                             <Pencil size={12} />
                           </button>
                           <button
-                            onClick={() => { if (confirm('Delete this project?')) deleteProject.mutate(project.id) }}
+                            onClick={() => setProjectToDelete(project)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger-muted transition-all"
                           >
                             <Trash2 size={12} />
@@ -243,6 +267,14 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
               </motion.tbody>
             </table>
           </div>
+          <TablePagination
+            page={safePage}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={s => { setPageSize(s); setPage(1) }}
+            itemLabel="projects"
+          />
         </div>
       )}
 
@@ -253,6 +285,16 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         clients={clients}
         profiles={profiles}
         userRole={userRole}
+      />
+
+      <ConfirmModal
+        open={!!projectToDelete}
+        onClose={() => setProjectToDelete(null)}
+        onConfirm={() => projectToDelete && deleteProject.mutate(projectToDelete.id)}
+        title="Delete Project"
+        description={`Are you sure you want to delete "${projectToDelete?.name}"? All related tasks and files will be permanently removed. This action cannot be undone.`}
+        confirmText="Delete Project"
+        loading={deleteProject.isPending}
       />
     </div>
   )

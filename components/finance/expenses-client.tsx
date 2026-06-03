@@ -20,6 +20,7 @@ import { Wallet as WalletIcon, UploadCloud, FileText, ExternalLink } from 'lucid
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
+import { TablePagination } from '@/components/ui/table-pagination'
 
 const EXPENSE_TYPES = ['freelancer', 'designer', 'developer', 'advertising', 'travel', 'software', 'hosting', 'miscellaneous']
 const EXPENSE_LABELS: Record<string, string> = {
@@ -53,6 +54,8 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const [modalOpen, setModalOpen] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
   const { data: expenses } = useQuery({
@@ -107,6 +110,10 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
     e.amount
   ]
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
     defaultValues: { expense_type: 'miscellaneous', date: new Date().toISOString().split('T')[0], amount: 0 },
@@ -145,8 +152,8 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-full gap-4">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-text">Expenses</h2>
           <p className="text-sm text-text-secondary mt-0.5">{exp.length} total records</p>
@@ -154,15 +161,15 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         <Button onClick={() => setModalOpen(true)}><Plus size={15} /> Add Expense</Button>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
         <StatCard title="Total Expenses" value={formatCurrency(total)} icon={WalletIcon} iconColor="bg-danger/10 text-danger" />
         <StatCard title="This Month" value={formatCurrency(thisMonth)} icon={WalletIcon} iconColor="bg-warning/10 text-warning" />
       </div>
 
-      <div className="flex flex-wrap gap-3 items-center justify-between">
+      <div className="flex flex-wrap gap-3 items-center justify-between shrink-0">
         <div className="flex gap-3 flex-wrap">
           {['all', ...EXPENSE_TYPES].map(t => (
-            <button key={t} onClick={() => setTypeFilter(t)}
+            <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${typeFilter === t ? 'bg-primary text-white' : 'bg-bg-secondary border border-border text-text-secondary hover:text-text'}`}>
               {t === 'all' ? 'All' : EXPENSE_LABELS[t]}
             </button>
@@ -170,13 +177,11 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         </div>
         
         <div className="flex gap-3 items-center">
-          <DateFilterDropdown 
-            value={dateFilter} 
-            onChange={setDateFilter} 
+          <DateFilterDropdown
+            value={dateFilter}
+            onChange={v => { setDateFilter(v); setPage(1) }}
             onCustomDateChange={(start, end) => {
-              setCustomDateStart(start)
-              setCustomDateEnd(end)
-              setDateFilter('custom')
+              setCustomDateStart(start); setCustomDateEnd(end); setDateFilter('custom'); setPage(1)
             }} 
           />
           <ExportDropdown 
@@ -188,8 +193,8 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         </div>
       </div>
 
-      <div className="rounded-xl border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-bg-tertiary border-b border-border">
@@ -199,7 +204,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
               </tr>
             </thead>
             <tbody>
-              {filtered.map(e => (
+              {paginated.map(e => (
                 <tr key={e.id} className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors">
                   <td className="px-4 py-3 text-text-secondary">{formatDate(e.date)}</td>
                   <td className="px-4 py-3">
@@ -231,6 +236,14 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
             </tbody>
           </table>
         </div>
+        <TablePagination
+          page={safePage}
+          pageSize={pageSize}
+          total={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(1) }}
+          itemLabel="expenses"
+        />
       </div>
 
       <AnimatePresence>
