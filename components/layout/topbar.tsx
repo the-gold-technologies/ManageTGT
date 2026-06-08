@@ -132,11 +132,11 @@ export default function TopBar({ user }: TopBarProps) {
         <div className="relative" ref={menuRef}>
           <div 
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-xs font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
+            className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
           >
             {user.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatar_url} alt={user.full_name} className="w-full h-full rounded-lg object-cover" />
+              <img src={user.avatar_url} alt={user.full_name} className="w-full h-full rounded-full object-cover" />
             ) : (
               getInitials(user.full_name)
             )}

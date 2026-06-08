@@ -5,29 +5,18 @@ import prisma from '@/lib/prisma'
 export default async function SettingsPage() {
   const session = await auth()
   
-  const profiles = await prisma.user.findMany({
-    orderBy: { name: 'asc' }
+  const currentProfile = await prisma.user.findUnique({
+    where: { id: session?.user?.id || '' }
   })
-
-  const currentProfile = profiles.find(p => p.id === session?.user?.id)
-
-  const formattedProfiles = profiles.map(p => ({
-    id: p.id,
-    full_name: p.name || 'User',
-    email: p.email || '',
-    role: p.role,
-    avatar_url: p.image || null,
-    createdAt: p.createdAt.toISOString(),
-  }))
 
   const formattedCurrentProfile = currentProfile ? {
     id: currentProfile.id,
     full_name: currentProfile.name || 'User',
     email: currentProfile.email || '',
     role: currentProfile.role,
-    avatar_url: currentProfile.image || null,
+    avatar_url: currentProfile.image || session?.user?.image || null,
     createdAt: currentProfile.createdAt.toISOString(),
   } : null
 
-  return <SettingsClient profiles={(formattedProfiles as any) ?? []} currentProfile={formattedCurrentProfile as any} />
+  return <SettingsClient currentProfile={formattedCurrentProfile as any} />
 }

@@ -181,10 +181,17 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                     >
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center">
-                            {profile.full_name.charAt(0)}
+                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center overflow-hidden shrink-0 border border-border">
+                            {profile.avatar_url ? (
+                              <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                            ) : (
+                              profile.full_name.charAt(0)
+                            )}
                           </div>
-                          <span className="font-medium text-text">{profile.full_name}</span>
+                          <div>
+                            <span className="font-medium text-text block">{profile.full_name}</span>
+                            <span className="text-xs text-text-muted block mt-0.5">{profile.email}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-3">

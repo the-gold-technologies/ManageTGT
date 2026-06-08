@@ -1,12 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { Users, User, Shield } from 'lucide-react'
-import { updateMemberRole } from '@/app/actions/team'
-import { useQueryClient } from '@tanstack/react-query'
+import { useActionState, useEffect, useRef } from 'react'
+import { User, Key, Loader2 } from 'lucide-react'
+import { changePasswordAction } from '@/app/actions/password'
 import { toast } from 'sonner'
 import type { Profile } from '@/types'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
@@ -19,100 +17,123 @@ const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' 
 }
 
 interface SettingsClientProps {
-  profiles: Profile[]
   currentProfile: Profile | null
 }
 
-export default function SettingsClient({ profiles, currentProfile }: SettingsClientProps) {
-  const [updatingRole, setUpdatingRole] = useState<string | null>(null)
+export default function SettingsClient({ currentProfile }: SettingsClientProps) {
+  const [passState, passAction, isPending] = useActionState(changePasswordAction, undefined)
+  const formRef = useRef<HTMLFormElement>(null)
 
-  const updateRole = async (userId: string, role: string) => {
-    setUpdatingRole(userId)
-    const result = await updateMemberRole(userId, role as any)
-    if (!result.success) {
-      toast.error(result.error || 'Failed to update role')
-    } else {
-      toast.success('Role updated')
+  useEffect(() => {
+    if (passState?.error) {
+      toast.error(passState.error)
     }
-    setUpdatingRole(null)
-  }
-
-  const isAdmin = currentProfile?.role === 'admin'
+    if (passState?.success) {
+      toast.success('Password updated successfully')
+      formRef.current?.reset()
+    }
+  }, [passState])
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h2 className="text-xl font-bold text-text">Settings</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Manage your team and system preferences</p>
+        <p className="text-sm text-text-secondary mt-0.5">Manage your user profile and preferences</p>
       </div>
 
       {/* Profile */}
-      <div className="bg-bg-secondary border border-border rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <User size={15} className="text-text-muted" />
+      <div className="bg-bg-secondary border border-border rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <User size={16} className="text-text-muted" />
           <h3 className="text-sm font-semibold text-text">My Profile</h3>
         </div>
         {currentProfile && (
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-sm font-bold text-white">
-              {getInitials(currentProfile.full_name)}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 border border-border shadow-glow-sm">
+              {currentProfile.avatar_url ? (
+                <img src={currentProfile.avatar_url} alt={currentProfile.full_name} className="w-full h-full object-cover" />
+              ) : (
+                getInitials(currentProfile.full_name)
+              )}
             </div>
-            <div>
-              <p className="font-semibold text-text">{currentProfile.full_name}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant={ROLE_BADGE_MAP[currentProfile.role] ?? 'muted'}>
-                  {currentProfile.role.replace('_', ' ')}
-                </Badge>
-                <span className="text-xs text-text-muted">Member since {formatDate(currentProfile.createdAt)}</span>
+            <div className="space-y-2.5 flex-1 w-full">
+              <div>
+                <p className="text-lg font-bold text-text">{currentProfile.full_name}</p>
+                <p className="text-xs text-text-muted mt-0.5">{currentProfile.email}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-text-muted">Role:</span>
+                  <Badge variant={ROLE_BADGE_MAP[currentProfile.role] ?? 'muted'}>
+                    {currentProfile.role.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <div className="text-text-muted">
+                  <span>Joined:</span> <span className="text-text-secondary font-medium ml-1">{formatDate(currentProfile.createdAt)}</span>
+                </div>
+                <div className="text-text-muted truncate max-w-xs" title={currentProfile.id}>
+                  <span>ID:</span> <span className="text-text-secondary font-mono text-[10px] ml-1">{currentProfile.id}</span>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Team Management (Admin only) */}
-      {isAdmin && (
-        <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
-            <Users size={15} className="text-text-muted" />
-            <h3 className="text-sm font-semibold text-text">Team Members</h3>
-          </div>
-          <div className="divide-y divide-border">
-            {profiles.map(profile => (
-              <div key={profile.id} className="flex items-center justify-between px-5 py-3 hover:bg-bg-tertiary transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-bg-tertiary border border-border flex items-center justify-center text-xs font-bold text-text-secondary">
-                    {getInitials(profile.full_name)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text">{profile.full_name}</p>
-                    <p className="text-xs text-text-muted">Joined {formatDate(profile.createdAt)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {profile.id === currentProfile?.id ? (
-                    <Badge variant={ROLE_BADGE_MAP[profile.role] ?? 'muted'}>{profile.role.replace('_', ' ')}</Badge>
-                  ) : (
-                    <select
-                      value={profile.role}
-                      onChange={e => updateRole(profile.id, e.target.value)}
-                      disabled={updatingRole === profile.id}
-                      className="px-2 py-1 bg-bg border border-border rounded-lg text-xs text-text focus:outline-none focus:border-primary/50 transition-all"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="team_lead">Team Lead</option>
-                      <option value="team_member">Team Member</option>
-                      <option value="sales_executive">Sales Executive</option>
-                    </select>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Change Password */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Key size={15} className="text-text-muted" />
+          <h3 className="text-sm font-semibold text-text">Change Password</h3>
         </div>
-      )}
+        <form ref={formRef} action={passAction} className="space-y-4 max-w-md">
+          <div className="space-y-1.5">
+            <label htmlFor="currentPassword" className="text-xs font-medium text-text-secondary">
+              Current Password
+            </label>
+            <input
+              id="currentPassword"
+              name="currentPassword"
+              type="password"
+              required
+              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="newPassword" className="text-xs font-medium text-text-secondary">
+              New Password
+            </label>
+            <input
+              id="newPassword"
+              name="newPassword"
+              type="password"
+              required
+              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="confirmNewPassword" className="text-xs font-medium text-text-secondary">
+              Confirm New Password
+            </label>
+            <input
+              id="confirmNewPassword"
+              name="confirmNewPassword"
+              type="password"
+              required
+              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold active:scale-95 transition-all shadow-glow-sm"
+          >
+            {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {isPending ? 'Updating...' : 'Update Password'}
+          </button>
+        </form>
+      </div>
 
     </div>
   )
 }
-

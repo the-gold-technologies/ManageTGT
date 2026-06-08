@@ -323,3 +323,13 @@ model Notification {
   @@index([user_id])
   @@index([is_read])
 }
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
