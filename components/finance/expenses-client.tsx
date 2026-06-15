@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, Wallet } from 'lucide-react'
+import { Plus, Search, Wallet, Trash2, Loader2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getExpenses, addExpense } from '@/app/actions/finance'
+import { getExpenses, addExpense, updateExpense, deleteExpense } from '@/app/actions/finance'
 import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X } from 'lucide-react'
 import { AnimatePresence } from 'framer-motion'
+import { useEffect } from 'react'
 import { toast } from 'sonner'
 import type { Expense, Project } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,9 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const [customDateStart, setCustomDateStart] = useState<Date | null>(null)
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [page, setPage] = useState(1)
@@ -119,6 +123,50 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
     defaultValues: { expense_type: 'miscellaneous', date: new Date().toISOString().split('T')[0], amount: 0 },
   })
 
+  useEffect(() => {
+    if (modalOpen) {
+      reset(editingExpense ? {
+        project_id: editingExpense.project_id ?? '',
+        expense_type: editingExpense.expense_type,
+        description: editingExpense.description ?? '',
+        amount: editingExpense.amount,
+        date: editingExpense.date ? new Date(editingExpense.date).toISOString().split('T')[0] : '',
+      } : { expense_type: 'miscellaneous', date: new Date().toISOString().split('T')[0], amount: 0, project_id: '', description: '' })
+      setConfirmDelete(false)
+    }
+  }, [modalOpen, editingExpense, reset])
+
+  const handleDelete = async () => {
+    if (!editingExpense) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const result = await deleteExpense(editingExpense.id)
+      if (!result.success) {
+        toast.error(result.error || 'Failed to delete expense')
+        return
+      }
+      toast.success('Expense deleted successfully')
+      qc.invalidateQueries({ queryKey: ['expenses'] })
+      setModalOpen(false)
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred.')
+    } finally {
+      setIsDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
+  const handleClose = () => {
+    setConfirmDelete(false)
+    setModalOpen(false)
+    setFiles([])
+  }
+
   const { data: session } = useSession()
 
   const onSubmit = async (data: FormData) => {
@@ -134,15 +182,20 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
       if (session?.user?.id) formData.append('created_by', session.user.id)
       files.forEach(f => formData.append('files', f))
 
-      await addExpense(formData)
+      if (editingExpense) {
+        await updateExpense(editingExpense.id, formData)
+        toast.success('Expense updated')
+      } else {
+        await addExpense(formData)
+        toast.success('Expense added')
+      }
 
-      toast.success('Expense added')
       qc.invalidateQueries({ queryKey: ['expenses'] })
       setModalOpen(false)
       reset()
       setFiles([])
     } catch (err: any) {
-      toast.error('Failed to add expense')
+      toast.error(editingExpense ? 'Failed to update expense' : 'Failed to add expense')
       console.error(err)
     } finally {
       setIsUploading(false)
@@ -158,7 +211,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
           <h2 className="text-xl font-bold text-text">Expenses</h2>
           <p className="text-sm text-text-secondary mt-0.5">{exp.length} total records</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}><Plus size={15} /> Add Expense</Button>
+        <Button onClick={() => { setEditingExpense(null); setModalOpen(true) }}><Plus size={15} /> Add Expense</Button>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
@@ -205,7 +258,8 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
             </thead>
             <tbody>
               {paginated.map(e => (
-                <tr key={e.id} className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors">
+                <tr key={e.id} onClick={() => { setEditingExpense(e); setModalOpen(true) }}
+                  className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer">
                   <td className="px-4 py-3 text-text-secondary">{formatDate(e.date)}</td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded-md text-xs bg-bg-tertiary text-text-secondary">
@@ -250,7 +304,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         {modalOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setModalOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
+              onClick={handleClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
             <motion.div
               initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
               animate={{ opacity: 1, x: 0 }}
@@ -259,8 +313,8 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
               className="fixed right-4 top-4 bottom-4 w-[calc(100%-2rem)] max-w-md bg-bg-secondary border border-border rounded-2xl z-50 flex flex-col shadow-2xl overflow-hidden !m-0"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-                <h3 className="font-semibold text-text">Add Expense</h3>
-                <button onClick={() => { setModalOpen(false); setFiles([]) }} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
+                <h3 className="font-semibold text-text">{editingExpense ? 'Edit Expense' : 'Add Expense'}</h3>
+                <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
               </div>
               <form onSubmit={handleSubmit(onSubmit)} className="flex-1 p-6 space-y-4 overflow-y-auto">
                 <div>
@@ -349,9 +403,27 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                   )}
                 </div>
               </form>
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-                <Button variant="secondary" onClick={() => { setModalOpen(false); setFiles([]) }} disabled={isSubmitting || isUploading}>Cancel</Button>
-                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading}>Add Expense</Button>
+              <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+                <div>
+                  {editingExpense && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleDelete}
+                      loading={isDeleting}
+                      className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                    >
+                      {!isDeleting && <Trash2 size={14} />}
+                      <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Expense'}</span>
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isUploading || isDeleting} className="text-xs h-8 px-3">Cancel</Button>
+                  <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading} disabled={isDeleting} className="text-xs h-8 px-3">
+                    {isSubmitting || isUploading ? 'Saving...' : (editingExpense ? 'Save Changes' : 'Add Expense')}
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </>

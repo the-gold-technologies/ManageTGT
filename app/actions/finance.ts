@@ -140,3 +140,95 @@ export async function addExpense(formData: FormData) {
 
   return expense
 }
+
+export async function deleteInvoice(id: string) {
+  try {
+    await prisma.invoice.delete({
+      where: { id }
+    })
+    revalidatePath('/finance/revenue')
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting invoice:', error)
+    return { success: false, error: 'Failed to delete invoice' }
+  }
+}
+
+export async function updateExpense(id: string, formData: FormData) {
+  try {
+    const expense_type = formData.get('expense_type') as string
+    const amount = parseFloat(formData.get('amount') as string)
+    const date = new Date(formData.get('date') as string)
+    const project_id = formData.get('project_id') as string || null
+    const description = formData.get('description') as string
+    
+    const files = formData.getAll('files') as File[]
+    const bill_urls: string[] = []
+    
+    const existing = await prisma.expense.findUnique({ where: { id } })
+    if (existing) {
+      bill_urls.push(...existing.bill_urls)
+    }
+
+    if (files && files.length > 0) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      for (const file of files) {
+        if (file.size === 0) continue
+        
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+        const filePath = `receipts/${fileName}`
+        
+        const buffer = Buffer.from(await file.arrayBuffer())
+
+        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, buffer, {
+          contentType: file.type
+        })
+        
+        if (uploadError) {
+          console.error('Upload Error:', uploadError)
+          continue
+        }
+        
+        const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
+        bill_urls.push(publicUrlData.publicUrl)
+      }
+    }
+
+    const expense = await prisma.expense.update({
+      where: { id },
+      data: {
+        expense_type: expense_type as any,
+        amount,
+        date,
+        project_id,
+        description,
+        bill_urls,
+      }
+    })
+
+    revalidatePath('/finance/expenses')
+    return { success: true, expense }
+  } catch (error) {
+    console.error('Error updating expense:', error)
+    return { success: false, error: 'Failed to update expense' }
+  }
+}
+
+export async function deleteExpense(id: string) {
+  try {
+    await prisma.expense.delete({
+      where: { id }
+    })
+    revalidatePath('/finance/expenses')
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting expense:', error)
+    return { success: false, error: 'Failed to delete expense' }
+  }
+}
+
+

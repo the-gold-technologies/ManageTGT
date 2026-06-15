@@ -182,4 +182,18 @@ export interface ProjectProfitability {
   margin: number
 }
 
+export interface Prospect {
+  id: string
+  name: string
+  email: string
+  mobile?: string | null
+  company_name?: string | null
+  proposal_submitted: boolean
+  proposal_submission_date?: string | null
+  client_converted: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+
 

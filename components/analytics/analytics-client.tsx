@@ -27,9 +27,10 @@ interface AnalyticsClientProps {
   serviceData: Array<{ name: string; value: number }>
   projects: Array<{ status: string; service_type: string; quoted_price: number; createdAt: string }>
   tasks: Array<{ status: string; createdAt: string; completion_date: string | null; assigned_to: string | null }>
+  prospects: Array<{ proposal_submitted: boolean; client_converted: boolean; createdAt: string }>
 }
 
-export default function AnalyticsClient({ monthlyData, serviceData, projects, tasks }: AnalyticsClientProps) {
+export default function AnalyticsClient({ monthlyData, serviceData, projects, tasks, prospects }: AnalyticsClientProps) {
   const totalRevenue = monthlyData.reduce((s, m) => s + m.revenue, 0)
   const totalExpenses = monthlyData.reduce((s, m) => s + m.expenses, 0)
   const totalProfit = totalRevenue - totalExpenses
@@ -37,6 +38,20 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
 
   const completedTasks = tasks.filter(t => t.status === 'completed').length
   const pendingTasks = tasks.filter(t => t.status !== 'completed').length
+
+  const proposalsSent = prospects.filter(p => p.proposal_submitted).length
+  const convertedCount = prospects.filter(p => p.client_converted).length
+
+  const now = new Date()
+  const monthlyLeads = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1)
+    const label = d.toLocaleString('default', { month: 'short', year: '2-digit' })
+    const count = (prospects ?? []).filter(p => {
+      const pd = new Date(p.createdAt)
+      return pd.getMonth() === d.getMonth() && pd.getFullYear() === d.getFullYear()
+    }).length
+    return { month: label, leads: count }
+  })
 
   const projectStatusData = [
     { name: 'Completed', value: projects.filter(p => p.status === 'completed').length, color: '#10B981' },
@@ -238,6 +253,77 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
                 />
               </div>
             </div>
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* Sales Pipeline & Conversion Analytics */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card title="Sales Funnel & Conversions" padding={false}>
+          <div className="px-5 pb-5 pt-3 space-y-4">
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              {[
+                { label: 'Total Leads (Prospects)', value: prospects.length, color: 'text-text' },
+                { label: 'Proposals Sent', value: proposalsSent, color: 'text-info' },
+                { label: 'Clients Converted', value: convertedCount, color: 'text-success' },
+                { label: 'Conversion Rate', value: `${prospects.length > 0 ? Math.round((convertedCount / prospects.length) * 100) : 0}%`, color: 'text-accent-cyan' },
+              ].map(stat => (
+                <div key={stat.label} className="bg-bg rounded-lg p-4 border border-border">
+                  <p className="text-xs text-text-muted mb-1">{stat.label}</p>
+                  <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                </div>
+              ))}
+            </div>
+            
+            {/* Conversion visual funnel bar */}
+            <div className="space-y-3 pt-2">
+              <div>
+                <div className="flex justify-between text-xs text-text-muted mb-1.5">
+                  <span>Proposal Submission Rate</span>
+                  <span>{prospects.length > 0 ? Math.round((proposalsSent / prospects.length) * 100) : 0}%</span>
+                </div>
+                <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-info rounded-full transition-all duration-1000"
+                    style={{ width: `${prospects.length > 0 ? Math.round((proposalsSent / prospects.length) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-text-muted mb-1.5">
+                  <span>Overall Conversion Rate (Leads → Clients)</span>
+                  <span>{prospects.length > 0 ? Math.round((convertedCount / prospects.length) * 100) : 0}%</span>
+                </div>
+                <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-success rounded-full transition-all duration-1000"
+                    style={{ width: `${prospects.length > 0 ? Math.round((convertedCount / prospects.length) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Lead Inflow Trend (12 months)" padding={false}>
+          <div className="px-5 pb-5 pt-3">
+            <ResponsiveContainer width="100%" height={230}>
+              <AreaChart data={monthlyLeads} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="analyticsLeads" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1E1E2A" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#9191A4', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(value) => [value, 'New Leads']} />
+                <Area type="monotone" dataKey="leads" stroke="#6366F1" strokeWidth={2} fill="url(#analyticsLeads)"
+                  dot={{ fill: '#6366F1', r: 3 }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       </motion.div>

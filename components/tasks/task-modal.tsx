@@ -43,6 +43,8 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const isRestricted = userRole === 'team_member'
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
@@ -61,7 +63,10 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         status: task.status,
       } : { priority: 'medium', status: 'todo' })
       // Delay resetting state to avoid sync state updates in effect
-      setTimeout(() => setSelectedFiles([]), 0)
+      setTimeout(() => {
+        setSelectedFiles([])
+        setConfirmDelete(false)
+      }, 0)
     }
   }, [open, task, reset])
 
@@ -129,6 +134,36 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
     }
   }
 
+  const handleDelete = async () => {
+    if (!task) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const result = await deleteTask(task.id)
+      if (!result.success) {
+        toast.error(result.error || 'Failed to delete task')
+        return
+      }
+      toast.success('Task deleted successfully')
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred.')
+    } finally {
+      setIsDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
+  const handleClose = () => {
+    setConfirmDelete(false)
+    onClose()
+  }
+
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 
   return (
@@ -136,7 +171,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       {open && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
+            onClick={handleClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
           <motion.div
             initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
             animate={{ opacity: 1, x: 0 }}
@@ -146,7 +181,11 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="font-semibold text-text">{isEdit ? 'Edit Task' : 'New Task'}</h3>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -341,11 +380,28 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
               </div>
             </form>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose}>Cancel</Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || uploadingFiles}>
-                {isSubmitting || uploadingFiles ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Task')}
-              </Button>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+              <div>
+                {isEdit && !isRestricted && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleDelete}
+                    loading={isDeleting}
+                    className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                  >
+                    {!isDeleting && <Trash2 size={14} />}
+                    <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Task'}</span>
+                  </Button>
+
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" onClick={handleClose} disabled={isDeleting} className="text-xs h-8 px-3">Cancel</Button>
+                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || uploadingFiles} disabled={isDeleting} className="text-xs h-8 px-3">
+                  {isSubmitting || uploadingFiles ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Task')}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </>

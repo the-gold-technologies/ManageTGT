@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X } from 'lucide-react'
+import { X, Trash2, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
-import { createInvoice, updateInvoice } from '@/app/actions/finance'
+import { createInvoice, updateInvoice, deleteInvoice } from '@/app/actions/finance'
 
 const schema = z.object({
   project_id: z.string().optional(),
@@ -40,6 +40,8 @@ interface InvoiceModalProps {
 export default function InvoiceModal({ open, onClose, invoice, projects, clients }: InvoiceModalProps) {
   const qc = useQueryClient()
   const isEdit = !!invoice
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
@@ -61,8 +63,39 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         status: invoice.status,
         notes: invoice.notes ?? '',
       } : { status: 'pending', quoted_value: 0, final_billing: 0, amount_received: 0, invoice_date: new Date().toISOString().split('T')[0] })
+      setConfirmDelete(false)
     }
   }, [open, invoice, reset])
+
+  const handleDelete = async () => {
+    if (!invoice) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const result = await deleteInvoice(invoice.id)
+      if (!result.success) {
+        toast.error(result.error || 'Failed to delete invoice')
+        return
+      }
+      toast.success('Invoice deleted successfully')
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'An unexpected error occurred.')
+    } finally {
+      setIsDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
+  const handleClose = () => {
+    setConfirmDelete(false)
+    onClose()
+  }
 
   const onSubmit = async (data: FormData) => {
     const payload = { 
@@ -96,7 +129,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       {open && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
+            onClick={handleClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0" />
           <motion.div
             initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
             animate={{ opacity: 1, x: 0 }}
@@ -106,7 +139,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="font-semibold text-text">{isEdit ? `Edit ${invoice?.invoice_number}` : 'New Invoice'}</h3>
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
+              <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -178,11 +211,28 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
               </div>
             </form>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose}>Cancel</Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting}>
-                {isEdit ? 'Save Changes' : 'Create Invoice'}
-              </Button>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+              <div>
+                {isEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleDelete}
+                    loading={isDeleting}
+                    className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                  >
+                    {!isDeleting && <Trash2 size={14} />}
+                    <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Invoice'}</span>
+                  </Button>
+
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" onClick={handleClose} disabled={isDeleting} className="text-xs h-8 px-3">Cancel</Button>
+                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isDeleting} className="text-xs h-8 px-3">
+                  {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Invoice')}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </>

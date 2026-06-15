@@ -333,3 +333,17 @@ model PasswordResetToken {
 
   @@index([token])
 }
+
+model Prospect {
+  id                        String    @id @default(cuid())
+  name                      String
+  email                     String
+  mobile                    String?
+  company_name              String?
+  proposal_submitted        Boolean   @default(false)
+  proposal_submission_date DateTime?
+  client_converted          Boolean   @default(false)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+}
+
