@@ -1,8 +1,8 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
-import { User, Key, Loader2 } from 'lucide-react'
-import { changePasswordAction } from '@/app/actions/password'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import { User, Key, Loader2, Eye, EyeOff, Check, X } from 'lucide-react'
+import { changePasswordAction, verifyCurrentPassword } from '@/app/actions/password'
 import { toast } from 'sonner'
 import type { Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,19 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
   const [passState, passAction, isPending] = useActionState(changePasswordAction, undefined)
   const formRef = useRef<HTMLFormElement>(null)
 
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false)
+
+  // Live password validation states
+  const [currentPasswordVal, setCurrentPasswordVal] = useState('')
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [isCurrentPasswordCorrect, setIsCurrentPasswordCorrect] = useState<boolean | null>(null)
+
+  // New password validation states
+  const [newPasswordVal, setNewPasswordVal] = useState('')
+  const [confirmNewPasswordVal, setConfirmNewPasswordVal] = useState('')
+
   useEffect(() => {
     if (passState?.error) {
       toast.error(passState.error)
@@ -31,8 +44,35 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
     if (passState?.success) {
       toast.success('Password updated successfully')
       formRef.current?.reset()
+      setShowCurrentPassword(false)
+      setShowNewPassword(false)
+      setShowConfirmNewPassword(false)
+      setCurrentPasswordVal('')
+      setNewPasswordVal('')
+      setConfirmNewPasswordVal('')
+      setIsCurrentPasswordCorrect(null)
     }
   }, [passState])
+
+  // Live validation logic with debounce
+  useEffect(() => {
+    if (!currentPasswordVal) {
+      setIsCurrentPasswordCorrect(null)
+      setIsVerifying(false)
+      return
+    }
+
+    setIsVerifying(true)
+    const timer = setTimeout(async () => {
+      const isValid = await verifyCurrentPassword(currentPasswordVal)
+      setIsCurrentPasswordCorrect(isValid)
+      setIsVerifying(false)
+    }, 600) // 600ms debounce delay
+
+    return () => clearTimeout(timer)
+  }, [currentPasswordVal])
+
+  const confirmPasswordMatches = confirmNewPasswordVal ? newPasswordVal === confirmNewPasswordVal : null
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -91,41 +131,103 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
             <label htmlFor="currentPassword" className="text-xs font-medium text-text-secondary">
               Current Password
             </label>
-            <input
-              id="currentPassword"
-              name="currentPassword"
-              type="password"
-              required
-              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
-            />
+            <div className="relative">
+              <input
+                id="currentPassword"
+                name="currentPassword"
+                type={showCurrentPassword ? "text" : "password"}
+                required
+                value={currentPasswordVal}
+                onChange={(e) => setCurrentPasswordVal(e.target.value)}
+                className="w-full pl-3.5 pr-16 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {isVerifying && <Loader2 className="w-3.5 h-3.5 animate-spin text-text-muted" />}
+                {!isVerifying && isCurrentPasswordCorrect === true && (
+                  <Check className="w-3.5 h-3.5 text-success" />
+                )}
+                {!isVerifying && isCurrentPasswordCorrect === false && (
+                  <X className="w-3.5 h-3.5 text-danger" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="text-text-muted hover:text-text transition-colors"
+                >
+                  {showCurrentPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            {!isVerifying && isCurrentPasswordCorrect === false && (
+              <p className="text-[10px] text-danger mt-1">Incorrect current password</p>
+            )}
+            {!isVerifying && isCurrentPasswordCorrect === true && (
+              <p className="text-[10px] text-success mt-1">Correct current password</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <label htmlFor="newPassword" className="text-xs font-medium text-text-secondary">
               New Password
             </label>
-            <input
-              id="newPassword"
-              name="newPassword"
-              type="password"
-              required
-              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
-            />
+            <div className="relative">
+              <input
+                id="newPassword"
+                name="newPassword"
+                type={showNewPassword ? "text" : "password"}
+                required
+                value={newPasswordVal}
+                onChange={(e) => setNewPasswordVal(e.target.value)}
+                className="w-full pl-3.5 pr-10 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors"
+              >
+                {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </div>
           <div className="space-y-1.5">
             <label htmlFor="confirmNewPassword" className="text-xs font-medium text-text-secondary">
               Confirm New Password
             </label>
-            <input
-              id="confirmNewPassword"
-              name="confirmNewPassword"
-              type="password"
-              required
-              className="w-full px-3.5 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
-            />
+            <div className="relative">
+              <input
+                id="confirmNewPassword"
+                name="confirmNewPassword"
+                type={showConfirmNewPassword ? "text" : "password"}
+                required
+                value={confirmNewPasswordVal}
+                onChange={(e) => setConfirmNewPasswordVal(e.target.value)}
+                className="w-full pl-3.5 pr-16 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {confirmPasswordMatches === true && (
+                  <Check className="w-3.5 h-3.5 text-success" />
+                )}
+                {confirmPasswordMatches === false && (
+                  <X className="w-3.5 h-3.5 text-danger" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                  className="text-text-muted hover:text-text transition-colors"
+                >
+                  {showConfirmNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            {confirmPasswordMatches === false && (
+              <p className="text-[10px] text-danger mt-1">Passwords do not match</p>
+            )}
+            {confirmPasswordMatches === true && (
+              <p className="text-[10px] text-success mt-1">Passwords match</p>
+            )}
           </div>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || isCurrentPasswordCorrect === false || confirmPasswordMatches === false}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold active:scale-95 transition-all shadow-glow-sm"
           >
             {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

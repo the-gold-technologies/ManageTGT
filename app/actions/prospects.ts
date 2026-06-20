@@ -24,7 +24,7 @@ export async function createProspect(data: any) {
         proposal_submission_date: proposal_submission_date ? new Date(proposal_submission_date) : null
       }
     })
-    revalidatePath('/finance/prospects')
+    revalidatePath('/growth/prospects')
     return { success: true, prospect }
   } catch (error) {
     console.error('Error creating prospect:', error)
@@ -42,7 +42,7 @@ export async function updateProspect(id: string, data: any) {
         proposal_submission_date: proposal_submission_date ? new Date(proposal_submission_date) : null
       }
     })
-    revalidatePath('/finance/prospects')
+    revalidatePath('/growth/prospects')
     return { success: true, prospect }
   } catch (error) {
     console.error('Error updating prospect:', error)
@@ -55,7 +55,7 @@ export async function deleteProspect(id: string) {
     await prisma.prospect.delete({
       where: { id }
     })
-    revalidatePath('/finance/prospects')
+    revalidatePath('/growth/prospects')
     return { success: true }
   } catch (error) {
     console.error('Error deleting prospect:', error)

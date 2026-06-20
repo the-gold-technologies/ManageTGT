@@ -45,7 +45,7 @@ export default function TopBar({ user }: TopBarProps) {
     if (path.startsWith('/clients')) return ['Dashboard', 'Clients']
     if (path.startsWith('/projects')) return ['Dashboard', 'Projects']
     if (path.startsWith('/tasks')) return ['Dashboard', 'Tasks']
-    if (path.startsWith('/finance/prospects')) return ['Finance', 'Prospects']
+    if (path.startsWith('/growth/prospects')) return ['Growth', 'Prospects']
     if (path.startsWith('/finance/revenue')) return ['Finance', 'Revenue']
     if (path.startsWith('/finance/expenses')) return ['Finance', 'Expenses']
     if (path.startsWith('/profitability')) return ['Finance', 'Profitability']

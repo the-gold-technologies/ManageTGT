@@ -56,7 +56,6 @@ const NAV_SECTIONS: NavSection[] = [
     icon: DollarSign,
     roles: ['admin', 'sales_executive'],
     items: [
-      { href: '/finance/prospects', icon: Users, label: 'Prospects', roles: ['admin', 'sales_executive'] },
       { href: '/finance/revenue', icon: Receipt, label: 'Revenue', roles: ['admin'] },
       { href: '/finance/expenses', icon: Wallet, label: 'Expenses', roles: ['admin'] },
       { href: '/profitability', icon: TrendingUp, label: 'Profitability', roles: ['admin'] },
@@ -67,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: TrendingUp,
     roles: ['admin', 'sales_executive'],
     items: [
+      { href: '/growth/prospects', icon: Users, label: 'Prospects', roles: ['admin', 'sales_executive'] },
       { href: '/targets', icon: Target, label: 'Sales Targets', roles: ['admin', 'sales_executive'] },
       { href: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['admin'] },
     ]

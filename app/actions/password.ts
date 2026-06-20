@@ -210,3 +210,36 @@ export async function changePasswordAction(prevState: any, formData: FormData) {
     return { error: 'Something went wrong. Please try again.' }
   }
 }
+
+/**
+ * Verifies if the current password is correct (for live verification)
+ */
+export async function verifyCurrentPassword(password: string): Promise<boolean> {
+  try {
+    if (!password) return false
+
+    const session = await auth()
+    if (!session?.user?.id) {
+      return false
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    })
+
+    if (!user) {
+      return false
+    }
+
+    if (!user.password) {
+      // OAuth user with no password yet
+      return true
+    }
+
+    return await bcrypt.compare(password, user.password)
+  } catch (error) {
+    console.error('Verify current password error:', error)
+    return false
+  }
+}
+
