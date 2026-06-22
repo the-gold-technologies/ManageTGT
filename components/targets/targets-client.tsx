@@ -49,22 +49,20 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
 
-  const { data: targets } = useQuery({
+  const { data: targets, isLoading: targetsLoading } = useQuery({
     queryKey: ['sales_targets', selectedYear],
     queryFn: async () => {
       const data = await getSalesTargets()
       return data.filter((t: any) => t.year === selectedYear) as unknown as SalesTarget[]
-    },
-    initialData: initialTargets.filter(t => t.year === selectedYear),
+    }
   })
 
-  const { data: closures } = useQuery({
+  const { data: closures, isLoading: closuresLoading } = useQuery({
     queryKey: ['sales_closures'],
     queryFn: async () => {
       const data = await getSalesClosures()
       return data as any[]
-    },
-    initialData: initialClosures,
+    }
   })
 
   const [isDeleting, setIsDeleting] = useState(false)
@@ -167,17 +165,27 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
       </div>
 
       {/* Analytics Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard title="Total Target" value={String(totalSetTarget)} icon={Target} iconColor="bg-primary/10 text-primary" />
-        <StatCard title="Monthly Target" value={String(monthlySetTarget)} icon={Calendar} iconColor="bg-info/10 text-info" />
-        <StatCard title="Total Achieved" value={String(totalTargetAchieved)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
-        <StatCard title="Monthly Achieved" value={String(monthlyTargetAchieved)} icon={CalendarCheck} iconColor="bg-success/10 text-success" />
-        <StatCard title="Total Missed" value={String(totalMissedTarget)} icon={XCircle} iconColor="bg-danger/10 text-danger" />
-        <StatCard title="Monthly Missed" value={String(monthlyMissedTarget)} icon={CalendarX} iconColor="bg-danger/10 text-danger" />
-      </div>
+      {targetsLoading || closuresLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 animate-pulse">
+          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-24 bg-bg-secondary border border-border rounded-xl"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <StatCard title="Total Target" value={String(totalSetTarget)} icon={Target} iconColor="bg-primary/10 text-primary" />
+          <StatCard title="Monthly Target" value={String(monthlySetTarget)} icon={Calendar} iconColor="bg-info/10 text-info" />
+          <StatCard title="Total Achieved" value={String(totalTargetAchieved)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
+          <StatCard title="Monthly Achieved" value={String(monthlyTargetAchieved)} icon={CalendarCheck} iconColor="bg-success/10 text-success" />
+          <StatCard title="Total Missed" value={String(totalMissedTarget)} icon={XCircle} iconColor="bg-danger/10 text-danger" />
+          <StatCard title="Monthly Missed" value={String(monthlyMissedTarget)} icon={CalendarX} iconColor="bg-danger/10 text-danger" />
+        </div>
+      )}
 
       {/* Targets grid */}
-      {displayedTargets.length === 0 ? (
+      {targetsLoading || closuresLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-pulse">
+          {[1, 2, 3].map(i => <div key={i} className="h-40 bg-bg-secondary border border-border rounded-xl"></div>)}
+        </div>
+      ) : displayedTargets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Target size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No targets set for this period</p>

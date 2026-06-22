@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X } from 'lucide-react'
+import { X, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient as createClientAction, updateClient as updateClientAction } from '@/app/actions/clients'
 import { useQueryClient } from '@tanstack/react-query'
@@ -30,6 +30,7 @@ interface ClientModalProps {
   open: boolean
   onClose: () => void
   client: Client | null
+  onDelete?: (client: Client) => void
 }
 
 const FIELDS = [
@@ -44,7 +45,7 @@ const FIELDS = [
   { name: 'notes' as const, label: 'Notes / Remarks', placeholder: 'Any additional notes...', fullWidth: true, textarea: true },
 ]
 
-export default function ClientModal({ open, onClose, client }: ClientModalProps) {
+export default function ClientModal({ open, onClose, client, onDelete }: ClientModalProps) {
   const qc = useQueryClient()
   const isEdit = !!client
 
@@ -64,7 +65,17 @@ export default function ClientModal({ open, onClose, client }: ClientModalProps)
         gst_number: client.gst_number ?? '',
         pan_number: client.pan_number ?? '',
         notes: client.notes ?? '',
-      } : {})
+      } : {
+        name: '',
+        company_name: '',
+        contact_person: '',
+        mobile: '',
+        email: '',
+        address: '',
+        gst_number: '',
+        pan_number: '',
+        notes: '',
+      })
     }
   }, [open, client, reset])
 
@@ -148,11 +159,27 @@ export default function ClientModal({ open, onClose, client }: ClientModalProps)
             </form>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose} disabled={isSubmitting} className="text-xs h-8 px-3">Cancel</Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} className="text-xs h-8 px-3">
-                {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Client')}
-              </Button>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg">
+              <div>
+                {isEdit && onDelete && client && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onDelete(client)}
+                    disabled={isSubmitting}
+                    className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete Client</span>
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" onClick={onClose} disabled={isSubmitting} className="text-xs h-8 px-3">Cancel</Button>
+                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} className="text-xs h-8 px-3">
+                  {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Client')}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </>

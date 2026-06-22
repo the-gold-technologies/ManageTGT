@@ -6,6 +6,26 @@ import type { UserRole } from '@/types'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 
+export async function getCurrentProfile() {
+  const session = await auth()
+  if (!session?.user?.id) return null
+
+  const profile = await prisma.user.findUnique({
+    where: { id: session.user.id }
+  })
+
+  if (!profile) return null
+
+  return {
+    id: profile.id,
+    full_name: profile.name || 'User',
+    email: profile.email || '',
+    role: profile.role,
+    avatar_url: profile.image || session.user.image || null,
+    createdAt: profile.createdAt.toISOString(),
+  }
+}
+
 export async function addTeamMember(data: {
   full_name: string
   email: string

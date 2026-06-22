@@ -5,6 +5,8 @@ import { motion } from 'framer-motion'
 import { Plus, Search, Receipt } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getInvoices } from '@/app/actions/finance'
+import { getProjects } from '@/app/actions/projects'
+import { getClients } from '@/app/actions/clients'
 import { toast } from 'sonner'
 import type { Invoice, Project, Client } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -43,16 +45,37 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
-  const { data: invoices } = useQuery({
+  const { data: invoicesData, isLoading: isInvoicesLoading } = useQuery({
     queryKey: ['invoices'],
     queryFn: async () => {
       const data = await getInvoices()
       return data as unknown as Invoice[]
-    },
-    initialData: initialInvoices,
+    }
   })
 
-  const inv = invoices ?? []
+  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const data = await getProjects()
+      return data as unknown as Project[]
+    }
+  })
+
+  const { data: clientsData, isLoading: isClientsLoading } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const data = await getClients()
+      return data as unknown as Pick<Client, 'id' | 'name'>[]
+    }
+  })
+
+  const isLoading = isInvoicesLoading || isProjectsLoading || isClientsLoading
+
+  const inv = invoicesData ?? initialInvoices
+  const activeProjects = projectsData ?? projects
+  const activeClients = clientsData ?? clients
+
+
   const totalBilled = inv.reduce((s, i) => s + (i.final_billing || 0), 0)
   const totalReceived = inv.reduce((s, i) => s + (i.amount_received || 0), 0)
   const totalPending = totalBilled - totalReceived
@@ -114,13 +137,19 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
-        <StatCard title="Total Billed" value={formatCurrency(totalBilled)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
-        <StatCard title="Amount Received" value={formatCurrency(totalReceived)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
-        <StatCard title="Pending Amount" value={formatCurrency(totalPending)} icon={Clock} iconColor="bg-warning/10 text-warning" />
-        <StatCard title="Overdue" value={String(overdueCount)} icon={AlertCircle} iconColor="bg-danger/10 text-danger" />
-      </div>
+      {/* ── Stats ────────────────────────────────────────── */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0 animate-pulse">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-xl"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
+          <StatCard title="Total Billed" value={formatCurrency(totalBilled)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
+          <StatCard title="Amount Received" value={formatCurrency(totalReceived)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
+          <StatCard title="Pending Amount" value={formatCurrency(totalPending)} icon={Clock} iconColor="bg-warning/10 text-warning" />
+          <StatCard title="Overdue" value={String(overdueCount)} icon={AlertCircle} iconColor="bg-danger/10 text-danger" />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
@@ -156,8 +185,11 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
         </div>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
+      {/* ── Table ────────────────────────────────────────── */}
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <Receipt size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No invoices found</p>
@@ -165,16 +197,16 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
       ) : (
         <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm">
+            <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
                   {['Invoice #', 'Project', 'Client', 'Billed', 'Received', 'Pending', 'Due Date', 'Status'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {paginated.map((inv, idx) => (
+                {paginated.map((inv) => (
                   <tr key={inv.id} onClick={() => { setEditingInvoice(inv); setModalOpen(true) }}
                     className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <td className="px-4 py-3 font-medium text-text">{inv.invoice_number}</td>
@@ -205,7 +237,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
         </div>
       )}
 
-      <InvoiceModal open={modalOpen} onClose={() => setModalOpen(false)} invoice={editingInvoice} projects={projects} clients={clients} />
+      <InvoiceModal open={modalOpen} onClose={() => setModalOpen(false)} invoice={editingInvoice} projects={activeProjects} clients={activeClients} />
     </div>
   )
 }

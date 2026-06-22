@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Project, Client, Profile, ProjectInvoice } from '@/types'
 import { getProjects, deleteProject as deleteProjectAction } from '@/app/actions/projects'
+import { getClients } from '@/app/actions/clients'
+import { getTeamMembers } from '@/app/actions/team'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency, PROJECT_STATUS_CONFIG, isOverdue } from '@/lib/utils'
@@ -48,14 +50,35 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
-  const { data: projects } = useQuery({
+  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       const data = await getProjects()
       return data as unknown as Project[]
-    },
-    initialData: initialProjects,
+    }
   })
+
+  const { data: clientsData, isLoading: isClientsLoading } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const data = await getClients()
+      return data as unknown as Pick<Client, 'id' | 'name' | 'company_name'>[]
+    }
+  })
+
+  const { data: profilesData, isLoading: isProfilesLoading } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      const data = await getTeamMembers()
+      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role'>[]
+    }
+  })
+
+  // Use state data or fallback
+  const projects = projectsData ?? initialProjects
+  const activeClients = clientsData ?? clients
+  const activeProfiles = profilesData ?? profiles
+  const isLoading = isProjectsLoading || isClientsLoading || isProfilesLoading
 
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
@@ -71,7 +94,10 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       qc.setQueryData<Project[]>(['projects'], old => (old ?? []).filter(p => p.id !== deletedId))
       return { previous }
     },
-    onSuccess: () => toast.success('Project deleted'),
+    onSuccess: () => {
+      toast.success('Project deleted')
+      setProjectToDelete(null)
+    },
     onError: (err, _, context) => {
       // Rollback to previous state if mutation fails
       if (context?.previous) qc.setQueryData(['projects'], context.previous)
@@ -190,8 +216,13 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         </div>
       </div>
 
+
+
       {/* Content */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <FolderKanban size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No projects found</p>
@@ -201,19 +232,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         <div className="relative flex flex-col flex-1 min-h-0 group bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
           <Glow />
           <div className="relative z-10 overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm">
+            <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Project</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Client</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Service</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Value</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Received</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Balance</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Start Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Deadline</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Status</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Payments</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Project</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Client</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Service</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Value</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Received</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Balance</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Start Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Deadline</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Payments</th>
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
@@ -265,7 +296,6 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           {PROJECT_STATUS_CONFIG[project.status]?.label}
                         </Badge>
                       </td>
-                      {/* Payments column — always visible ₹ button, stops row-click propagation */}
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-center">
                           <button
@@ -298,8 +328,8 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         project={editingProject}
-        clients={clients}
-        profiles={profiles}
+        clients={activeClients}
+        profiles={activeProfiles}
         userRole={userRole}
         onDelete={p => { setModalOpen(false); setProjectToDelete(p) }}
       />

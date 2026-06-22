@@ -61,7 +61,15 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
         priority: task.priority,
         status: task.status,
-      } : { priority: 'medium', status: 'todo' })
+      } : { 
+        title: '',
+        description: '',
+        project_id: '',
+        assigned_to: '',
+        deadline: '',
+        priority: 'medium', 
+        status: 'todo' 
+      })
       // Delay resetting state to avoid sync state updates in effect
       setTimeout(() => {
         setSelectedFiles([])

@@ -17,30 +17,13 @@ import { useTheme } from 'next-themes'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useEffect, Suspense } from 'react'
 import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { getDashboardData } from '@/app/actions/dashboard'
 
 interface DashboardClientProps {
   userRole?: string
-  data: {
-    userRole?: string
-    stats: {
-      totalRevenue: number
-      totalProfit: number
-      totalExpenses: number
-      activeProjects: number
-      completedProjects: number
-      pendingPayments: number
-      monthlyTarget: { achieved: number; total: number }
-    }
-    revenueTrend: Array<{ month: string; revenue: number }>
-    profitTrend: Array<{ month: string; profit: number }>
-    projectStatusData: Array<{ name: string; value: number; color: string }>
-    expensesTrend: number[]
-    pendingTrend: number[]
-    activeProjectsTrend: number[]
-    completedProjectsTrend: number[]
-  }
+  data: any
 }
-
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
   show: {
@@ -61,7 +44,7 @@ const CHART_COLORS = {
   danger: '#EF4444',
 }
 
-function DashboardContent({ data, userRole }: DashboardClientProps) {
+function DashboardContent({ data: initialData, userRole }: DashboardClientProps) {
   const { resolvedTheme } = useTheme()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -72,24 +55,58 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
     }
   }, [searchParams, router])
 
+  const { data: queryData, isLoading } = useQuery({
+    queryKey: ['dashboardData'],
+    queryFn: async () => {
+      const res = await getDashboardData()
+      return res
+    }
+  })
+
   const gridColor = resolvedTheme === 'dark' ? '#1E1E2A' : '#E5E7EB'
   const tooltipBgColor = resolvedTheme === 'dark' ? '#171717' : '#FFFFFF'
   const tooltipBorderColor = resolvedTheme === 'dark' ? '#262626' : '#E5E7EB'
 
-  const { stats, revenueTrend, profitTrend, projectStatusData, expensesTrend, pendingTrend, activeProjectsTrend, completedProjectsTrend } = data
-  const role = userRole || data.userRole || 'team_member'
+  const data = queryData || initialData
+
+  const role = userRole || data?.userRole || 'team_member'
   
   const isFinanceVisible = ['admin'].includes(role)
   const isSalesVisible = ['admin', 'sales_executive'].includes(role)
   const isProjectsVisible = ['admin', 'team_lead'].includes(role)
 
-  const targetPct = stats.monthlyTarget.total > 0
+  const stats = data?.stats
+  const targetPct = stats?.monthlyTarget?.total > 0
     ? Math.round((stats.monthlyTarget.achieved / stats.monthlyTarget.total) * 100)
     : 0
 
-  // Real spark arrays from trend data
-  const revenueSparkData = revenueTrend.map(r => r.revenue)
-  const profitSparkData = profitTrend.map(r => r.profit)
+  const revenueSparkData = data?.revenueTrend?.map((r: any) => r.revenue) || []
+  const profitSparkData = data?.profitTrend?.map((r: any) => r.profit) || []
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-bg-secondary border border-border rounded-xl"></div>)}
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="xl:col-span-2 h-[280px] bg-bg-secondary border border-border rounded-xl"></div>
+          <div className="h-[280px] bg-bg-secondary border border-border rounded-xl"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          {[1, 2, 3].map(i => <div key={i} className="h-[200px] bg-bg-secondary border border-border rounded-xl"></div>)}
+        </div>
+      </div>
+    )
+  }
+
+  if (!data || !stats) {
+    return (
+      <div className="p-8 text-center text-text-secondary bg-bg-secondary rounded-xl border border-border">
+        Unable to load dashboard data. Please refresh the page or check your connection.
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -133,7 +150,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
               changeLabel="vs last month"
               icon={Wallet}
               iconColor="bg-danger/10 text-danger"
-              sparkData={expensesTrend}
+              sparkData={data.expensesTrend}
               sparkType="area"
               sparkColor="#EF4444"
               href="/finance/expenses"
@@ -148,7 +165,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
               value={String(stats.activeProjects)}
               icon={FolderKanban}
               iconColor="bg-accent-cyan/10 text-accent-cyan"
-              sparkData={activeProjectsTrend}
+              sparkData={data.activeProjectsTrend}
               sparkType="bar"
               sparkColor="#06B6D4"
               href="/projects"
@@ -158,7 +175,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
               value={String(stats.completedProjects)}
               icon={CheckCircle2}
               iconColor="bg-success/10 text-success"
-              sparkData={completedProjectsTrend}
+              sparkData={data.completedProjectsTrend}
               sparkType="bar"
               sparkColor="#10B981"
               href="/projects?status=completed"
@@ -172,7 +189,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
             value={formatCurrency(stats.pendingPayments)}
             icon={Clock}
             iconColor="bg-warning/10 text-warning"
-            sparkData={pendingTrend}
+            sparkData={data.pendingTrend}
             sparkType="area"
             sparkColor="#F59E0B"
             href="/finance/revenue"
@@ -219,7 +236,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
         <Card title="Revenue Trend" className="xl:col-span-2" padding={false}>
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={revenueTrend} barSize={28} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <BarChart data={data.revenueTrend} barSize={28} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={1} />
@@ -247,9 +264,9 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
           {isProjectsVisible && (
             <Card title="Project Status" className={!isFinanceVisible ? 'xl:col-span-3' : ''} padding={false}>
           <div className="p-5">
-            {projectStatusData.length > 0 ? (
+            {data.projectStatusData.length > 0 ? (
               (() => {
-                const totalProjects = projectStatusData.reduce((sum, entry) => sum + entry.value, 0);
+                const totalProjects = data.projectStatusData.reduce((sum: number, entry: any) => sum + entry.value, 0);
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
                     {/* Chart container */}
@@ -257,7 +274,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={projectStatusData}
+                            data={data.projectStatusData}
                             cx="50%"
                             cy="50%"
                             innerRadius={62}
@@ -266,7 +283,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
                             cornerRadius={5}
                             dataKey="value"
                           >
-                            {projectStatusData.map((entry, index) => (
+                            {data.projectStatusData.map((entry: any, index: number) => (
                               <Cell 
                                 key={index} 
                                 fill={entry.color} 
@@ -303,7 +320,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
                     {/* Details Breakdown */}
                     <div className="sm:col-span-2 space-y-0">
                       <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown</p>
-                      {projectStatusData.map((entry, index) => {
+                      {data.projectStatusData.map((entry: any, index: number) => {
                         const percentage = totalProjects > 0 ? Math.round((entry.value / totalProjects) * 100) : 0;
                         return (
                           <div 
@@ -339,7 +356,7 @@ function DashboardContent({ data, userRole }: DashboardClientProps) {
         <Card title="Profit Trend" padding={false}>
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={profitTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <AreaChart data={data.profitTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3} />

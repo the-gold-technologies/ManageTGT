@@ -8,6 +8,8 @@ import type { Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
+import { getCurrentProfile } from '@/app/actions/team'
 
 const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' | 'muted'> = {
   admin: 'danger' as any,
@@ -36,6 +38,16 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
   // New password validation states
   const [newPasswordVal, setNewPasswordVal] = useState('')
   const [confirmNewPasswordVal, setConfirmNewPasswordVal] = useState('')
+
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['currentProfile'],
+    queryFn: async () => {
+      const data = await getCurrentProfile()
+      return data as Profile
+    }
+  })
+
+  const profile = profileData ?? currentProfile
 
   useEffect(() => {
     if (passState?.error) {
@@ -87,32 +99,41 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
           <User size={16} className="text-text-muted" />
           <h3 className="text-sm font-semibold text-text">My Profile</h3>
         </div>
-        {currentProfile && (
+        {isLoading ? (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 animate-pulse">
+            <div className="w-20 h-20 rounded-full bg-bg shrink-0 border border-border shadow-glow-sm"></div>
+            <div className="space-y-3 flex-1 w-full">
+              <div className="h-6 bg-bg rounded w-1/3"></div>
+              <div className="h-4 bg-bg rounded w-1/4 mt-1"></div>
+              <div className="h-5 bg-bg rounded w-1/2 mt-3"></div>
+            </div>
+          </div>
+        ) : profile && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 border border-border shadow-glow-sm">
-              {currentProfile.avatar_url ? (
-                <img src={currentProfile.avatar_url} alt={currentProfile.full_name} className="w-full h-full object-cover" />
+              {profile.avatar_url ? (
+                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
               ) : (
-                getInitials(currentProfile.full_name)
+                getInitials(profile.full_name)
               )}
             </div>
             <div className="space-y-2.5 flex-1 w-full">
               <div>
-                <p className="text-lg font-bold text-text">{currentProfile.full_name}</p>
-                <p className="text-xs text-text-muted mt-0.5">{currentProfile.email}</p>
+                <p className="text-lg font-bold text-text">{profile.full_name}</p>
+                <p className="text-xs text-text-muted mt-0.5">{profile.email}</p>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-text-muted">Role:</span>
-                  <Badge variant={ROLE_BADGE_MAP[currentProfile.role] ?? 'muted'}>
-                    {currentProfile.role.replace('_', ' ')}
+                  <Badge variant={ROLE_BADGE_MAP[profile.role] ?? 'muted'}>
+                    {profile.role.replace('_', ' ')}
                   </Badge>
                 </div>
                 <div className="text-text-muted">
-                  <span>Joined:</span> <span className="text-text-secondary font-medium ml-1">{formatDate(currentProfile.createdAt)}</span>
+                  <span>Joined:</span> <span className="text-text-secondary font-medium ml-1">{formatDate(profile.createdAt)}</span>
                 </div>
-                <div className="text-text-muted truncate max-w-xs" title={currentProfile.id}>
-                  <span>ID:</span> <span className="text-text-secondary font-mono text-[10px] ml-1">{currentProfile.id}</span>
+                <div className="text-text-muted truncate max-w-xs" title={profile.id}>
+                  <span>ID:</span> <span className="text-text-secondary font-mono text-[10px] ml-1">{profile.id}</span>
                 </div>
               </div>
             </div>

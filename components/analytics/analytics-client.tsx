@@ -10,6 +10,8 @@ import { Card } from '@/components/ui/card'
 import StatCard from '@/components/ui/stat-card'
 import { formatCurrency, calculateMargin } from '@/lib/utils'
 import { DollarSign, TrendingUp, FolderKanban, CheckCircle2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { getAnalyticsData } from '@/app/actions/analytics'
 
 const COLORS = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#A855F7', '#EC4899']
 
@@ -30,7 +32,21 @@ interface AnalyticsClientProps {
   prospects: Array<{ proposal_submitted: boolean; client_converted: boolean; createdAt: string }>
 }
 
-export default function AnalyticsClient({ monthlyData, serviceData, projects, tasks, prospects }: AnalyticsClientProps) {
+export default function AnalyticsClient({ monthlyData: initM, serviceData: initS, projects: initP, tasks: initT, prospects: initPr }: AnalyticsClientProps) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['analyticsData'],
+    queryFn: async () => {
+      const res = await getAnalyticsData()
+      return res
+    }
+  })
+
+  const monthlyData = data?.monthlyData ?? initM
+  const serviceData = data?.serviceData ?? initS
+  const projects = data?.projects ?? initP
+  const tasks = data?.tasks ?? initT
+  const prospects = data?.prospects ?? initPr
+
   const totalRevenue = monthlyData.reduce((s, m) => s + m.revenue, 0)
   const totalExpenses = monthlyData.reduce((s, m) => s + m.expenses, 0)
   const totalProfit = totalRevenue - totalExpenses
@@ -69,16 +85,25 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
       </div>
 
       {/* Summary stats */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
-        <StatCard title="Total Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} iconColor={totalProfit >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'} />
-        <StatCard title="Profit Margin" value={`${margin}%`} icon={TrendingUp} iconColor="bg-accent-cyan/10 text-accent-cyan" />
-        <StatCard title="Active Projects" value={String(projects.filter(p => p.status === 'in_progress').length)} icon={FolderKanban} iconColor="bg-primary/10 text-primary" />
-      </motion.div>
+      {isLoading ? (
+        <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-xl"></div>)}
+        </motion.div>
+      ) : (
+        <motion.div variants={itemVariants} className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} iconColor="bg-primary/10 text-primary" />
+          <StatCard title="Total Profit" value={formatCurrency(totalProfit)} icon={TrendingUp} iconColor={totalProfit >= 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'} />
+          <StatCard title="Profit Margin" value={`${margin}%`} icon={TrendingUp} iconColor="bg-accent-cyan/10 text-accent-cyan" />
+          <StatCard title="Active Projects" value={String(projects.filter(p => p.status === 'in_progress').length)} icon={FolderKanban} iconColor="bg-primary/10 text-primary" />
+        </motion.div>
+      )}
 
       {/* Revenue vs Expenses */}
       <motion.div variants={itemVariants}>
         <Card title="Revenue vs Expenses (12 months)" padding={false}>
+          {isLoading ? (
+            <div className="h-[280px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 0, left: -15 }} barGap={4}>
@@ -93,12 +118,16 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               </BarChart>
             </ResponsiveContainer>
           </div>
+          )}
         </Card>
       </motion.div>
 
       {/* Profit trend + Service breakdown */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card title="Profit Trend" padding={false}>
+          {isLoading ? (
+            <div className="h-[220px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
@@ -118,9 +147,13 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          )}
         </Card>
 
         <Card title="Service-wise Revenue" padding={false}>
+          {isLoading ? (
+            <div className="h-[220px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3">
             {serviceData.length > 0 ? (
               <ResponsiveContainer width="100%" height={220}>
@@ -138,12 +171,16 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               <div className="h-[220px] flex items-center justify-center text-text-muted text-sm">No service data</div>
             )}
           </div>
+          )}
         </Card>
       </motion.div>
 
       {/* Project Status + Task Analytics */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card title="Project Status Breakdown" padding={false}>
+          {isLoading ? (
+            <div className="h-[200px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3">
             {projectStatusData.length > 0 ? (
               (() => {
@@ -224,9 +261,13 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">No projects</div>
             )}
           </div>
+          )}
         </Card>
 
         <Card title="Team Task Analytics" padding={false}>
+          {isLoading ? (
+            <div className="h-[200px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3 space-y-4">
             <div className="grid grid-cols-2 gap-4 mt-3">
               {[
@@ -254,12 +295,16 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               </div>
             </div>
           </div>
+          )}
         </Card>
       </motion.div>
 
       {/* Sales Pipeline & Conversion Analytics */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card title="Sales Funnel & Conversions" padding={false}>
+          {isLoading ? (
+            <div className="h-[230px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3 space-y-4">
             <div className="grid grid-cols-2 gap-4 mt-3">
               {[
@@ -304,9 +349,13 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               </div>
             </div>
           </div>
+          )}
         </Card>
 
         <Card title="Lead Inflow Trend (12 months)" padding={false}>
+          {isLoading ? (
+            <div className="h-[230px] bg-bg-secondary animate-pulse m-5 rounded-lg"></div>
+          ) : (
           <div className="px-5 pb-5 pt-3">
             <ResponsiveContainer width="100%" height={230}>
               <AreaChart data={monthlyLeads} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
@@ -325,6 +374,7 @@ export default function AnalyticsClient({ monthlyData, serviceData, projects, ta
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          )}
         </Card>
       </motion.div>
     </motion.div>

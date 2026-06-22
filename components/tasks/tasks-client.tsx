@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Task, Project, Profile, TaskStatus } from '@/types'
 import { getTasks, updateTaskStatus as updateTaskStatusAction } from '@/app/actions/tasks'
+import { getProjects } from '@/app/actions/projects'
+import { getTeamMembers } from '@/app/actions/team'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Glow } from '@/components/ui/glow'
@@ -22,6 +24,7 @@ interface TasksClientProps {
   projects: Pick<Project, 'id' | 'name' | 'project_code'>[]
   profiles: Pick<Profile, 'id' | 'full_name' | 'role'>[]
   userRole?: string
+  userId?: string
 }
 
 const COLUMNS: { key: TaskStatus; label: string; color: string; headerColor: string }[] = [
@@ -38,7 +41,7 @@ const PRIORITY_BADGE_MAP = {
   urgent: 'danger',
 } as const
 
-export default function TasksClient({ initialTasks, projects, profiles, userRole }: TasksClientProps) {
+export default function TasksClient({ initialTasks, projects: initialProjects, profiles: initialProfiles, userRole, userId }: TasksClientProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [search, setSearch] = useState('')
@@ -47,15 +50,54 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const qc = useQueryClient()
 
-  const { data: tasks } = useQuery({
+  const { data: tasksData, isLoading: isTasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const data = await getTasks()
       return data as unknown as Task[]
     },
-    initialData: initialTasks,
-    refetchInterval: 15000, // Poll every 15 seconds
+    refetchInterval: 15000,
   })
+
+  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const data = await getProjects()
+      return data as unknown as Project[]
+    }
+  })
+
+  const { data: profilesData, isLoading: isProfilesLoading } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: async () => {
+      const data = await getTeamMembers()
+      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role'>[]
+    }
+  })
+
+  const isLoading = isTasksLoading || isProjectsLoading || isProfilesLoading
+
+  // Server-side filtering logic migrated to client
+  const allProjects = projectsData ?? initialProjects
+  const allTasks = tasksData ?? initialTasks
+  const profiles = profilesData ?? initialProfiles
+
+  const teamLeadProjectIds = allProjects
+    .filter(p => (p as Project).team_lead_id === userId)
+    .map(p => p.id)
+
+  let roleFilteredTasks = allTasks
+  if (userRole === 'team_lead') {
+    roleFilteredTasks = allTasks.filter(t =>
+      teamLeadProjectIds.includes(t.project_id || '') ||
+      t.assigned_by === userId ||
+      t.assigned_to === userId
+    )
+  } else if (userRole === 'team_member') {
+    roleFilteredTasks = allTasks.filter(t => t.assigned_to === userId)
+  }
+
+  const projects = allProjects.filter(p => ['pending', 'in_progress', 'on_hold'].includes((p as Project).status || ''))
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
@@ -80,7 +122,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
     onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 
-  const filteredTasks = (tasks ?? []).filter(t => {
+  const filteredTasks = (roleFilteredTasks ?? []).filter(t => {
     const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) ||
                           t.project?.name.toLowerCase().includes(search.toLowerCase()) || ''
                           
@@ -123,7 +165,7 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-text">Tasks</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{tasks?.length ?? 0} total tasks</p>
+          <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
         </div>
         <div className="flex items-center gap-2">
           <DateFilterDropdown 
@@ -147,8 +189,22 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
         </div>
       </div>
 
-      <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-[500px]">
-        {COLUMNS.map(col => {
+      {isLoading ? (
+        <div className="flex gap-6 overflow-hidden min-h-[500px]">
+          {[1, 2, 3, 4].map(col => (
+            <div key={col} className="w-full lg:w-1/4 shrink-0 bg-bg-secondary/50 rounded-2xl p-4 border border-border">
+              <div className="h-6 w-24 bg-bg-secondary rounded-md mb-4 animate-pulse"></div>
+              <div className="space-y-3">
+                {[1, 2, 3].map(card => (
+                  <div key={card} className="h-32 bg-bg-secondary rounded-xl border border-border animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-[500px]">
+          {COLUMNS.map(col => {
           const colTasks = filteredTasks.filter(t => t.status === col.key)
           return (
             <div key={col.key} className={cn('rounded-xl border bg-bg-secondary flex flex-col', col.color)}>
@@ -230,7 +286,8 @@ export default function TasksClient({ initialTasks, projects, profiles, userRole
             </div>
           )
         })}
-      </motion.div>
+        </motion.div>
+      )}
 
       <TaskModal
         open={modalOpen}

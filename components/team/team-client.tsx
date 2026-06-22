@@ -51,14 +51,15 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
   const qc = useQueryClient()
   const supabase = createClient()
 
-  const { data: profiles } = useQuery({
+  const { data: profilesData, isLoading } = useQuery({
     queryKey: ['team'],
     queryFn: async () => {
       const data = await getTeamMembers()
       return data as Profile[]
-    },
-    initialData: initialProfiles,
+    }
   })
+
+  const profiles = profilesData ?? initialProfiles
 
   const updateRoleMutation = useMutation({
     mutationFn: async ({ id, newRole }: { id: string; newRole: UserRole }) => {
@@ -153,21 +154,24 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center flex-1 bg-bg-secondary rounded-xl border border-border">
           <UserCog size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No team members found</p>
         </div>
       ) : (
         <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm">
+            <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Member</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Role</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Joined Date</th>
-                  {canManage && <th className="text-right px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>}
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Member</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Role</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Joined Date</th>
+                  {canManage && <th className="text-right px-6 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Actions</th>}
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">

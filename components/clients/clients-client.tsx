@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
   Plus, Search, Building2, Mail, Phone, Pencil, Trash2,
-  FileText, ChevronLeft, ChevronRight
+  FileText, ChevronLeft, ChevronRight, MapPin
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -46,13 +46,12 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const qc = useQueryClient()
 
-  const { data: clients } = useQuery({
+  const { data: clients, isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
       const data = await getClients()
       return data as unknown as Client[]
-    },
-    initialData: initialClients,
+    }
   })
 
   const deleteClient = useMutation({
@@ -66,7 +65,10 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
       qc.setQueryData<Client[]>(['clients'], old => (old ?? []).filter(c => c.id !== deletedId))
       return { previous }
     },
-    onSuccess: () => toast.success('Client deleted'),
+    onSuccess: () => {
+      toast.success('Client deleted')
+      setClientToDelete(null)
+    },
     onError: (err, _, context) => {
       if (context?.previous) qc.setQueryData(['clients'], context.previous)
       toast.error('Failed to delete client')
@@ -119,11 +121,11 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
   const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   // Export helpers
-  const exportHeaders = ['Name', 'Company', 'Contact Person', 'Email', 'Phone', 'GST', 'PAN', 'Added']
+  const exportHeaders = ['Name', 'Company', 'Contact Person', 'Email', 'Phone', 'Address', 'GST', 'PAN', 'Notes', 'Added']
   const mapExportData = (c: Client) => [
     c.name, c.company_name || '', c.contact_person || '',
-    c.email || '', c.mobile || '', c.gst_number || '', c.pan_number || '',
-    new Date(c.createdAt).toLocaleDateString()
+    c.email || '', c.mobile || '', c.address || '', c.gst_number || '', c.pan_number || '',
+    c.notes || '', new Date(c.createdAt).toLocaleDateString()
   ]
 
   const rowVariants = { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }
@@ -193,7 +195,10 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
       </div>
 
       {/* ── Table Card ───────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <Building2 size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No clients found</p>
@@ -206,18 +211,16 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
       ) : (
         <div className="flex flex-col flex-1 min-h-0 bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm">
+            <table className="min-w-max w-full text-sm">
               <thead>
-                {/* ← matches projects page exactly: bg-bg-tertiary, text-text-secondary */}
                 <tr className="bg-bg-tertiary border-b border-border">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Client</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Contact Person</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider hidden md:table-cell">Phone</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider hidden lg:table-cell">GST / PAN</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider hidden xl:table-cell">Added</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Client</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Contact Person</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Email & Phone</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Address</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">GST / PAN</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Notes</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Added</th>
                 </tr>
               </thead>
               <motion.tbody
@@ -231,12 +234,10 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
                     key={client.id}
                     variants={rowVariants}
                     transition={{ duration: 0.18 }}
-                    className="group hover:bg-bg-tertiary/40 transition-colors"
+                    onClick={() => { setEditingClient(client); setModalOpen(true) }}
+                    className="group hover:bg-bg-tertiary/40 transition-colors cursor-pointer"
                   >
-                    {/* # */}
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-text-muted">{(safePage - 1) * pageSize + idx + 1}</span>
-                    </td>
+
 
                     {/* Client name + company */}
                     <td className="px-4 py-3">
@@ -260,27 +261,37 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
                       <span className="text-xs text-text-secondary">{client.contact_person || <span className="text-text-muted">—</span>}</span>
                     </td>
 
-                    {/* Email */}
+                    {/* Email & Phone */}
                     <td className="px-4 py-3">
-                      {client.email ? (
-                        <a href={`mailto:${client.email}`} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors">
-                          <Mail size={10} className="text-text-muted shrink-0" />
-                          <span className="truncate max-w-[160px]">{client.email}</span>
-                        </a>
-                      ) : <span className="text-xs text-text-muted">—</span>}
+                      <div className="space-y-1">
+                        {client.email ? (
+                          <a href={`mailto:${client.email}`} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors">
+                            <Mail size={10} className="text-text-muted shrink-0" />
+                            <span className="truncate max-w-[140px]">{client.email}</span>
+                          </a>
+                        ) : <span className="text-xs text-text-muted block">—</span>}
+                        
+                        {client.mobile ? (
+                          <a href={`tel:${client.mobile}`} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors">
+                            <Phone size={10} className="text-text-muted shrink-0" />
+                            <span>{client.mobile}</span>
+                          </a>
+                        ) : null}
+                      </div>
                     </td>
 
-                    {/* Phone */}
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      {client.mobile ? (
-                        <a href={`tel:${client.mobile}`} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors">
-                          <Phone size={10} className="text-text-muted shrink-0" />{client.mobile}
-                        </a>
+                    {/* Address */}
+                    <td className="px-4 py-3">
+                      {client.address ? (
+                        <div className="flex items-start gap-1.5 text-xs text-text-secondary max-w-[160px]">
+                          <MapPin size={10} className="text-text-muted shrink-0 mt-0.5" />
+                          <span className="line-clamp-2" title={client.address}>{client.address}</span>
+                        </div>
                       ) : <span className="text-xs text-text-muted">—</span>}
                     </td>
 
                     {/* GST / PAN */}
-                    <td className="px-4 py-3 hidden lg:table-cell">
+                    <td className="px-4 py-3">
                       <div className="space-y-0.5">
                         {client.gst_number && (
                           <p className="text-xs text-text-secondary">GST: <span className="font-mono">{client.gst_number}</span></p>
@@ -292,30 +303,20 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
                       </div>
                     </td>
 
+                    {/* Notes */}
+                    <td className="px-4 py-3">
+                      {client.notes ? (
+                        <div className="text-xs text-text-secondary max-w-[160px]">
+                          <span className="line-clamp-2" title={client.notes}>{client.notes}</span>
+                        </div>
+                      ) : <span className="text-xs text-text-muted">—</span>}
+                    </td>
+
                     {/* Added */}
-                    <td className="px-4 py-3 hidden xl:table-cell">
+                    <td className="px-4 py-3">
                       <span className="text-xs text-text-muted">{formatDate(client.createdAt)}</span>
                     </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => { setEditingClient(client); setModalOpen(true) }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
-                          title="Edit"
-                        >
-                          <Pencil size={12} />
-                        </button>
-                        <button
-                          onClick={() => setClientToDelete(client)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
                   </motion.tr>
                 ))}
               </motion.tbody>
@@ -403,6 +404,7 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         client={editingClient}
+        onDelete={c => { setModalOpen(false); setClientToDelete(c) }}
       />
 
       <ConfirmModal

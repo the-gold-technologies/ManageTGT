@@ -33,6 +33,18 @@ export async function createClient(data: any) {
   }
 }
 
+export async function checkClientExists(email: string) {
+  try {
+    const existing = await prisma.client.findFirst({
+      where: { email },
+      select: { id: true, name: true }
+    })
+    return { exists: !!existing, client: existing }
+  } catch (error) {
+    return { exists: false, client: null }
+  }
+}
+
 export async function updateClient(id: string, data: any) {
   try {
     const client = await prisma.client.update({

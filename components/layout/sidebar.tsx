@@ -191,6 +191,7 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
                         <Link
                           key={item.href}
                           href={item.href}
+                          prefetch={true}
                           className={cn(
                             'flex items-center h-9 px-3 gap-3 rounded-lg text-sm font-medium transition-colors',
                             isActive ? 'bg-primary/10 text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-bg-tertiary'
@@ -226,6 +227,7 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
                         <Link
                           key={item.href}
                           href={item.href}
+                          prefetch={true}
                           className={cn(
                             'group relative flex items-center h-10 rounded-lg transition-all duration-200 shrink-0 mb-1',
                             collapsed ? 'w-10 mx-auto justify-center px-0 overflow-visible' : 'mx-3 px-3 gap-3 overflow-hidden',

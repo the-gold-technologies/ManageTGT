@@ -14,6 +14,7 @@ import StatCard from '@/components/ui/stat-card'
 import { formatDate } from '@/lib/utils'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { getProspects, createProspect, updateProspect, deleteProspect } from '@/app/actions/prospects'
+import { createClient, checkClientExists } from '@/app/actions/clients'
 import type { Prospect } from '@/types'
 
 interface ProspectsClientProps {
@@ -47,16 +48,15 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
-  const { data: prospects } = useQuery({
+  const { data: prospectsData, isLoading } = useQuery({
     queryKey: ['prospects'],
     queryFn: async () => {
       const data = await getProspects()
       return data as unknown as Prospect[]
-    },
-    initialData: initialProspects,
+    }
   })
 
-  const list = prospects ?? []
+  const list = prospectsData ?? initialProspects
   const totalProspects = list.length
   const proposalsSubmitted = list.filter(p => p.proposal_submitted).length
   const clientsConverted = list.filter(p => p.client_converted).length
@@ -121,6 +121,11 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       quote_submitted: data.proposal_submitted && data.quote_submitted ? Number(data.quote_submitted) : null,
     }
 
+    // Detect if conversion just happened (was false, now true)
+    const wasConverted = editingProspect?.client_converted ?? false
+    const isNowConverted = data.client_converted
+    const justConverted = !wasConverted && isNowConverted
+
     try {
       if (editingProspect) {
         await updateProspect(editingProspect.id, payload)
@@ -129,6 +134,34 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
         await createProspect(payload)
         toast.success('Prospect added')
       }
+
+      // Auto-create client on first conversion
+      if (justConverted) {
+        // Check if a client with this email already exists
+        const emailToCheck = data.email
+        const { exists, client: existingClient } = emailToCheck
+          ? await checkClientExists(emailToCheck)
+          : { exists: false, client: null }
+
+        if (exists) {
+          toast.info(`${existingClient?.name || data.name} already exists in Clients`)
+        } else {
+          const clientResult = await createClient({
+            name: data.name,
+            email: data.email || null,
+            mobile: data.mobile || null,
+            company_name: data.company_name || null,
+            contact_person: data.name,
+          })
+          if (clientResult.success) {
+            qc.invalidateQueries({ queryKey: ['clients'] })
+            toast.success(`${data.name} converted to Client`)
+          } else {
+            toast.error('Prospect converted but failed to create client: ' + clientResult.error)
+          }
+        }
+      }
+
       qc.invalidateQueries({ queryKey: ['prospects'] })
       setModalOpen(false)
       reset()
@@ -181,12 +214,18 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
-        <StatCard title="Total Prospects" value={String(totalProspects)} icon={Users} iconColor="bg-primary/10 text-primary" />
-        <StatCard title="Proposals Submitted" value={String(proposalsSubmitted)} icon={FileText} iconColor="bg-info/10 text-info" />
-        <StatCard title="Converted Clients" value={String(clientsConverted)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
-        <StatCard title="Conversion Rate" value={`${conversionRate}%`} icon={TrendingUp} iconColor="bg-accent-cyan/10 text-accent-cyan" />
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0 animate-pulse">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-xl"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
+          <StatCard title="Total Prospects" value={String(totalProspects)} icon={Users} iconColor="bg-primary/10 text-primary" />
+          <StatCard title="Proposals Submitted" value={String(proposalsSubmitted)} icon={FileText} iconColor="bg-info/10 text-info" />
+          <StatCard title="Converted Clients" value={String(clientsConverted)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
+          <StatCard title="Conversion Rate" value={`${conversionRate}%`} icon={TrendingUp} iconColor="bg-accent-cyan/10 text-accent-cyan" />
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
@@ -214,7 +253,10 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
           <Users size={36} className="text-text-muted mb-3" />
           <p className="text-text-secondary font-medium">No prospects found</p>
@@ -222,11 +264,11 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       ) : (
         <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="w-full text-sm">
+            <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
                   {['Name', 'Email / Phone', 'Company Name', 'Proposal Status', 'Proposal Date', 'Conversion Status'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">{h}</th>
+                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>

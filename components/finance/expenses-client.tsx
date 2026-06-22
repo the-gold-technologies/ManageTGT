@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Plus, Search, Wallet, Trash2, Loader2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getExpenses, addExpense, updateExpense, deleteExpense } from '@/app/actions/finance'
+import { getProjects } from '@/app/actions/projects'
 import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -62,16 +63,25 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
 
-  const { data: expenses } = useQuery({
+  const { data: expensesData, isLoading: isExpensesLoading } = useQuery({
     queryKey: ['expenses'],
     queryFn: async () => {
       const data = await getExpenses()
       return data as unknown as Expense[]
-    },
-    initialData: initialExpenses,
+    }
   })
 
-  const exp = expenses ?? []
+  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const data = await getProjects()
+      return data as unknown as Project[]
+    }
+  })
+
+  const isLoading = isExpensesLoading || isProjectsLoading
+  const exp = expensesData ?? initialExpenses
+  const activeProjects = projectsData ?? projects
   const total = exp.reduce((s, e) => s + e.amount, 0)
   const thisMonth = exp.filter(e => {
     const d = new Date(e.date)
@@ -214,10 +224,16 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         <Button onClick={() => { setEditingExpense(null); setModalOpen(true) }}><Plus size={15} /> Add Expense</Button>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
-        <StatCard title="Total Expenses" value={formatCurrency(total)} icon={WalletIcon} iconColor="bg-danger/10 text-danger" />
-        <StatCard title="This Month" value={formatCurrency(thisMonth)} icon={WalletIcon} iconColor="bg-warning/10 text-warning" />
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0 animate-pulse">
+          {[1, 2].map(i => <div key={i} className="h-24 bg-bg-secondary rounded-xl"></div>)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
+          <StatCard title="Total Expenses" value={formatCurrency(total)} icon={WalletIcon} iconColor="bg-danger/10 text-danger" />
+          <StatCard title="This Month" value={formatCurrency(thisMonth)} icon={WalletIcon} iconColor="bg-warning/10 text-warning" />
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3 items-center justify-between shrink-0">
         <div className="flex gap-3 flex-wrap">
@@ -246,13 +262,24 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         </div>
       </div>
 
+      {isLoading ? (
+        <div className="flex flex-col flex-1 min-h-[400px] bg-bg-secondary border border-border rounded-xl shadow-sm overflow-hidden animate-pulse">
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden bg-bg-secondary">
+          <div className="flex flex-col items-center justify-center py-20 text-center flex-1">
+            <Wallet size={36} className="text-text-muted mb-3" />
+            <p className="text-text-secondary font-medium">No expenses found</p>
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto flex-1">
-          <table className="w-full text-sm">
+          <table className="min-w-max w-full text-sm">
             <thead>
               <tr className="bg-bg-tertiary border-b border-border">
                 {['Date', 'Type', 'Description', 'Project', 'Amount', 'Receipt'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -299,6 +326,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
           itemLabel="expenses"
         />
       </div>
+      )}
 
       <AnimatePresence>
         {modalOpen && (

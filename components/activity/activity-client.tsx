@@ -3,6 +3,8 @@
 import { motion, Variants } from 'framer-motion'
 import { CheckCircle2, FileText, UserPlus, FolderKanban, Clock, ArrowRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { useQuery } from '@tanstack/react-query'
+import { getActivities } from '@/app/actions/activity'
 
 interface Activity {
   id: string
@@ -39,6 +41,16 @@ const getActionIcon = (action: string) => {
 }
 
 export default function ActivityClient({ initialActivities }: ActivityClientProps) {
+  const { data: activitiesData, isLoading } = useQuery({
+    queryKey: ['activities'],
+    queryFn: async () => {
+      const data = await getActivities()
+      return data as unknown as Activity[]
+    }
+  })
+
+  const activities = activitiesData ?? initialActivities
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6 w-full">
       <div>
@@ -50,11 +62,20 @@ export default function ActivityClient({ initialActivities }: ActivityClientProp
         {/* Vertical line */}
         <div className="absolute left-[43px] top-8 bottom-8 w-0.5 bg-border/80" />
         
-        {initialActivities.length === 0 ? (
-          <div className="py-12 text-center text-text-muted text-sm">No activity logs found.</div>
+        {isLoading ? (
+          <div className="space-y-4 animate-pulse relative z-10">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex gap-4">
+                <div className="w-10 h-10 rounded-full bg-bg-secondary shrink-0"></div>
+                <div className="flex-1 bg-bg-secondary h-20 rounded-xl"></div>
+              </div>
+            ))}
+          </div>
+        ) : activities.length === 0 ? (
+          <div className="py-12 text-center text-text-muted text-sm relative z-10">No activity logs found.</div>
         ) : (
           <div className="space-y-4">
-            {initialActivities.map((activity) => (
+            {activities.map((activity) => (
               <motion.div key={activity.id} variants={itemVariants} className="flex gap-4 relative z-10">
                 <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center shrink-0 shadow-sm mt-0.5 relative z-10">
                   {getActionIcon(activity.action)}
