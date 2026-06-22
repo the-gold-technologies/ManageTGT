@@ -251,6 +251,7 @@ model Invoice {
   status          InvoiceStatus @default(pending)
   notes           String?       @db.Text
   created_by      String?
+  file_urls       String[]      @default([])
 
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -342,6 +343,7 @@ model Prospect {
   company_name              String?
   proposal_submitted        Boolean   @default(false)
   proposal_submission_date DateTime?
+  quote_submitted           Float?
   client_converted          Boolean   @default(false)
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt

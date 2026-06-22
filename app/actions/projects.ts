@@ -13,6 +13,21 @@ export async function getProjects() {
         },
         teamLead: {
           select: { id: true, name: true }
+        },
+        invoices: {
+          select: {
+            id: true,
+            invoice_number: true,
+            final_billing: true,
+            amount_received: true,
+            invoice_date: true,
+            due_date: true,
+            payment_date: true,
+            payment_mode: true,
+            status: true,
+            notes: true,
+          },
+          orderBy: { invoice_date: 'asc' }
         }
       },
       orderBy: { createdAt: 'desc' }

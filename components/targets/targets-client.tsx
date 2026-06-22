@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Target, X, Trash2 } from 'lucide-react'
+import { Target, CheckCircle2, XCircle, Calendar, CalendarCheck, CalendarX, Plus, X, Trash2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useForm } from 'react-hook-form'
@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import type { SalesTarget, SalesClosure, Profile } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
+import StatCard from '@/components/ui/stat-card'
 import { SERVICE_TYPES } from '@/lib/utils'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -45,13 +46,16 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const supabase = createClient()
   const now = new Date()
 
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
+
   const { data: targets } = useQuery({
-    queryKey: ['sales_targets'],
+    queryKey: ['sales_targets', selectedYear],
     queryFn: async () => {
       const data = await getSalesTargets()
-      return data.filter((t: any) => t.year === now.getFullYear()) as unknown as SalesTarget[]
+      return data.filter((t: any) => t.year === selectedYear) as unknown as SalesTarget[]
     },
-    initialData: initialTargets,
+    initialData: initialTargets.filter(t => t.year === selectedYear),
   })
 
   const { data: closures } = useQuery({
@@ -128,28 +132,60 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
     return acc
   }, {} as Record<string, { count: number, revenue: number }>)
 
+  const targetsList = targets ?? []
+
+  const totalSetTarget = targetsList.reduce((acc, t) => acc + t.target_count, 0)
+  const monthlySetTarget = targetsList.filter(t => t.month === selectedMonth).reduce((acc, t) => acc + t.target_count, 0)
+
+  const totalTargetAchieved = targetsList.reduce((acc, t) => acc + (closuresStats[t.id]?.count || 0), 0)
+  const monthlyTargetAchieved = targetsList.filter(t => t.month === selectedMonth).reduce((acc, t) => acc + (closuresStats[t.id]?.count || 0), 0)
+
+  const totalMissedTarget = Math.max(0, totalSetTarget - totalTargetAchieved)
+  const monthlyMissedTarget = Math.max(0, monthlySetTarget - monthlyTargetAchieved)
+
+  const displayedTargets = selectedMonth === 0 ? targetsList : targetsList.filter(t => t.month === selectedMonth)
+
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-text">Sales Targets - {now.getFullYear()}</h2>
+          <h2 className="text-xl font-bold text-text">Sales Targets - {selectedYear}</h2>
           <p className="text-sm text-text-secondary mt-0.5">Monthly service-wise targets and achievements</p>
         </div>
-        <Button onClick={openNewTarget}><Plus size={15} /> Set Target</Button>
+        <div className="flex items-center gap-3">
+          <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))} className="px-3 py-1.5 bg-bg-secondary border border-border rounded-lg text-xs font-medium text-text-secondary focus:outline-none">
+            <option value={0}>All Months</option>
+            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          </select>
+          <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="px-3 py-1.5 bg-bg-secondary border border-border rounded-lg text-xs font-medium text-text-secondary focus:outline-none">
+            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Button onClick={openNewTarget}><Plus size={15} /> Set Target</Button>
+        </div>
+      </div>
+
+      {/* Analytics Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <StatCard title="Total Target" value={String(totalSetTarget)} icon={Target} iconColor="bg-primary/10 text-primary" />
+        <StatCard title="Monthly Target" value={String(monthlySetTarget)} icon={Calendar} iconColor="bg-info/10 text-info" />
+        <StatCard title="Total Achieved" value={String(totalTargetAchieved)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
+        <StatCard title="Monthly Achieved" value={String(monthlyTargetAchieved)} icon={CalendarCheck} iconColor="bg-success/10 text-success" />
+        <StatCard title="Total Missed" value={String(totalMissedTarget)} icon={XCircle} iconColor="bg-danger/10 text-danger" />
+        <StatCard title="Monthly Missed" value={String(monthlyMissedTarget)} icon={CalendarX} iconColor="bg-danger/10 text-danger" />
       </div>
 
       {/* Targets grid */}
-      {(targets ?? []).length === 0 ? (
+      {displayedTargets.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Target size={36} className="text-text-muted mb-3" />
-          <p className="text-text-secondary font-medium">No targets set yet</p>
+          <p className="text-text-secondary font-medium">No targets set for this period</p>
           <p className="text-sm text-text-muted mt-1">Set monthly targets to track your sales team performance</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {(targets ?? []).map(t => {
+          {displayedTargets.map(t => {
             const stats = closuresStats[t.id] || { count: 0, revenue: 0 }
             const achieved = stats.count
             const remaining = Math.max(0, t.target_count - achieved)

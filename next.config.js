@@ -6,6 +6,10 @@ const nextConfig = {
     root: __dirname,
   },
   experimental: {
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
     serverActions: {
       bodySizeLimit: '50mb',
     },

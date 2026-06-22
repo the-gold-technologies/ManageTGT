@@ -43,16 +43,66 @@ export async function getInvoices() {
 
 import { auth } from '@/auth'
 
-export async function createInvoice(data: any) {
+export async function createInvoice(formData: FormData) {
   try {
     const session = await auth()
-    const { project_id, client_id, ...restData } = data
-    const invoice_number = `INV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    const invoice_number = formData.get('invoice_number') as string
+    const project_id = formData.get('project_id') as string || null
+    const client_id = formData.get('client_id') as string || null
+    const quoted_value = parseFloat(formData.get('quoted_value') as string || '0')
+    const final_billing = parseFloat(formData.get('final_billing') as string || '0')
+    const amount_received = parseFloat(formData.get('amount_received') as string || '0')
+    const invoice_date = new Date(formData.get('invoice_date') as string)
+    const due_date = formData.get('due_date') ? new Date(formData.get('due_date') as string) : null
+    const payment_date = formData.get('payment_date') ? new Date(formData.get('payment_date') as string) : null
+    const payment_mode = formData.get('payment_mode') as any || null
+    const status = formData.get('status') as any || 'pending'
+    const notes = formData.get('notes') as string || null
+
+    const files = formData.getAll('files') as File[]
+    const file_urls: string[] = []
+
+    if (files && files.length > 0) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      for (const file of files) {
+        if (file.size === 0) continue
+        
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+        const filePath = `invoices/${fileName}`
+        
+        const buffer = Buffer.from(await file.arrayBuffer())
+
+        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, buffer, {
+          contentType: file.type
+        })
+        
+        if (uploadError) {
+          console.error('Upload Error:', uploadError)
+          continue
+        }
+        
+        const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
+        file_urls.push(publicUrlData.publicUrl)
+      }
+    }
 
     const invoice = await prisma.invoice.create({
       data: {
-        ...restData,
         invoice_number,
+        quoted_value,
+        final_billing,
+        amount_received,
+        invoice_date,
+        due_date,
+        payment_date,
+        payment_mode,
+        status,
+        notes,
+        file_urls,
         ...(project_id ? { project: { connect: { id: project_id } } } : {}),
         ...(client_id ? { client: { connect: { id: client_id } } } : {}),
         created_by: session?.user?.id
@@ -66,16 +116,73 @@ export async function createInvoice(data: any) {
   }
 }
 
-export async function updateInvoice(id: string, data: any) {
+export async function updateInvoice(id: string, formData: FormData) {
   try {
-    const { project_id, client_id, ...restData } = data
+    const project_id = formData.get('project_id') as string || null
+    const client_id = formData.get('client_id') as string || null
+    const invoice_number = formData.get('invoice_number') as string
+    const quoted_value = parseFloat(formData.get('quoted_value') as string || '0')
+    const final_billing = parseFloat(formData.get('final_billing') as string || '0')
+    const amount_received = parseFloat(formData.get('amount_received') as string || '0')
+    const invoice_date = new Date(formData.get('invoice_date') as string)
+    const due_date = formData.get('due_date') ? new Date(formData.get('due_date') as string) : null
+    const payment_date = formData.get('payment_date') ? new Date(formData.get('payment_date') as string) : null
+    const payment_mode = formData.get('payment_mode') as any || null
+    const status = formData.get('status') as any || 'pending'
+    const notes = formData.get('notes') as string || null
+
+    const files = formData.getAll('files') as File[]
+    const file_urls: string[] = []
+
+    const existing = await prisma.invoice.findUnique({ where: { id } })
+    if (existing && Array.isArray(existing.file_urls)) {
+      file_urls.push(...existing.file_urls)
+    }
+
+    if (files && files.length > 0) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      
+      for (const file of files) {
+        if (file.size === 0) continue
+        
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+        const filePath = `invoices/${fileName}`
+        
+        const buffer = Buffer.from(await file.arrayBuffer())
+
+        const { error: uploadError } = await supabase.storage.from('agencyos_files').upload(filePath, buffer, {
+          contentType: file.type
+        })
+        
+        if (uploadError) {
+          console.error('Upload Error:', uploadError)
+          continue
+        }
+        
+        const { data: publicUrlData } = supabase.storage.from('agencyos_files').getPublicUrl(filePath)
+        file_urls.push(publicUrlData.publicUrl)
+      }
+    }
 
     const invoice = await prisma.invoice.update({
       where: { id },
       data: {
-        ...restData,
-        ...(project_id !== undefined ? { project: project_id ? { connect: { id: project_id } } : { disconnect: true } } : {}),
-        ...(client_id !== undefined ? { client: client_id ? { connect: { id: client_id } } : { disconnect: true } } : {})
+        invoice_number,
+        quoted_value,
+        final_billing,
+        amount_received,
+        invoice_date,
+        due_date,
+        payment_date,
+        payment_mode,
+        status,
+        notes,
+        file_urls,
+        project: project_id ? { connect: { id: project_id } } : { disconnect: true },
+        client: client_id ? { connect: { id: client_id } } : { disconnect: true }
       }
     })
     revalidatePath('/invoices')

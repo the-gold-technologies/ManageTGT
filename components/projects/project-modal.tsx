@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, UploadCloud, FileText, Plus } from 'lucide-react'
+import { X, UploadCloud, FileText, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
@@ -36,9 +36,10 @@ interface ProjectModalProps {
   clients: Pick<Client, 'id' | 'name' | 'company_name'>[]
   profiles: Pick<Profile, 'id' | 'full_name' | 'role'>[]
   userRole?: string
+  onDelete?: (project: Project) => void
 }
 
-export default function ProjectModal({ open, onClose, project, clients, profiles, userRole }: ProjectModalProps) {
+export default function ProjectModal({ open, onClose, project, clients, profiles, userRole, onDelete }: ProjectModalProps) {
   const supabase = createClient()
   const qc = useQueryClient()
   const isEdit = !!project
@@ -312,11 +313,27 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               </div>
             </form>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose} disabled={isSubmitting || isUploading}>Cancel</Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading}>
-                {isEdit ? 'Save Changes' : 'Create Project'}
-              </Button>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+              <div>
+                {isEdit && onDelete && project && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => onDelete(project)}
+                    disabled={isSubmitting || isUploading}
+                    className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete Project</span>
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button variant="secondary" onClick={onClose} disabled={isSubmitting || isUploading} className="text-xs h-8 px-3">Cancel</Button>
+                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading} className="text-xs h-8 px-3">
+                  {isSubmitting || isUploading ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Project')}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </>

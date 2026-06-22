@@ -149,9 +149,9 @@ export default function ClientModal({ open, onClose, client }: ClientModalProps)
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose}>Cancel</Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting}>
-                {isEdit ? 'Save Changes' : 'Add Client'}
+              <Button variant="secondary" onClick={onClose} disabled={isSubmitting} className="text-xs h-8 px-3">Cancel</Button>
+              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} className="text-xs h-8 px-3">
+                {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Client')}
               </Button>
             </div>
           </motion.div>

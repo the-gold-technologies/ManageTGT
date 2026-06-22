@@ -20,7 +20,7 @@ import { TablePagination } from '@/components/ui/table-pagination'
 
 interface RevenueClientProps {
   initialInvoices: Invoice[]
-  projects: Pick<Project, 'id' | 'name' | 'project_code'>[]
+  projects: Pick<Project, 'id' | 'name' | 'project_code' | 'client_id' | 'quoted_price' | 'expected_completion' | 'invoices'>[]
   clients: Pick<Client, 'id' | 'name'>[]
 }
 

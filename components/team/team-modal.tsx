@@ -180,10 +180,10 @@ export default function TeamModal({ open, onClose, userRole, member }: TeamModal
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">
-              <Button variant="secondary" onClick={onClose}>
+              <Button variant="secondary" onClick={onClose} disabled={isSubmitting} className="text-xs h-8 px-3">
                 Cancel
               </Button>
-              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting}>
+              <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} className="text-xs h-8 px-3">
                 {member ? 'Save Changes' : 'Add Member'}
               </Button>
             </div>

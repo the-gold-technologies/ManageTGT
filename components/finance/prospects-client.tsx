@@ -28,6 +28,7 @@ const schema = z.object({
   company_name: z.string().optional(),
   proposal_submitted: z.boolean().default(false),
   proposal_submission_date: z.string().optional(),
+  quote_submitted: z.coerce.number().optional(),
   client_converted: z.boolean().default(false),
 })
 
@@ -104,8 +105,9 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
         company_name: editingProspect.company_name ?? '',
         proposal_submitted: editingProspect.proposal_submitted,
         proposal_submission_date: editingProspect.proposal_submission_date ? new Date(editingProspect.proposal_submission_date).toISOString().split('T')[0] : '',
+        quote_submitted: (editingProspect as any).quote_submitted ?? undefined,
         client_converted: editingProspect.client_converted,
-      } : { name: '', email: '', mobile: '', company_name: '', proposal_submitted: false, proposal_submission_date: '', client_converted: false })
+      } : { name: '', email: '', mobile: '', company_name: '', proposal_submitted: false, proposal_submission_date: '', client_converted: false, quote_submitted: undefined })
       setConfirmDelete(false)
     }
   }, [modalOpen, editingProspect, reset])
@@ -116,6 +118,7 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       mobile: data.mobile || null,
       company_name: data.company_name || null,
       proposal_submission_date: data.proposal_submitted && data.proposal_submission_date ? new Date(data.proposal_submission_date).toISOString() : null,
+      quote_submitted: data.proposal_submitted && data.quote_submitted ? Number(data.quote_submitted) : null,
     }
 
     try {
@@ -315,9 +318,15 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                 </div>
 
                 {proposalSubmittedVal && (
-                  <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Proposal Submission Date</label>
-                    <input {...register('proposal_submission_date')} type="date" className={inputClass} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Proposal Date</label>
+                      <input {...register('proposal_submission_date')} type="date" className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Quote Submitted (₹)</label>
+                      <input {...register('quote_submitted')} type="number" step="0.01" placeholder="e.g. 50000" className={inputClass} />
+                    </div>
                   </div>
                 )}
 

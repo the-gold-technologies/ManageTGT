@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Plus, Search, FolderKanban, Calendar, User, MoreHorizontal, Pencil, Trash2, Eye, FileDown } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Search, FolderKanban, IndianRupee, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
-import type { Project, Client, Profile } from '@/types'
+import type { Project, Client, Profile, ProjectInvoice } from '@/types'
 import { getProjects, deleteProject as deleteProjectAction } from '@/app/actions/projects'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,6 +43,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+  const [paymentProject, setPaymentProject] = useState<Project | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
@@ -207,19 +208,27 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Client</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Service</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Value</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Received</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Balance</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Start Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Deadline</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider">Payments</th>
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
                 {paginated.map(project => {
                   const overdue = isOverdue(project.expected_completion) && !['completed', 'delivered'].includes(project.status)
+                  const invoices = project.invoices ?? []
+                  const totalReceived = invoices.reduce((s, i) => s + i.amount_received, 0)
+                  const totalBilled = invoices.reduce((s, i) => s + i.final_billing, 0)
+                  const balance = totalBilled - totalReceived
                   return (
                     <motion.tr
                       key={project.id}
                       variants={itemVariants}
-                      className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors group"
+                      onClick={() => { setEditingProject(project); setModalOpen(true) }}
+                      className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div>
@@ -234,6 +243,17 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-text">{formatCurrency(project.quoted_price)}</td>
+                      <td className="px-4 py-3 font-medium text-success">
+                        {invoices.length > 0 ? formatCurrency(totalReceived) : <span className="text-text-muted text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        {invoices.length > 0 ? (
+                          <span className={cn(balance > 0 ? 'text-warning' : 'text-success')}>{formatCurrency(balance)}</span>
+                        ) : <span className="text-text-muted text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">
+                        {project.start_date ? formatDate(project.start_date) : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={cn('text-xs', overdue ? 'text-danger font-semibold' : 'text-text-secondary')}>
                           {formatDate(project.expected_completion)}
@@ -245,19 +265,15 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           {PROJECT_STATUS_CONFIG[project.status]?.label}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Payments column — always visible ₹ button, stops row-click propagation */}
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-center">
                           <button
-                            onClick={() => { setEditingProject(project); setModalOpen(true) }}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"
+                            onClick={() => setPaymentProject(project)}
+                            title="Click to view"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold tracking-wide text-text-secondary bg-bg-tertiary/50 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all uppercase"
                           >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => setProjectToDelete(project)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger-muted transition-all"
-                          >
-                            <Trash2 size={12} />
+                            <IndianRupee size={12} strokeWidth={2.5} />
                           </button>
                         </div>
                       </td>
@@ -285,6 +301,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         clients={clients}
         profiles={profiles}
         userRole={userRole}
+        onDelete={p => { setModalOpen(false); setProjectToDelete(p) }}
       />
 
       <ConfirmModal
@@ -296,6 +313,143 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
         confirmText="Delete Project"
         loading={deleteProject.isPending}
       />
+
+      {/* Payment Detail Drawer */}
+      <AnimatePresence>
+        {paymentProject && (() => {
+          const invoices = paymentProject.invoices ?? []
+          const totalBilled = invoices.reduce((s, i) => s + i.final_billing, 0)
+          const totalReceived = invoices.reduce((s, i) => s + i.amount_received, 0)
+          const balance = totalBilled - totalReceived
+          const paidCount = invoices.filter(i => i.amount_received > 0).length
+          const pct = totalBilled > 0 ? Math.round((totalReceived / totalBilled) * 100) : 0
+
+          const STATUS_COLORS: Record<string, string> = {
+            paid: 'text-success bg-success/10',
+            partially_paid: 'text-warning bg-warning/10',
+            pending: 'text-text-secondary bg-bg-tertiary',
+            overdue: 'text-danger bg-danger/10',
+          }
+
+          return (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setPaymentProject(null)}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 !m-0"
+              />
+              <motion.div
+                initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 'calc(100% + 1rem)' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className="fixed right-4 top-4 bottom-4 w-[calc(100%-2rem)] max-w-2xl bg-bg-secondary border border-border rounded-2xl z-50 flex flex-col shadow-2xl overflow-hidden !m-0"
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+                  <div>
+                    <h3 className="font-semibold text-text">{paymentProject.name}</h3>
+                    <p className="text-xs text-text-muted mt-0.5">{paymentProject.project_code} · Payment Details</p>
+                  </div>
+                  <button onClick={() => setPaymentProject(null)} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all">
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                  {/* Summary strip — 4 stats in one row */}
+                  <div className="grid grid-cols-4 divide-x divide-border border border-border rounded-xl overflow-hidden">
+                    {[
+                      { label: 'Quoted Value', value: formatCurrency(paymentProject.quoted_price), color: 'text-text' },
+                      { label: 'Total Invoiced', value: formatCurrency(totalBilled), color: 'text-text' },
+                      { label: 'Total Received', value: formatCurrency(totalReceived), color: 'text-success' },
+                      { label: 'Balance Due', value: formatCurrency(balance), color: balance > 0 ? 'text-warning' : 'text-success' },
+                    ].map(stat => (
+                      <div key={stat.label} className="bg-bg px-4 py-4 text-center">
+                        <p className="text-[11px] text-text-muted uppercase tracking-wider mb-1">{stat.label}</p>
+                        <p className={cn('text-base font-bold tabular-nums', stat.color)}>{stat.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Counters + progress bar — single row */}
+                  <div className="flex items-center gap-5 px-5 py-3.5 bg-bg border border-border rounded-xl">
+                    {[
+                      { label: 'Total Invoices', value: invoices.length, color: 'text-text' },
+                      { label: 'Payments Made', value: paidCount, color: 'text-success' },
+                      { label: 'Pending', value: invoices.length - paidCount, color: 'text-warning' },
+                    ].map((c, i) => (
+                      <div key={c.label} className="flex items-center gap-4">
+                        {i > 0 && <div className="w-px h-8 bg-border" />}
+                        <div className="flex items-baseline gap-1.5">
+                          <span className={cn('text-xl font-bold tabular-nums', c.color)}>{c.value}</span>
+                          <span className="text-xs text-text-muted">{c.label}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {totalBilled > 0 && (
+                      <>
+                        <div className="w-px h-8 bg-border" />
+                        <div className="flex-1 flex items-center gap-3">
+                          <div className="flex-1 bg-bg-tertiary rounded-full h-2">
+                            <div className="bg-success h-2 rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
+                          </div>
+                          <span className="text-xs text-text-muted tabular-nums shrink-0 font-medium">{pct}% collected</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Installments Table */}
+                  <div>
+                    <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Installment History</p>
+                    {invoices.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center bg-bg border border-border rounded-xl">
+                        <IndianRupee size={28} className="text-text-muted mb-2" />
+                        <p className="text-sm text-text-secondary">No invoices yet</p>
+                        <p className="text-xs text-text-muted mt-1">Add invoices from the Revenue page</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-bg-tertiary border-b border-border">
+                              {['Invoice #', 'Date', 'Billed', 'Received', 'Balance', 'Status'].map(h => (
+                                <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {invoices.map((inv, idx) => {
+                              const invBalance = inv.final_billing - inv.amount_received
+                              return (
+                                <tr key={inv.id} className={cn('border-b border-border last:border-0', idx % 2 === 0 ? 'bg-bg-secondary' : 'bg-bg')}>
+                                  <td className="px-4 py-2.5 font-medium text-text whitespace-nowrap text-xs">{inv.invoice_number}</td>
+                                  <td className="px-4 py-2.5 text-text-secondary whitespace-nowrap text-xs">{formatDate(inv.invoice_date)}</td>
+                                  <td className="px-4 py-2.5 font-medium text-text whitespace-nowrap tabular-nums text-xs">{formatCurrency(inv.final_billing)}</td>
+                                  <td className="px-4 py-2.5 font-medium text-success whitespace-nowrap tabular-nums text-xs">{formatCurrency(inv.amount_received)}</td>
+                                  <td className="px-4 py-2.5 font-medium whitespace-nowrap tabular-nums text-xs">
+                                    <span className={invBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(invBalance)}</span>
+                                  </td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap">
+                                    <span className={cn('text-xs px-2 py-1 rounded-md font-medium whitespace-nowrap', STATUS_COLORS[inv.status] ?? 'text-text-secondary bg-bg-tertiary')}>
+                                      {inv.status === 'partially_paid' ? 'Partial' : inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )
+        })()}
+      </AnimatePresence>
     </div>
   )
 }

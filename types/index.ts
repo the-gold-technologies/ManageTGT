@@ -32,6 +32,19 @@ export interface Client {
   updatedAt: string
 }
 
+export interface ProjectInvoice {
+  id: string
+  invoice_number: string
+  final_billing: number
+  amount_received: number
+  invoice_date: string
+  due_date?: string
+  payment_date?: string
+  payment_mode?: PaymentMode
+  status: InvoiceStatus
+  notes?: string
+}
+
 export interface Project {
   id: string
   project_code: string
@@ -52,6 +65,7 @@ export interface Project {
   // Joined
   client?: Client
   team_lead?: Profile
+  invoices?: ProjectInvoice[]
 }
 
 export interface Task {
@@ -111,6 +125,7 @@ export interface Invoice {
   status: InvoiceStatus
   notes?: string
   created_by?: string
+  file_urls?: string[]
   createdAt: string
   updatedAt: string
   // Joined
