@@ -1,4 +1,3 @@
-export type UserRole = 'admin' | 'team_lead' | 'team_member' | 'sales_executive'
 export type ProjectStatus = 'pending' | 'in_progress' | 'on_hold' | 'delivered' | 'completed'
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'completed'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
@@ -11,7 +10,8 @@ export interface Profile {
   full_name: string
   email?: string
   avatar_url?: string
-  role: UserRole
+  role: string
+  roleId?: string
   createdAt: string
   updatedAt: string
 }

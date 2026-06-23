@@ -14,7 +14,8 @@ import type { SalesTarget, SalesClosure, Profile } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import StatCard from '@/components/ui/stat-card'
-import { SERVICE_TYPES } from '@/lib/utils'
+import { getServices } from '@/app/actions/services'
+
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { upsertTarget as upsertTargetAction, getSalesTargets, getSalesClosures, deleteTarget } from '@/app/actions/targets'
@@ -57,6 +58,11 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
     }
   })
 
+  const { data: services = [] } = useQuery({
+    queryKey: ['services'],
+    queryFn: getServices
+  })
+
   const { data: closures, isLoading: closuresLoading } = useQuery({
     queryKey: ['sales_closures'],
     queryFn: async () => {
@@ -75,7 +81,7 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const openNewTarget = () => {
     reset({
       id: undefined,
-      service_type: SERVICE_TYPES[0],
+      service_type: '',
       month: now.getMonth() + 1,
       year: now.getFullYear(),
       target_count: '' as any,
@@ -122,7 +128,6 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
     setAddTargetOpen(false)
   }
 
-  // Group closures by target and calculate actual revenue
   const closuresStats = (closures ?? []).reduce((acc, c) => {
     if (!acc[c.target_id]) acc[c.target_id] = { count: 0, revenue: 0 }
     acc[c.target_id].count++
@@ -288,7 +293,8 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Type</label>
                   <select {...register('service_type')} className={inputClass}>
-                    {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                    <option value="">Select a service...</option>
+                    {services.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

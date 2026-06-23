@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
+import { createNotification } from './notifications'
 
 export async function getExpenses() {
   try {
@@ -108,6 +109,17 @@ export async function createInvoice(formData: FormData) {
         created_by: session?.user?.id
       }
     })
+
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'finance_update',
+        title: 'Invoice Created',
+        message: `Successfully created invoice: ${invoice.invoice_number}`,
+        link: '/finance/revenue'
+      })
+    }
+
     revalidatePath('/invoices')
     return { success: true, invoice }
   } catch (error) {
@@ -185,6 +197,18 @@ export async function updateInvoice(id: string, formData: FormData) {
         client: client_id ? { connect: { id: client_id } } : { disconnect: true }
       }
     })
+
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'finance_update',
+        title: 'Invoice Updated',
+        message: `Successfully updated invoice: ${invoice.invoice_number}`,
+        link: '/finance/revenue'
+      })
+    }
+
     revalidatePath('/invoices')
     return { success: true, invoice }
   } catch (error) {
@@ -245,14 +269,35 @@ export async function addExpense(formData: FormData) {
     }
   })
 
+  const session = await auth()
+  if (session?.user?.id) {
+    await createNotification({
+      user_id: session.user.id,
+      type: 'finance_update',
+      title: 'Expense Logged',
+      message: `Successfully logged a new expense for ${amount}.`,
+      link: '/finance/expenses'
+    })
+  }
+
   return expense
 }
 
 export async function deleteInvoice(id: string) {
   try {
-    await prisma.invoice.delete({
+    const invoice = await prisma.invoice.delete({
       where: { id }
     })
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'finance_update',
+        title: 'Invoice Deleted',
+        message: `Successfully deleted invoice: ${invoice.invoice_number}`,
+        link: '/finance/revenue'
+      })
+    }
     revalidatePath('/finance/revenue')
     return { success: true }
   } catch (error) {
@@ -317,6 +362,17 @@ export async function updateExpense(id: string, formData: FormData) {
       }
     })
 
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'finance_update',
+        title: 'Expense Updated',
+        message: `Successfully updated an expense.`,
+        link: '/finance/expenses'
+      })
+    }
+
     revalidatePath('/finance/expenses')
     return { success: true, expense }
   } catch (error) {
@@ -330,6 +386,16 @@ export async function deleteExpense(id: string) {
     await prisma.expense.delete({
       where: { id }
     })
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'finance_update',
+        title: 'Expense Deleted',
+        message: `Successfully deleted an expense.`,
+        link: '/finance/expenses'
+      })
+    }
     revalidatePath('/finance/expenses')
     return { success: true }
   } catch (error) {

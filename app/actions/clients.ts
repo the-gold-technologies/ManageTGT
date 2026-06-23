@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
+import { createNotification } from './notifications'
 
 export async function getClients() {
   try {
@@ -25,6 +26,17 @@ export async function createClient(data: any) {
         createdBy: session?.user?.id
       }
     })
+
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'client_update',
+        title: 'Client Added',
+        message: `Successfully added client: ${client.name}`,
+        link: '/clients'
+      })
+    }
+
     revalidatePath('/clients')
     return { success: true, data: client }
   } catch (error: any) {
@@ -51,6 +63,18 @@ export async function updateClient(id: string, data: any) {
       where: { id },
       data
     })
+
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'client_update',
+        title: 'Client Updated',
+        message: `Successfully updated client: ${client.name}`,
+        link: '/clients'
+      })
+    }
+
     revalidatePath('/clients')
     return { success: true, data: client }
   } catch (error: any) {
@@ -64,6 +88,18 @@ export async function deleteClient(id: string) {
     await prisma.client.delete({
       where: { id }
     })
+
+    const session = await auth()
+    if (session?.user?.id) {
+      await createNotification({
+        user_id: session.user.id,
+        type: 'client_update',
+        title: 'Client Deleted',
+        message: `Successfully deleted a client.`,
+        link: '/clients'
+      })
+    }
+
     revalidatePath('/clients')
     return { success: true }
   } catch (error) {

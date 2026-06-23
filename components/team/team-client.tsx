@@ -6,7 +6,7 @@ import { Plus, Search, UserCog, User, Shield, Briefcase, Target, Trash2, Edit2, 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Profile, UserRole } from '@/types'
+import type { Profile } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
@@ -20,21 +20,21 @@ interface TeamClientProps {
   userRole: string
 }
 
-const ROLE_BADGE_MAP: Record<UserRole, 'default' | 'info' | 'success' | 'warning' | 'muted'> = {
+const ROLE_BADGE_MAP: Record<string, 'default' | 'info' | 'success' | 'warning' | 'muted'> = {
   admin: 'warning',
   team_lead: 'info',
   sales_executive: 'success',
   team_member: 'default',
 }
 
-const ROLE_LABELS: Record<UserRole, string> = {
+const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   team_lead: 'Team Lead',
   sales_executive: 'Sales Executive',
   team_member: 'Team Member',
 }
 
-const ROLE_ICONS: Record<UserRole, LucideIcon> = {
+const ROLE_ICONS: Record<string, LucideIcon> = {
   admin: Shield,
   team_lead: Briefcase,
   sales_executive: Target,
@@ -62,7 +62,7 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
   const profiles = profilesData ?? initialProfiles
 
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ id, newRole }: { id: string; newRole: UserRole }) => {
+    mutationFn: async ({ id, newRole }: { id: string; newRole: string }) => {
       const result = await updateMemberRole(id, newRole)
       if (result.error) throw new Error(result.error)
       return result
@@ -109,7 +109,7 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
 
   const filtered = (profiles ?? []).filter(p => 
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    ROLE_LABELS[p.role].toLowerCase().includes(search.toLowerCase())
+    (ROLE_LABELS[p.role] || p.role).toLowerCase().includes(search.toLowerCase())
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
@@ -204,7 +204,7 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                             <RoleIcon size={14} className="text-text-muted" />
                             <select
                               value={profile.role}
-                              onChange={(e) => updateRoleMutation.mutate({ id: profile.id, newRole: e.target.value as UserRole })}
+                              onChange={(e) => updateRoleMutation.mutate({ id: profile.id, newRole: e.target.value })}
                               className="bg-bg border border-border rounded-lg px-2 py-1 text-xs text-text focus:outline-none focus:border-primary/50 transition-all"
                             >
                               <option value="admin">Admin</option>
@@ -216,8 +216,8 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                         ) : (
                           <div className="flex items-center gap-2">
                             <RoleIcon size={14} className="text-text-muted" />
-                            <Badge variant={ROLE_BADGE_MAP[profile.role]}>
-                              {ROLE_LABELS[profile.role]}
+                            <Badge variant={ROLE_BADGE_MAP[profile.role] || 'default'}>
+                              {ROLE_LABELS[profile.role] || profile.role}
                             </Badge>
                           </div>
                         )}

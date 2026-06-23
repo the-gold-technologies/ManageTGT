@@ -7,11 +7,12 @@ import { z } from 'zod'
 import { X, UploadCloud, FileText, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Project, Client, Profile } from '@/types'
-import { SERVICE_TYPES } from '@/lib/utils'
+import { PROJECT_STATUS_CONFIG } from '@/lib/utils'
+import { getServices } from '@/app/actions/services'
 import { createProject as createProjectAction, updateProject as updateProjectAction } from '@/app/actions/projects'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
 
@@ -47,6 +48,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const [files, setFiles] = useState<File[]>([])
   const [existingUrls, setExistingUrls] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [formData, setFormData] = useState({ service_type: '' })
 
   const teamLeads = profiles.filter(p => ['admin', 'team_lead'].includes(p.role))
 
@@ -55,10 +57,16 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
     defaultValues: { status: 'pending', quoted_price: 0 },
   })
 
+  const { data: services = [] } = useQuery({
+    queryKey: ['services'],
+    queryFn: getServices
+  })
+
   useEffect(() => {
     if (open) {
       setFiles([])
       setExistingUrls(project?.deliverable_urls || [])
+      setFormData({ service_type: project?.service_type || '' })
       reset(project ? {
         name: project.name,
         client_id: project.client_id ?? '',
@@ -71,7 +79,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       } : { 
         name: '', 
         client_id: '', 
-        service_type: 'Website Development', 
+        service_type: '', 
         quoted_price: 0, 
         start_date: '', 
         expected_completion: '', 
@@ -85,7 +93,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
     const payload = {
       name: data.name,
       client_id: data.client_id || null,
-      service_type: data.service_type,
+      service_type: formData.service_type,
       quoted_price: data.quoted_price,
       start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
       expected_completion: data.expected_completion ? new Date(data.expected_completion).toISOString() : null,
@@ -176,9 +184,9 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Type *</label>
-                  <select {...register('service_type')} className={inputClass}>
-                    <option value="">Select service</option>
-                    {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+                  <select required value={formData.service_type} onChange={e => setFormData({ ...formData, service_type: e.target.value })} className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text focus:outline-none focus:border-primary/50 transition-colors">
+                    <option value="">Select a service...</option>
+                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                   </select>
                   {errors.service_type && <p className="text-xs text-danger mt-1">{errors.service_type.message}</p>}
                 </div>

@@ -11,8 +11,8 @@ export default async function ActivityPage() {
   const session = await auth()
   if (!session?.user) redirect('/login')
 
-  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id } })
-  const role = dbUser?.role || 'team_member'
+  const dbUser = await prisma.user.findUnique({ where: { id: session.user.id }, include: { role: true } })
+  const role = dbUser?.role?.name || 'team_member'
 
   return <ActivityClient initialActivities={[]} userRole={role} />
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
-import { User, Key, Loader2, Eye, EyeOff, Check, X } from 'lucide-react'
+import { User, Key, Loader2, Eye, EyeOff, Check, X, Shield, Settings2, AppWindow } from 'lucide-react'
 import { changePasswordAction, verifyCurrentPassword } from '@/app/actions/password'
 import { toast } from 'sonner'
 import type { Profile } from '@/types'
@@ -10,6 +10,7 @@ import { getInitials } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { getCurrentProfile } from '@/app/actions/team'
+import AdminSettings from './admin-settings'
 
 const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' | 'muted'> = {
   admin: 'danger' as any,
@@ -20,9 +21,12 @@ const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' 
 
 interface SettingsClientProps {
   currentProfile: Profile | null
+  initialAdminData?: any
 }
 
-export default function SettingsClient({ currentProfile }: SettingsClientProps) {
+export default function SettingsClient({ currentProfile, initialAdminData }: SettingsClientProps) {
+  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'services' | 'access'>('profile')
+
   const [passState, passAction, isPending] = useActionState(changePasswordAction, undefined)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -86,19 +90,44 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
 
   const confirmPasswordMatches = confirmNewPasswordVal ? newPasswordVal === confirmNewPasswordVal : null
 
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h2 className="text-xl font-bold text-text">Settings</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Manage your user profile and preferences</p>
-      </div>
+  const isAdmin = profile?.role === 'admin'
 
-      {/* Profile */}
-      <div className="bg-bg-secondary border border-border rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <User size={16} className="text-text-muted" />
-          <h3 className="text-sm font-semibold text-text">My Profile</h3>
+  const tabs = [
+    { id: 'profile', label: 'My Profile', icon: User },
+    ...(isAdmin ? [
+      { id: 'roles', label: 'Roles Management', icon: Shield },
+      { id: 'services', label: 'Services List', icon: Settings2 },
+      { id: 'access', label: 'Module Access', icon: AppWindow },
+    ] : [])
+  ]
+
+  return (
+    <div className="w-full h-full pb-10">
+      <div className="flex flex-col md:flex-row gap-8">
+        {/* Sidebar Nav */}
+        <div className="w-full md:w-64 shrink-0 space-y-1">
+          {tabs.map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-glow-sm' : 'text-text-secondary hover:text-text hover:bg-bg-secondary'}`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
         </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 min-w-0">
+          {activeTab === 'profile' && (
+            <div className="space-y-6">
+              {/* Profile Card */}
+              <div className="bg-bg-secondary border border-border rounded-xl p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-6">
+                  <User size={16} className="text-text-muted" />
+                  <h3 className="text-sm font-semibold text-text">Profile Information</h3>
+                </div>
         {isLoading ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 animate-pulse">
             <div className="w-20 h-20 rounded-full bg-bg shrink-0 border border-border shadow-glow-sm"></div>
@@ -139,15 +168,15 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
             </div>
           </div>
         )}
-      </div>
+              </div>
 
-      {/* Change Password */}
-      <div className="bg-bg-secondary border border-border rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Key size={15} className="text-text-muted" />
-          <h3 className="text-sm font-semibold text-text">Change Password</h3>
-        </div>
-        <form ref={formRef} action={passAction} className="space-y-4 max-w-md">
+              {/* Change Password Card */}
+              <div className="bg-bg-secondary border border-border rounded-xl p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-5">
+                  <Key size={16} className="text-text-muted" />
+                  <h3 className="text-sm font-semibold text-text">Change Password</h3>
+                </div>
+                <form ref={formRef} action={passAction} className="space-y-5 max-w-md">
           <div className="space-y-1.5">
             <label htmlFor="currentPassword" className="text-xs font-medium text-text-secondary">
               Current Password
@@ -254,9 +283,17 @@ export default function SettingsClient({ currentProfile }: SettingsClientProps) 
             {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             {isPending ? 'Updating...' : 'Update Password'}
           </button>
-        </form>
-      </div>
+                </form>
+              </div>
+            </div>
+          )}
 
+          {/* Admin Settings Tabs */}
+          {activeTab !== 'profile' && isAdmin && (
+            <AdminSettings activeTab={activeTab as any} initialData={initialAdminData} />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

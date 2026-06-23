@@ -32,62 +32,61 @@ type NavItem = {
   href: string
   icon: any
   label: string
-  roles: Role[]
+  moduleKey: string
 }
 
 type NavSection = {
   label?: string
   icon?: any
-  roles?: Role[]
+  moduleKey?: string
   items: NavItem[]
 }
 
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { href: '/', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'team_lead', 'team_member', 'sales_executive'] },
-      { href: '/clients', icon: Users, label: 'Clients', roles: ['admin', 'sales_executive'] },
-      { href: '/projects', icon: FolderKanban, label: 'Projects', roles: ['admin', 'team_lead'] },
-      { href: '/tasks', icon: CheckSquare, label: 'Tasks', roles: ['admin', 'team_lead', 'team_member'] },
+      { href: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
+      { href: '/clients', icon: Users, label: 'Clients', moduleKey: 'clients' },
+      { href: '/projects', icon: FolderKanban, label: 'Projects', moduleKey: 'projects' },
+      { href: '/tasks', icon: CheckSquare, label: 'Tasks', moduleKey: 'tasks' },
     ]
   },
   {
     label: 'Finance',
     icon: DollarSign,
-    roles: ['admin', 'sales_executive'],
+    moduleKey: 'finance', // can group or ignore for section visibility
     items: [
-      { href: '/finance/revenue', icon: Receipt, label: 'Revenue', roles: ['admin'] },
-      { href: '/finance/expenses', icon: Wallet, label: 'Expenses', roles: ['admin'] },
-      { href: '/profitability', icon: TrendingUp, label: 'Profitability', roles: ['admin'] },
+      { href: '/finance/revenue', icon: Receipt, label: 'Revenue', moduleKey: 'revenue' },
+      { href: '/finance/expenses', icon: Wallet, label: 'Expenses', moduleKey: 'expenses' },
+      { href: '/profitability', icon: TrendingUp, label: 'Profitability', moduleKey: 'profitability' },
     ]
   },
   {
     label: 'Growth',
     icon: TrendingUp,
-    roles: ['admin', 'sales_executive'],
+    moduleKey: 'growth',
     items: [
-      { href: '/growth/prospects', icon: Users, label: 'Prospects', roles: ['admin', 'sales_executive'] },
-      { href: '/targets', icon: Target, label: 'Sales Targets', roles: ['admin', 'sales_executive'] },
-      { href: '/analytics', icon: BarChart3, label: 'Analytics', roles: ['admin'] },
+      { href: '/growth/prospects', icon: Users, label: 'Prospects', moduleKey: 'prospects' },
+      { href: '/targets', icon: Target, label: 'Sales Targets', moduleKey: 'targets' },
+      { href: '/analytics', icon: BarChart3, label: 'Analytics', moduleKey: 'analytics' },
     ]
   },
   {
     label: 'System',
     icon: Settings,
-    roles: ['admin', 'team_lead', 'team_member', 'sales_executive'],
     items: [
-      { href: '/team', icon: UserCog, label: 'Team', roles: ['admin', 'team_lead'] },
-      { href: '/activity', icon: Clock, label: 'Activity Logs', roles: ['admin', 'team_lead'] },
-      { href: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'team_lead', 'team_member', 'sales_executive'] },
+      { href: '/team', icon: UserCog, label: 'Team', moduleKey: 'team' },
+      { href: '/activity', icon: Clock, label: 'Activity Logs', moduleKey: 'activity' },
+      { href: '/settings', icon: Settings, label: 'Settings', moduleKey: 'settings' },
     ]
   }
 ]
 
 interface SidebarProps {
-  userRole?: string
+  allowedModules: string[]
 }
 
-export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
+export default function Sidebar({ allowedModules = [] }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
   
@@ -140,10 +139,8 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
         {NAV_SECTIONS.map((section, sIdx) => {
-          const hasVisibleItems = section.items.some(item => item.roles.includes(userRole as Role))
-          const sectionRoleAllowed = section.roles ? section.roles.includes(userRole as Role) : true
-          
-          if (!hasVisibleItems || !sectionRoleAllowed) return null
+          const visibleItems = section.items.filter(item => allowedModules.includes(item.moduleKey))
+          if (visibleItems.length === 0) return null
 
           const isSectionOpen = section.label ? openSections[section.label] : true
 
@@ -185,7 +182,7 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
                     {section.label}
                   </div>
                   <div className="px-2 space-y-1">
-                    {section.items.filter(item => item.roles.includes(userRole as Role)).map(item => {
+                    {visibleItems.map(item => {
                       const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
                       return (
                         <Link
@@ -220,7 +217,7 @@ export default function Sidebar({ userRole = 'admin' }: SidebarProps) {
                       <div className="absolute left-[25px] top-1 bottom-1 w-px bg-border/60" />
                     )}
                     
-                    {section.items.filter(item => item.roles.includes(userRole as Role)).map(item => {
+                    {visibleItems.map(item => {
                       const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
 
                       return (

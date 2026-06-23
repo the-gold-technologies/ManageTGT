@@ -17,22 +17,37 @@ export default async function DashboardLayout({
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, image: true, createdAt: true, updatedAt: true }
+    include: { role: true }
   })
 
   const userProfile = {
     id: dbUser?.id || session.user.id || '',
     full_name: dbUser?.name || session.user.name || session.user.email || 'User',
-    // Role comes from JWT — no extra query needed
-    role: (session.user as any).role || 'team_member',
+    // Always use the real role from the database rather than stale JWT
+    role: dbUser?.role?.name || 'team_member',
     avatar_url: dbUser?.image || session.user.image || undefined,
     createdAt: dbUser?.createdAt.toISOString() || new Date().toISOString(),
     updatedAt: dbUser?.updatedAt.toISOString() || new Date().toISOString(),
   }
 
+  const roleId = dbUser?.roleId
+  const roleName = userProfile.role
+
+  let allowedModules: string[] = []
+  if (roleId) {
+    const accessRecords = await prisma.roleModuleAccess.findMany({
+      where: { roleId, hasAccess: true }
+    })
+    allowedModules = accessRecords.map(a => a.moduleKey)
+  }
+  // Admin always has all access
+  if (roleName === 'admin') {
+    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings']
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
-      <Sidebar userRole={userProfile.role} />
+      <Sidebar allowedModules={allowedModules} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar user={userProfile} />
         <main className="flex-1 overflow-y-auto p-6">

@@ -5,8 +5,11 @@ import { auth } from '@/auth'
 
 export async function getDashboardData() {
   const session = await auth()
-  const dbUser = await prisma.user.findUnique({ where: { id: session?.user?.id || '' } })
-  const userRole = dbUser?.role || 'team_member'
+  const dbUser = await prisma.user.findUnique({ 
+    where: { id: session?.user?.id || '' },
+    include: { role: true }
+  })
+  const userRole = dbUser?.role?.name || 'team_member'
 
   let projectsWhere: any = {}
   if (userRole === 'team_lead') {

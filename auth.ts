@@ -3,19 +3,20 @@ import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import prisma from "./lib/prisma"
 import bcrypt from "bcryptjs"
-import { $Enums } from "@prisma/client"
 
 import Google from "next-auth/providers/google"
 
 declare module "next-auth" {
   interface User {
     id?: string;
-    role?: $Enums.UserRole;
+    role?: string;
+    roleId?: string;
   }
   interface Session {
     user: User & {
       id: string;
-      role?: $Enums.UserRole;
+      role?: string;
+      roleId?: string;
     };
   }
 }
@@ -40,7 +41,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string }
+          where: { email: credentials.email as string },
+          include: { role: true }
         })
 
         if (!user || !user.password) {
@@ -57,7 +59,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role,
+          role: user.role?.name || 'team_member',
+          roleId: user.roleId || undefined,
         }
       }
     })
@@ -66,6 +69,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.role = user.role
+        token.roleId = user.roleId
         token.id = user.id
         token.picture = user.image
       }
@@ -74,8 +78,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
-        // @ts-ignore
-        session.user.role = token.role as string
+        session.user.role = (token.role as string) || 'team_member'
+        session.user.roleId = token.roleId as string | undefined
         if (token.picture) {
           session.user.image = token.picture as string
         }
