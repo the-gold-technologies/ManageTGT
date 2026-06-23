@@ -26,3 +26,5 @@ jobs:
             npm run build
             npx prisma db push
             pm2 restart managetgt
+
+            
