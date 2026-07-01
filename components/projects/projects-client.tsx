@@ -269,9 +269,17 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                       </td>
                       <td className="px-4 py-3 text-text-secondary">{project.client?.name ?? '—'}</td>
                       <td className="px-4 py-3">
-                        <span className="text-xs bg-bg-tertiary text-text-secondary px-2 py-1 rounded-md">
-                          {project.service_type}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {project.service_type ? (
+                            project.service_type.split(',').map((s, idx) => (
+                              <span key={idx} className="text-xs bg-bg-tertiary text-text-secondary px-2 py-1 rounded-md whitespace-nowrap">
+                                {s.trim()}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-text-muted text-xs">—</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-medium text-text">{formatCurrency(project.quoted_price)}</td>
                       <td className="px-4 py-3 font-medium text-success">

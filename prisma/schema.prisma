@@ -194,6 +194,7 @@ model Project {
   completion_date     DateTime?
   deliverable_urls    String[]      @default([])
   created_by          String?
+  notes               String?       @db.Text
 
   tasks         Task[]
   invoices      Invoice[]

@@ -28,8 +28,14 @@ export async function getAnalyticsData() {
   })
 
   const serviceRevenue = (projects ?? []).reduce((acc, p) => {
-    if (!acc[p.service_type]) acc[p.service_type] = 0
-    acc[p.service_type] += p.quoted_price || 0
+    const types = p.service_type ? p.service_type.split(',').map(s => s.trim()) : []
+    if (types.length === 0) return acc
+    const pricePerService = (p.quoted_price || 0) / types.length
+    types.forEach(t => {
+      if (!t) return
+      if (!acc[t]) acc[t] = 0
+      acc[t] += pricePerService
+    })
     return acc
   }, {} as Record<string, number>)
 

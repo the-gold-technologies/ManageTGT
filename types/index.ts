@@ -60,6 +60,7 @@ export interface Project {
   completion_date?: string
   deliverable_urls?: string[]
   created_by?: string
+  notes?: string
   createdAt: string
   updatedAt: string
   // Joined

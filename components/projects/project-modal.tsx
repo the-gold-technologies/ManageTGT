@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, UploadCloud, FileText, Plus, Trash2 } from 'lucide-react'
+import { X, UploadCloud, FileText, Plus, Trash2, ChevronDown, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
@@ -25,6 +25,7 @@ const schema = z.object({
   expected_completion: z.string().optional(),
   team_lead_id: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'on_hold', 'delivered', 'completed']),
+  notes: z.string().optional(),
 })
 
 type FormInput = z.input<typeof schema>
@@ -48,13 +49,14 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const [files, setFiles] = useState<File[]>([])
   const [existingUrls, setExistingUrls] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
-  const [formData, setFormData] = useState({ service_type: '' })
+  const [selectedServices, setSelectedServices] = useState<string[]>([])
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
 
   const teamLeads = profiles.filter(p => ['admin', 'team_lead'].includes(p.role))
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { status: 'pending', quoted_price: 0 },
+    defaultValues: { status: 'pending', quoted_price: 0, notes: '' },
   })
 
   const { data: services = [] } = useQuery({
@@ -66,7 +68,10 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
     if (open) {
       setFiles([])
       setExistingUrls(project?.deliverable_urls || [])
-      setFormData({ service_type: project?.service_type || '' })
+      const initialServices = project?.service_type
+        ? project.service_type.split(',').map(s => s.trim()).filter(Boolean)
+        : []
+      setSelectedServices(initialServices)
       reset(project ? {
         name: project.name,
         client_id: project.client_id ?? '',
@@ -76,6 +81,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
         expected_completion: project.expected_completion ? new Date(project.expected_completion).toISOString().split('T')[0] : '',
         team_lead_id: project.team_lead_id ?? '',
         status: project.status,
+        notes: project.notes ?? '',
       } : { 
         name: '', 
         client_id: '', 
@@ -84,21 +90,31 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
         start_date: '', 
         expected_completion: '', 
         team_lead_id: '', 
-        status: 'pending' 
+        status: 'pending',
+        notes: '',
       })
     }
   }, [open, project, reset])
+
+  const handleToggleService = (serviceName: string) => {
+    const nextServices = selectedServices.includes(serviceName)
+      ? selectedServices.filter(s => s !== serviceName)
+      : [...selectedServices, serviceName]
+    setSelectedServices(nextServices)
+    setValue('service_type', nextServices.join(', '), { shouldValidate: true })
+  }
 
   const onSubmit = async (data: FormData) => {
     const payload = {
       name: data.name,
       client_id: data.client_id || null,
-      service_type: formData.service_type,
+      service_type: selectedServices.join(', '),
       quoted_price: data.quoted_price,
       start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
       expected_completion: data.expected_completion ? new Date(data.expected_completion).toISOString() : null,
       team_lead_id: data.team_lead_id || null,
       status: data.status,
+      notes: data.notes || null,
     } as any
 
     setIsUploading(true)
@@ -184,10 +200,65 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Type *</label>
-                  <select required value={formData.service_type} onChange={e => setFormData({ ...formData, service_type: e.target.value })} className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text focus:outline-none focus:border-primary/50 transition-colors">
-                    <option value="">Select a service...</option>
-                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                  </select>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setServiceDropdownOpen(!serviceDropdownOpen)}
+                      className="w-full min-h-[38px] px-3 py-1.5 bg-bg border border-border rounded-lg text-xs text-text flex items-center justify-between gap-2 focus:outline-none focus:border-primary/50 transition-colors"
+                    >
+                      {selectedServices.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedServices.map(s => (
+                            <span
+                              key={s}
+                              className="flex items-center gap-1 bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-md text-[11px]"
+                            >
+                              {s}
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleToggleService(s)
+                                }}
+                                className="hover:text-danger cursor-pointer ml-0.5 text-xs font-bold"
+                              >
+                                ×
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-text-muted text-xs">Select a service...</span>
+                      )}
+                      <ChevronDown size={14} className="text-text-muted shrink-0 ml-auto" />
+                    </button>
+
+                    {serviceDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setServiceDropdownOpen(false)} />
+                        <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-20 p-1.5 space-y-0.5">
+                          {services.length > 0 ? (
+                            services.map(s => {
+                              const isChecked = selectedServices.includes(s.name)
+                              return (
+                                <div
+                                  key={s.id}
+                                  onClick={() => handleToggleService(s.name)}
+                                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-bg-tertiary cursor-pointer transition-colors text-xs text-text-secondary"
+                                >
+                                  <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-white' : 'border-border'}`}>
+                                    {isChecked && <Check size={10} className="stroke-[3]" />}
+                                  </div>
+                                  <span>{s.name}</span>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <p className="text-xs text-text-muted p-2 text-center">No services found</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {errors.service_type && <p className="text-xs text-danger mt-1">{errors.service_type.message}</p>}
                 </div>
               </div>
@@ -226,6 +297,16 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                   <option value="">Select team lead</option>
                   {teamLeads.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes / Comments (Optional)</label>
+                <textarea 
+                  {...register('notes')} 
+                  placeholder="Add any project comments, special requests, or extra details here..." 
+                  rows={3} 
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                />
               </div>
 
               {/* File Upload for Deliverables */}

@@ -105,23 +105,27 @@ export async function createProject(data: any) {
       const currentMonth = now.getMonth() + 1
       const currentYear = now.getFullYear()
       
-      const target = await prisma.salesTarget.findFirst({
-        where: {
-          service_type: restData.service_type,
-          month: currentMonth,
-          year: currentYear
-        }
-      })
-
-      if (target) {
-        await prisma.salesClosure.create({
-          data: {
-            target_id: target.id,
-            closed_by: session?.user?.id,
-            client_id: client_id || undefined,
-            project_id: project.id,
+      const sTypes = restData.service_type.split(',').map((s: string) => s.trim())
+      for (const sType of sTypes) {
+        if (!sType) continue
+        const target = await prisma.salesTarget.findFirst({
+          where: {
+            service_type: sType,
+            month: currentMonth,
+            year: currentYear
           }
         })
+
+        if (target) {
+          await prisma.salesClosure.create({
+            data: {
+              target_id: target.id,
+              closed_by: session?.user?.id,
+              client_id: client_id || undefined,
+              project_id: project.id,
+            }
+          })
+        }
       }
     }
 
