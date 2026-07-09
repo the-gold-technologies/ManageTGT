@@ -77,16 +77,6 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
       })
     }
 
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'task_status',
-        title: 'Task Status Updated',
-        message: `You updated the status to ${status} for task: ${result.title}`,
-        link: '/tasks'
-      })
-    }
-
     revalidatePath('/tasks')
     return { success: true }
   } catch (error) {
@@ -101,17 +91,6 @@ export async function deleteTask(id: string) {
       where: { id }
     })
     
-    const session = await auth()
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'task_update',
-        title: 'Task Deleted',
-        message: `Successfully deleted task: ${task.title}`,
-        link: '/tasks'
-      })
-    }
-
     revalidatePath('/tasks')
     return { success: true }
   } catch (error) {
@@ -161,17 +140,6 @@ export async function createTask(data: any) {
       })
     }
 
-    // Notify the creator
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'task_update',
-        title: 'Task Created',
-        message: `Successfully created task: ${result.title}`,
-        link: '/tasks'
-      })
-    }
-
     revalidatePath('/tasks')
     return { success: true, task: result }
   } catch (error) {
@@ -207,16 +175,6 @@ export async function updateTask(id: string, data: any) {
 
       return task
     })
-
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'task_update',
-        title: 'Task Updated',
-        message: `Successfully updated task: ${result.title}`,
-        link: '/tasks'
-      })
-    }
 
     revalidatePath('/tasks')
     return { success: true, task: result }

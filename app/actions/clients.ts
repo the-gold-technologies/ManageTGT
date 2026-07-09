@@ -27,16 +27,6 @@ export async function createClient(data: any) {
       }
     })
 
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'client_update',
-        title: 'Client Added',
-        message: `Successfully added client: ${client.name}`,
-        link: '/clients'
-      })
-    }
-
     revalidatePath('/clients')
     return { success: true, data: client }
   } catch (error: any) {
@@ -64,17 +54,6 @@ export async function updateClient(id: string, data: any) {
       data
     })
 
-    const session = await auth()
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'client_update',
-        title: 'Client Updated',
-        message: `Successfully updated client: ${client.name}`,
-        link: '/clients'
-      })
-    }
-
     revalidatePath('/clients')
     return { success: true, data: client }
   } catch (error: any) {
@@ -88,17 +67,6 @@ export async function deleteClient(id: string) {
     await prisma.client.delete({
       where: { id }
     })
-
-    const session = await auth()
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'client_update',
-        title: 'Client Deleted',
-        message: `Successfully deleted a client.`,
-        link: '/clients'
-      })
-    }
 
     revalidatePath('/clients')
     return { success: true }

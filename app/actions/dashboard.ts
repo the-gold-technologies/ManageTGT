@@ -11,6 +11,19 @@ export async function getDashboardData() {
   })
   const userRole = dbUser?.role?.name || 'team_member'
 
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks']
+  let allowedModules: string[] = [...DEFAULT_MODULES]
+  const roleId = dbUser?.roleId
+  if (roleId) {
+    const accessRecords = await prisma.roleModuleAccess.findMany({
+      where: { roleId, hasAccess: true }
+    })
+    allowedModules = Array.from(new Set([...allowedModules, ...accessRecords.map(a => a.moduleKey)]))
+  }
+  if (userRole === 'admin') {
+    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings']
+  }
+
   let projectsWhere: any = {}
   if (userRole === 'team_lead') {
     projectsWhere = { team_lead_id: session?.user?.id }
@@ -22,12 +35,18 @@ export async function getDashboardData() {
     expenses,
     targets,
     closures,
+    userTasks,
   ] = await Promise.all([
-    ['admin', 'team_lead'].includes(userRole) ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true } }) : Promise.resolve([]),
-    userRole === 'admin' ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true } }) : Promise.resolve([]),
-    userRole === 'admin' ? prisma.expense.findMany({ select: { amount: true, createdAt: true } }) : Promise.resolve([]),
-    ['admin', 'sales_executive'].includes(userRole) ? prisma.salesTarget.findMany({ where: { month: new Date().getMonth() + 1, year: new Date().getFullYear() } }) : Promise.resolve([]),
-    ['admin', 'sales_executive'].includes(userRole) ? prisma.salesClosure.findMany({ select: { target_id: true, closed_at: true } }) : Promise.resolve([]),
+    allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true } }) : Promise.resolve([]),
+    allowedModules.includes('revenue') ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true } }) : Promise.resolve([]),
+    allowedModules.includes('expenses') ? prisma.expense.findMany({ select: { amount: true, createdAt: true } }) : Promise.resolve([]),
+    allowedModules.includes('targets') ? prisma.salesTarget.findMany({ where: { month: new Date().getMonth() + 1, year: new Date().getFullYear() } }) : Promise.resolve([]),
+    allowedModules.includes('targets') ? prisma.salesClosure.findMany({ select: { target_id: true, closed_at: true } }) : Promise.resolve([]),
+    userRole !== 'admin' ? prisma.task.findMany({
+      where: { assigned_to: session?.user?.id || '' },
+      include: { project: { select: { name: true } } },
+      orderBy: { deadline: 'asc' }
+    }) : Promise.resolve([]),
   ])
 
   const now = new Date()
@@ -149,8 +168,25 @@ export async function getDashboardData() {
     { name: 'Overdue', value: overdue, color: '#EF4444' },
   ].filter(d => d.value > 0)
 
+
+  const taskStats = userRole !== 'admin' ? {
+    total: userTasks.length,
+    pending: userTasks.filter(t => t.status !== 'completed').length,
+    completed: userTasks.filter(t => t.status === 'completed').length,
+  } : null
+
+  const pendingTasks = userRole !== 'admin' ? userTasks.filter(t => t.status !== 'completed').slice(0, 5).map(t => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    priority: t.priority,
+    deadline: t.deadline?.toISOString() || null,
+    projectName: t.project?.name || null,
+  })) : []
+
   return {
     userRole,
+    allowedModules,
     stats: {
       totalRevenue,
       totalProfit,
@@ -167,5 +203,7 @@ export async function getDashboardData() {
     pendingTrend,
     activeProjectsTrend,
     completedProjectsTrend,
+    taskStats,
+    pendingTasks,
   }
 }

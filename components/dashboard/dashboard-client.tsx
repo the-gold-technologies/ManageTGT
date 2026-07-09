@@ -8,10 +8,10 @@ import {
 import StatCard from '@/components/ui/stat-card'
 import { Card } from '@/components/ui/card'
 import { Glow } from '@/components/ui/glow'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import {
   DollarSign, TrendingUp, Wallet, FolderKanban,
-  CheckCircle2, Clock, Target
+  CheckCircle2, Clock, Target, CheckSquare
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -70,10 +70,18 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
   const data = queryData || initialData
 
   const role = userRole || data?.userRole || 'team_member'
+  const allowedModules = data?.allowedModules || []
   
-  const isFinanceVisible = ['admin'].includes(role)
-  const isSalesVisible = ['admin', 'sales_executive'].includes(role)
-  const isProjectsVisible = ['admin', 'team_lead'].includes(role)
+  const hasRevenueAccess = allowedModules.includes('revenue')
+  const hasExpensesAccess = allowedModules.includes('expenses')
+  const hasProfitabilityAccess = allowedModules.includes('profitability')
+  const hasProjectsAccess = allowedModules.includes('projects')
+  const hasTargetsAccess = allowedModules.includes('targets')
+  const hasAnalyticsAccess = allowedModules.includes('analytics')
+
+  const isFinanceVisible = hasRevenueAccess || hasExpensesAccess || hasProfitabilityAccess
+  const isSalesVisible = hasTargetsAccess
+  const isProjectsVisible = hasProjectsAccess
 
   const stats = data?.stats
   const targetPct = stats?.monthlyTarget?.total > 0
@@ -108,6 +116,152 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
     )
   }
 
+  // Extract projectStatusCard into a variable to reuse
+  const projectStatusCard = isProjectsVisible && (
+    <Card title="Project Status" className="w-full" padding={false}>
+      <div className="p-5">
+        {data.projectStatusData.length > 0 ? (
+          (() => {
+            const totalProjects = data.projectStatusData.reduce((sum: number, entry: any) => sum + entry.value, 0);
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
+                {/* Chart container */}
+                <div className="sm:col-span-3 relative flex items-center justify-center h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.projectStatusData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={62}
+                        outerRadius={90}
+                        paddingAngle={5}
+                        cornerRadius={5}
+                        dataKey="value"
+                      >
+                        {data.projectStatusData.map((entry: any, index: number) => (
+                          <Cell 
+                            key={index} 
+                            fill={entry.color} 
+                            stroke="transparent"
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const entry = payload[0].payload;
+                            return (
+                              <div className="bg-[#171717] border border-[#262626] rounded-lg p-2.5 shadow-2xl text-xs font-semibold z-50 pointer-events-none">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                  <span className="text-text-secondary">{entry.name}</span>
+                                </div>
+                                <span className="text-text font-bold">{payload[0].value} {payload[0].value === 1 ? 'Project' : 'Projects'}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center Label */}
+                  <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
+                    <span className="text-3xl font-extrabold text-text tracking-tight">{totalProjects}</span>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted mt-0.5">Projects</span>
+                  </div>
+                </div>
+
+                {/* Details Breakdown */}
+                <div className="sm:col-span-2 space-y-0">
+                  <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown</p>
+                  {data.projectStatusData.map((entry: any, index: number) => {
+                    const percentage = totalProjects > 0 ? Math.round((entry.value / totalProjects) * 100) : 0;
+                    return (
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between py-2 border-b border-border/20 last:border-0"
+                      >
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                          <span className="text-xs font-medium text-text-secondary truncate">{entry.name}</span>
+                        </div>
+                        <span className="text-xs font-bold text-text shrink-0 ml-2">{percentage}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            );
+          })()
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">
+            No projects yet
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+
+  // Extract pendingTasksCard into a variable to reuse
+  const pendingTasksCard = data.pendingTasks && data.pendingTasks.length > 0 && (
+    <Card title="Your Pending Tasks" className="w-full" padding={true}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead>
+            <tr className="bg-bg-tertiary border-b border-border text-xs font-semibold text-text-secondary uppercase">
+              <th className="px-5 py-3">Task</th>
+              <th className="px-5 py-3">Project</th>
+              <th className="px-5 py-3">Priority</th>
+              <th className="px-5 py-3">Deadline</th>
+              <th className="px-5 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.pendingTasks.map((task: any) => {
+              const PRIORITY_COLORS: Record<string, string> = {
+                low: 'text-text-muted bg-bg-tertiary',
+                medium: 'text-info bg-info/10',
+                high: 'text-warning bg-warning/10',
+                urgent: 'text-danger bg-danger/10',
+              }
+              const STATUS_COLORS: Record<string, string> = {
+                todo: 'text-text-secondary bg-bg-tertiary',
+                in_progress: 'text-info bg-info/10',
+                review: 'text-warning bg-warning/10',
+                completed: 'text-success bg-success/10',
+              }
+              return (
+                <tr 
+                  key={task.id} 
+                  onClick={() => router.push('/tasks')}
+                  className="border-b border-border last:border-0 hover:bg-bg-tertiary/50 transition-colors cursor-pointer text-xs"
+                >
+                  <td className="px-5 py-3 font-medium text-text">{task.title}</td>
+                  <td className="px-5 py-3 text-text-secondary">{task.projectName || '—'}</td>
+                  <td className="px-5 py-3">
+                    <span className={cn('text-[10px] px-2 py-0.5 rounded font-semibold', PRIORITY_COLORS[task.priority])}>
+                      {task.priority.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-text-secondary">
+                    {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={cn('text-[10px] px-2 py-0.5 rounded font-semibold', STATUS_COLORS[task.status])}>
+                      {task.status.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+
   return (
     <motion.div
       variants={containerVariants}
@@ -117,45 +271,47 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
     >
       {/* Stat Cards Row */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        {isFinanceVisible && (
-          <>
-            <StatCard
-              title="Total Revenue"
-              value={formatCurrency(stats.totalRevenue)}
-              change={8.4}
-              changeLabel="vs last month"
-              icon={DollarSign}
-              iconColor="bg-primary/10 text-primary"
-              sparkData={revenueSparkData}
-              sparkType="bar"
-              sparkColor="#6366F1"
-              href="/finance/revenue"
-            />
-            <StatCard
-              title="Net Profit"
-              value={formatCurrency(stats.totalProfit)}
-              change={stats.totalProfit > 0 ? 5.2 : -5.2}
-              changeLabel="vs last month"
-              icon={TrendingUp}
-              iconColor="bg-success/10 text-success"
-              sparkData={profitSparkData}
-              sparkType="area"
-              sparkColor="#10B981"
-              href="/profitability"
-            />
-            <StatCard
-              title="Total Expenses"
-              value={formatCurrency(stats.totalExpenses)}
-              change={-2.1}
-              changeLabel="vs last month"
-              icon={Wallet}
-              iconColor="bg-danger/10 text-danger"
-              sparkData={data.expensesTrend}
-              sparkType="area"
-              sparkColor="#EF4444"
-              href="/finance/expenses"
-            />
-          </>
+        {hasRevenueAccess && (
+          <StatCard
+            title="Total Revenue"
+            value={formatCurrency(stats.totalRevenue)}
+            change={8.4}
+            changeLabel="vs last month"
+            icon={DollarSign}
+            iconColor="bg-primary/10 text-primary"
+            sparkData={revenueSparkData}
+            sparkType="bar"
+            sparkColor="#6366F1"
+            href="/finance/revenue"
+          />
+        )}
+        {hasProfitabilityAccess && (
+          <StatCard
+            title="Net Profit"
+            value={formatCurrency(stats.totalProfit)}
+            change={stats.totalProfit > 0 ? 5.2 : -5.2}
+            changeLabel="vs last month"
+            icon={TrendingUp}
+            iconColor="bg-success/10 text-success"
+            sparkData={profitSparkData}
+            sparkType="area"
+            sparkColor="#10B981"
+            href="/profitability"
+          />
+        )}
+        {hasExpensesAccess && (
+          <StatCard
+            title="Total Expenses"
+            value={formatCurrency(stats.totalExpenses)}
+            change={-2.1}
+            changeLabel="vs last month"
+            icon={Wallet}
+            iconColor="bg-danger/10 text-danger"
+            sparkData={data.expensesTrend}
+            sparkType="area"
+            sparkColor="#EF4444"
+            href="/finance/expenses"
+          />
         )}
         
         {isProjectsVisible && (
@@ -183,7 +339,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
           </>
         )}
 
-        {isFinanceVisible && (
+        {hasRevenueAccess && (
           <StatCard
             title="Pending Payments"
             value={formatCurrency(stats.pendingPayments)}
@@ -194,6 +350,32 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
             sparkColor="#F59E0B"
             href="/finance/revenue"
           />
+        )}
+
+        {data.taskStats && (
+          <>
+            <StatCard
+              title="Assigned Tasks"
+              value={String(data.taskStats.total)}
+              icon={CheckSquare}
+              iconColor="bg-primary/10 text-primary"
+              href="/tasks"
+            />
+            <StatCard
+              title="Pending Tasks"
+              value={String(data.taskStats.pending)}
+              icon={Clock}
+              iconColor="bg-warning/10 text-warning"
+              href="/tasks"
+            />
+            <StatCard
+              title="Completed Tasks"
+              value={String(data.taskStats.completed)}
+              icon={CheckCircle2}
+              iconColor="bg-success/10 text-success"
+              href="/tasks"
+            />
+          </>
         )}
         {/* Monthly Target card */}
         {isSalesVisible && (
@@ -228,166 +410,92 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
         )}
       </motion.div>
 
-      {/* Charts Row 1: Revenue + Project Status */}
-      {(isFinanceVisible || isProjectsVisible) && (
-        <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          {/* Revenue Trend */}
-          {isFinanceVisible && (
-        <Card title="Revenue Trend" className="xl:col-span-2" padding={false}>
-          <div className="px-5 pb-5 pt-3">
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data.revenueTrend} barSize={28} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={1} />
-                    <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.4} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
-                  tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-                <Tooltip
-                  formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Revenue']}
-                  cursor={{ fill: resolvedTheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', radius: 6 }}
-                  contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
-                  labelStyle={{ color: '#9191A4' }}
-                  itemStyle={{ color: CHART_COLORS.primary }}
-                />
-                <Bar dataKey="revenue" fill="url(#revGradient)" radius={[6, 6, 2, 2]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-          )}
-
-          {isProjectsVisible && (
-            <Card title="Project Status" className={!isFinanceVisible ? 'xl:col-span-3' : ''} padding={false}>
-          <div className="p-5">
-            {data.projectStatusData.length > 0 ? (
-              (() => {
-                const totalProjects = data.projectStatusData.reduce((sum: number, entry: any) => sum + entry.value, 0);
-                return (
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
-                    {/* Chart container */}
-                    <div className="sm:col-span-3 relative flex items-center justify-center h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={data.projectStatusData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={62}
-                            outerRadius={90}
-                            paddingAngle={5}
-                            cornerRadius={5}
-                            dataKey="value"
-                          >
-                            {data.projectStatusData.map((entry: any, index: number) => (
-                              <Cell 
-                                key={index} 
-                                fill={entry.color} 
-                                stroke="transparent"
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const entry = payload[0].payload;
-                                return (
-                                  <div className="bg-[#171717] border border-[#262626] rounded-lg p-2.5 shadow-2xl text-xs font-semibold z-50 pointer-events-none">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                                      <span className="text-text-secondary">{entry.name}</span>
-                                    </div>
-                                    <span className="text-text font-bold">{payload[0].value} {payload[0].value === 1 ? 'Project' : 'Projects'}</span>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      {/* Center Label */}
-                      <div className="absolute flex flex-col items-center justify-center text-center pointer-events-none">
-                        <span className="text-3xl font-extrabold text-text tracking-tight">{totalProjects}</span>
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted mt-0.5">Projects</span>
-                      </div>
-                    </div>
-
-                    {/* Details Breakdown */}
-                    <div className="sm:col-span-2 space-y-0">
-                      <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown</p>
-                      {data.projectStatusData.map((entry: any, index: number) => {
-                        const percentage = totalProjects > 0 ? Math.round((entry.value / totalProjects) * 100) : 0;
-                        return (
-                          <div 
-                            key={index} 
-                            className="flex items-center justify-between py-2 border-b border-border/20 last:border-0"
-                          >
-                            <div className="flex items-center gap-2.5 overflow-hidden">
-                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                              <span className="text-xs font-medium text-text-secondary truncate">{entry.name}</span>
-                            </div>
-                            <span className="text-xs font-bold text-text shrink-0 ml-2">{percentage}%</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-text-muted text-sm">
-                No projects yet
-              </div>
+      {/* Row: Project Status + Pending Tasks (For Non-Admins) or Revenue + Project Status (For Admins) */}
+      {!isFinanceVisible ? (
+        // Non-Admin: Project Status and Pending Tasks side-by-side
+        (isProjectsVisible || (data.pendingTasks && data.pendingTasks.length > 0)) && (
+          <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {projectStatusCard}
+            {pendingTasksCard}
+          </motion.div>
+        )
+      ) : (
+        // Admin: Revenue Trend and Project Status side-by-side
+        (isFinanceVisible || isProjectsVisible) && (
+          <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            {/* Revenue Trend */}
+            {isFinanceVisible && (
+              <Card title="Revenue Trend" className="xl:col-span-2" padding={false}>
+                <div className="px-5 pb-5 pt-3">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={data.revenueTrend} barSize={28} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={CHART_COLORS.primary} stopOpacity={1} />
+                          <stop offset="100%" stopColor={CHART_COLORS.primary} stopOpacity={0.4} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                      <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
+                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+                      <Tooltip
+                        formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Revenue']}
+                        cursor={{ fill: resolvedTheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', radius: 6 }}
+                        contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
+                        labelStyle={{ color: '#9191A4' }}
+                        itemStyle={{ color: CHART_COLORS.primary }}
+                      />
+                      <Bar dataKey="revenue" fill="url(#revGradient)" radius={[6, 6, 2, 2]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
             )}
-          </div>
-            </Card>
-          )}
-        </motion.div>
+
+            {projectStatusCard}
+          </motion.div>
+        )
       )}
 
-      {/* Charts Row 2: Profit Trend */}
+      {/* Charts Row 2: Profit Trend (Admin only) */}
       {isFinanceVisible && (
-      <motion.div variants={itemVariants}>
-        <Card title="Profit Trend" padding={false}>
-          <div className="px-5 pb-5 pt-3">
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={data.profitTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
-                  tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
-                <Tooltip
-                  formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Profit']}
-                  cursor={{ stroke: CHART_COLORS.success, strokeWidth: 1, strokeDasharray: '4 4' }}
-                  contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
-                  labelStyle={{ color: '#9191A4' }}
-                  itemStyle={{ color: CHART_COLORS.success }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="profit"
-                  stroke={CHART_COLORS.success}
-                  strokeWidth={2.5}
-                  fill="url(#profitGradient)"
-                  dot={false}
-                  activeDot={{ r: 5, fill: CHART_COLORS.success, strokeWidth: 2, stroke: '#171717' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </motion.div>
+        <motion.div variants={itemVariants}>
+          <Card title="Profit Trend" padding={false}>
+            <div className="px-5 pb-5 pt-3">
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={data.profitTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                  <defs>
+                    <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#9191A4', fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+                  <Tooltip
+                    formatter={(value) => [formatCurrency(Number(value ?? 0)), 'Profit']}
+                    cursor={{ stroke: CHART_COLORS.success, strokeWidth: 1, strokeDasharray: '4 4' }}
+                    contentStyle={{ background: tooltipBgColor, border: `1px solid ${tooltipBorderColor}`, borderRadius: 10, fontSize: 12 }}
+                    labelStyle={{ color: '#9191A4' }}
+                    itemStyle={{ color: CHART_COLORS.success }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="profit"
+                    stroke={CHART_COLORS.success}
+                    strokeWidth={2.5}
+                    fill="url(#profitGradient)"
+                    dot={false}
+                    activeDot={{ r: 5, fill: CHART_COLORS.success, strokeWidth: 2, stroke: '#171717' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </motion.div>
       )}
     </motion.div>
   )

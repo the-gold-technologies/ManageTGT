@@ -48,17 +48,6 @@ export async function deleteProject(id: string) {
       where: { id }
     })
     
-    const session = await auth()
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'project_update',
-        title: 'Project Deleted',
-        message: `Successfully deleted project: ${project.name}`,
-        link: '/projects'
-      })
-    }
-
     revalidatePath('/projects')
     return { success: true }
   } catch (error) {
@@ -129,16 +118,6 @@ export async function createProject(data: any) {
       }
     }
 
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'project_update',
-        title: 'Project Created',
-        message: `Successfully created project: ${project.name}`,
-        link: '/projects'
-      })
-    }
-
     revalidatePath('/projects')
     revalidatePath('/targets') // Revalidate targets page as well
     revalidatePath('/') // Dashboard might also show targets
@@ -162,17 +141,6 @@ export async function updateProject(id: string, data: any) {
         ...(team_lead_id !== undefined ? { teamLead: team_lead_id ? { connect: { id: team_lead_id } } : { disconnect: true } } : {})
       }
     })
-
-    const session = await auth()
-    if (session?.user?.id) {
-      await createNotification({
-        user_id: session.user.id,
-        type: 'project_update',
-        title: 'Project Updated',
-        message: `Successfully updated project: ${project.name}`,
-        link: '/projects'
-      })
-    }
 
     revalidatePath('/projects')
     return { success: true, project }

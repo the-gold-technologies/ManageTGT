@@ -1,6 +1,8 @@
 import RevenueClient from '@/components/finance/revenue-client'
+import { verifyModuleAccess } from '@/app/actions/access'
 
-export default function RevenuePage() {
+export default async function RevenuePage() {
+  await verifyModuleAccess('revenue')
   return (
     <RevenueClient 
       initialInvoices={[]} 

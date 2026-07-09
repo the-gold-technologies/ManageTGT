@@ -9,7 +9,7 @@ import {
   Loader2, Plus, Edit2, Trash2,
   LayoutDashboard, Users, FolderKanban, CheckSquare, 
   Receipt, Wallet, TrendingUp, Target, BarChart3, 
-  UserCog, Clock, Settings 
+  UserCog, Clock, Settings, User, Shield, Settings2, AppWindow
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -45,6 +45,10 @@ const MODULE_GROUPS = [
       { key: 'team', label: 'Team', icon: UserCog },
       { key: 'activity', label: 'Activity Logs', icon: Clock },
       { key: 'settings', label: 'Settings', icon: Settings },
+      { key: 'settings-profile', label: 'My Profile', icon: User, isSubItem: true },
+      { key: 'settings-roles', label: 'Roles Management', icon: Shield, isSubItem: true },
+      { key: 'settings-services', label: 'Services List', icon: Settings2, isSubItem: true },
+      { key: 'settings-access', label: 'Module Access', icon: AppWindow, isSubItem: true },
     ]
   }
 ]
@@ -221,22 +225,23 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
                     )}
                     {group.items.map((m, mIdx) => (
                       <tr key={m.key} className="border-b dark:border-white/5 border-black/5 last:border-0 hover:bg-bg/40 transition-colors">
-                        <td className={`p-4 text-text font-medium ${group.group ? 'pl-6' : ''}`}>
+                        <td className={`p-4 text-text font-medium ${group.group ? 'pl-6' : ''} ${(m as any).isSubItem ? 'pl-12 text-text-secondary font-normal' : ''}`}>
                           <div className="flex items-center gap-2.5">
-                            {m.icon && <m.icon className="w-4 h-4 text-text-muted" />}
+                            {m.icon && <m.icon className={`text-text-muted ${(m as any).isSubItem ? 'w-3.5 h-3.5 opacity-80' : 'w-4 h-4'}`} />}
                             <span>{m.label}</span>
                           </div>
                         </td>
                         {roles.map(r => {
-                          const hasAccess = access.find(a => a.roleId === r.id && a.moduleKey === m.key)?.hasAccess || false;
+                          const isDefaultModule = ['dashboard', 'settings', 'settings-profile'].includes(m.key);
+                          const hasAccess = r.name === 'admin' || isDefaultModule || access.find(a => a.roleId === r.id && a.moduleKey === m.key)?.hasAccess || false;
                           return (
                             <td key={r.id} className="p-3 text-center">
                               <input 
                                 type="checkbox" 
                                 checked={hasAccess} 
                                 onChange={() => toggleAccess(r.id, m.key, hasAccess)}
-                                disabled={r.name === 'admin'} // Admin always has full access in logic
-                                className="accent-primary w-4 h-4 cursor-pointer"
+                                disabled={r.name === 'admin' || isDefaultModule} // Admin always has access; default modules are checked and read-only
+                                className="accent-primary w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
                               />
                             </td>
                           )

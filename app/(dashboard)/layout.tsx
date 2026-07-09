@@ -33,12 +33,14 @@ export default async function DashboardLayout({
   const roleId = dbUser?.roleId
   const roleName = userProfile.role
 
-  let allowedModules: string[] = []
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks']
+
+  let allowedModules: string[] = [...DEFAULT_MODULES]
   if (roleId) {
     const accessRecords = await prisma.roleModuleAccess.findMany({
       where: { roleId, hasAccess: true }
     })
-    allowedModules = accessRecords.map(a => a.moduleKey)
+    allowedModules = Array.from(new Set([...allowedModules, ...accessRecords.map(a => a.moduleKey)]))
   }
   // Admin always has all access
   if (roleName === 'admin') {

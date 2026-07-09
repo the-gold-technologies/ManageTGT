@@ -135,13 +135,25 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     return matchSearch && matchStatus && matchDate
   })
 
-  const exportHeaders = ['Project Code', 'Name', 'Client', 'Status', 'Quoted Price', 'Start Date', 'Expected Completion', 'Team Lead']
-  const mapExportData = (p: Project) => [
+  const isAdmin = userRole === 'admin'
+
+  const exportHeaders = isAdmin 
+    ? ['Project Code', 'Name', 'Client', 'Status', 'Quoted Price', 'Start Date', 'Expected Completion', 'Team Lead']
+    : ['Project Code', 'Name', 'Status', 'Start Date', 'Expected Completion', 'Team Lead']
+
+  const mapExportData = (p: Project) => isAdmin ? [
     p.project_code || 'N/A',
     p.name,
     p.client?.name || 'N/A',
     p.status,
     p.quoted_price || 0,
+    p.start_date ? new Date(p.start_date).toLocaleDateString() : 'N/A',
+    p.expected_completion ? new Date(p.expected_completion).toLocaleDateString() : 'N/A',
+    p.team_lead?.full_name || 'N/A'
+  ] : [
+    p.project_code || 'N/A',
+    p.name,
+    p.status,
     p.start_date ? new Date(p.start_date).toLocaleDateString() : 'N/A',
     p.expected_completion ? new Date(p.expected_completion).toLocaleDateString() : 'N/A',
     p.team_lead?.full_name || 'N/A'
@@ -164,9 +176,11 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           <h2 className="text-xl font-bold text-text">Projects</h2>
           <p className="text-sm text-text-secondary mt-0.5">{projects?.length ?? 0} total projects</p>
         </div>
-        <Button onClick={() => { setEditingProject(null); setModalOpen(true) }}>
-          <Plus size={15} /> New Project
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => { setEditingProject(null); setModalOpen(true) }}>
+            <Plus size={15} /> New Project
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -236,15 +250,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Project</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Client</th>
+                  {isAdmin && <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Client</th>}
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Service</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Value</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Received</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Balance</th>
+                  {isAdmin && (
+                    <>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Value</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Received</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Balance</th>
+                    </>
+                  )}
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Start Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Deadline</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Status</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Payments</th>
+                  {isAdmin && <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Payments</th>}
                 </tr>
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
@@ -267,7 +285,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           <p className="text-xs text-text-muted">{project.project_code}</p>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">{project.client?.name ?? '—'}</td>
+                      {isAdmin && <td className="px-4 py-3 text-text-secondary">{project.client?.name ?? '—'}</td>}
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {project.service_type ? (
@@ -281,15 +299,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-medium text-text">{formatCurrency(project.quoted_price)}</td>
-                      <td className="px-4 py-3 font-medium text-success">
-                        {invoices.length > 0 ? formatCurrency(totalReceived) : <span className="text-text-muted text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {invoices.length > 0 ? (
-                          <span className={cn(balance > 0 ? 'text-warning' : 'text-success')}>{formatCurrency(balance)}</span>
-                        ) : <span className="text-text-muted text-xs">—</span>}
-                      </td>
+                      {isAdmin && (
+                        <>
+                          <td className="px-4 py-3 font-medium text-text">{formatCurrency(project.quoted_price)}</td>
+                          <td className="px-4 py-3 font-medium text-success">
+                            {invoices.length > 0 ? formatCurrency(totalReceived) : <span className="text-text-muted text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3 font-medium">
+                            {invoices.length > 0 ? (
+                              <span className={cn(balance > 0 ? 'text-warning' : 'text-success')}>{formatCurrency(balance)}</span>
+                            ) : <span className="text-text-muted text-xs">—</span>}
+                          </td>
+                        </>
+                      )}
                       <td className="px-4 py-3 text-text-secondary text-xs">
                         {project.start_date ? formatDate(project.start_date) : '—'}
                       </td>
@@ -304,17 +326,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           {PROJECT_STATUS_CONFIG[project.status]?.label}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-center">
-                          <button
-                            onClick={() => setPaymentProject(project)}
-                            title="Click to view"
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold tracking-wide text-text-secondary bg-bg-tertiary/50 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all uppercase"
-                          >
-                            <IndianRupee size={12} strokeWidth={2.5} />
-                          </button>
-                        </div>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-center">
+                            <button
+                              onClick={() => setPaymentProject(project)}
+                              title="Click to view"
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold tracking-wide text-text-secondary bg-bg-tertiary/50 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all uppercase"
+                            >
+                              <IndianRupee size={12} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </motion.tr>
                   )
                 })}

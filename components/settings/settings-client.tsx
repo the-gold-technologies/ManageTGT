@@ -22,9 +22,10 @@ const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' 
 interface SettingsClientProps {
   currentProfile: Profile | null
   initialAdminData?: any
+  allowedModules?: string[]
 }
 
-export default function SettingsClient({ currentProfile, initialAdminData }: SettingsClientProps) {
+export default function SettingsClient({ currentProfile, initialAdminData, allowedModules = [] }: SettingsClientProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'services' | 'access'>('profile')
 
   const [passState, passAction, isPending] = useActionState(changePasswordAction, undefined)
@@ -90,15 +91,11 @@ export default function SettingsClient({ currentProfile, initialAdminData }: Set
 
   const confirmPasswordMatches = confirmNewPasswordVal ? newPasswordVal === confirmNewPasswordVal : null
 
-  const isAdmin = profile?.role === 'admin'
-
   const tabs = [
-    { id: 'profile', label: 'My Profile', icon: User },
-    ...(isAdmin ? [
-      { id: 'roles', label: 'Roles Management', icon: Shield },
-      { id: 'services', label: 'Services List', icon: Settings2 },
-      { id: 'access', label: 'Module Access', icon: AppWindow },
-    ] : [])
+    ...(allowedModules.includes('settings-profile') ? [{ id: 'profile', label: 'My Profile', icon: User }] : []),
+    ...(allowedModules.includes('settings-roles') ? [{ id: 'roles', label: 'Roles Management', icon: Shield }] : []),
+    ...(allowedModules.includes('settings-services') ? [{ id: 'services', label: 'Services List', icon: Settings2 }] : []),
+    ...(allowedModules.includes('settings-access') ? [{ id: 'access', label: 'Module Access', icon: AppWindow }] : []),
   ]
 
   return (
@@ -140,7 +137,7 @@ export default function SettingsClient({ currentProfile, initialAdminData }: Set
         ) : profile && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 border border-border shadow-glow-sm">
-              {profile.avatar_url ? (
+               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
               ) : (
                 getInitials(profile.full_name)
@@ -289,7 +286,7 @@ export default function SettingsClient({ currentProfile, initialAdminData }: Set
           )}
 
           {/* Admin Settings Tabs */}
-          {activeTab !== 'profile' && isAdmin && (
+          {activeTab !== 'profile' && allowedModules.includes(`settings-${activeTab}`) && (
             <AdminSettings activeTab={activeTab as any} initialData={initialAdminData} />
           )}
         </div>

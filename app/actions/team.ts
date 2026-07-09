@@ -75,14 +75,6 @@ export async function addTeamMember(data: {
       }
     })
 
-    await createNotification({
-      user_id: session.user.id,
-      type: 'team_update',
-      title: 'Team Member Added',
-      message: `You successfully added ${data.full_name} to the team.`,
-      link: '/team'
-    })
-
     revalidatePath('/team')
     return { success: true }
   } catch (error: any) {
@@ -118,14 +110,6 @@ export async function updateMemberRole(userId: string, newRole: string) {
         action: `Updated Role for user ID ${userId} to ${newRoleLabel}`,
         performed_by: session.user.id
       }
-    })
-
-    await createNotification({
-      user_id: session.user.id,
-      type: 'team_update',
-      title: 'Role Updated',
-      message: `Successfully updated the role to ${newRoleLabel}.`,
-      link: '/team'
     })
 
     revalidatePath('/team')
@@ -178,14 +162,6 @@ export async function updateTeamMember(userId: string, data: {
       }
     })
 
-    await createNotification({
-      user_id: session.user.id,
-      type: 'team_update',
-      title: 'Team Member Updated',
-      message: `You updated the details for ${updateData.name}.`,
-      link: '/team'
-    })
-
     revalidatePath('/team')
     return { success: true }
   } catch (error: any) {
@@ -216,14 +192,6 @@ export async function removeTeamMember(userId: string) {
         action: `Removed Team Member (ID: ${userId})`,
         performed_by: session.user.id
       }
-    })
-
-    await createNotification({
-      user_id: session.user.id,
-      type: 'team_update',
-      title: 'Team Member Removed',
-      message: `You successfully removed a team member.`,
-      link: '/team'
     })
 
     revalidatePath('/team')
