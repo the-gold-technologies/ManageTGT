@@ -37,7 +37,7 @@ export async function getDashboardData() {
     closures,
     userTasks,
   ] = await Promise.all([
-    allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true } }) : Promise.resolve([]),
+    allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true, billing_cycle: true, quoted_price: true } }) : Promise.resolve([]),
     allowedModules.includes('revenue') ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true } }) : Promise.resolve([]),
     allowedModules.includes('expenses') ? prisma.expense.findMany({ select: { amount: true, createdAt: true } }) : Promise.resolve([]),
     allowedModules.includes('targets') ? prisma.salesTarget.findMany({ where: { month: new Date().getMonth() + 1, year: new Date().getFullYear() } }) : Promise.resolve([]),
@@ -57,6 +57,14 @@ export async function getDashboardData() {
   const totalRevenue = (invoices ?? []).reduce((s, i) => s + (i.amount_received || 0), 0)
   const totalExpenses = (expenses ?? []).reduce((s, e) => s + (e.amount || 0), 0)
   const totalProfit = totalRevenue - totalExpenses
+
+  // Recurring Revenue
+  const mrr = (projects ?? [])
+    .filter(p => (p.status === 'in_progress' || p.status === 'delivered') && p.billing_cycle === 'MONTHLY')
+    .reduce((s, p) => s + (p.quoted_price || 0), 0)
+  const arr = (projects ?? [])
+    .filter(p => (p.status === 'in_progress' || p.status === 'delivered') && p.billing_cycle === 'ANNUAL')
+    .reduce((s, p) => s + (p.quoted_price || 0), 0)
 
   // Project stats
   const active = (projects ?? []).filter(p => p.status === 'in_progress').length
@@ -191,6 +199,8 @@ export async function getDashboardData() {
       totalRevenue,
       totalProfit,
       totalExpenses,
+      mrr,
+      arr,
       activeProjects: active,
       completedProjects: completed,
       pendingPayments,

@@ -410,3 +410,71 @@ export async function recordInvoicePayment(invoiceId: string, data: { amount: nu
     return { success: false, error: 'Failed to record payment' }
   }
 }
+
+export async function generateNextInvoice(projectId: string) {
+  try {
+    const session = await auth()
+    
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: { invoices: { orderBy: { invoice_date: 'desc' }, take: 1 } }
+    })
+    
+    if (!project || project.billing_cycle === 'ONE_TIME' || !project.next_billing_date) {
+      return { success: false, error: 'Project is not eligible for recurring invoices' }
+    }
+
+    let invoice_number = `INV-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    if (project.invoices && project.invoices.length > 0) {
+      const lastInvoiceNumber = project.invoices[0].invoice_number
+      const match = lastInvoiceNumber.match(/^(.*?)(\d+)$/)
+      if (match) {
+        const prefix = match[1]
+        const numStr = match[2]
+        const nextNum = parseInt(numStr, 10) + 1
+        const paddedNum = nextNum.toString().padStart(numStr.length, '0')
+        invoice_number = `${prefix}${paddedNum}`
+      }
+    }
+    const invoice_date = project.next_billing_date
+    const due_date = new Date(invoice_date)
+    due_date.setDate(due_date.getDate() + 7) // default 7 days due
+
+    // Generate new invoice
+    const newInvoice = await prisma.invoice.create({
+      data: {
+        invoice_number,
+        project_id: projectId,
+        client_id: project.client_id,
+        quoted_value: project.quoted_price,
+        final_billing: project.quoted_price,
+        amount_received: 0,
+        invoice_date,
+        due_date,
+        status: 'pending',
+        notes: `Recurring ${project.billing_cycle} invoice`,
+        created_by: session?.user?.id
+      }
+    })
+
+    // Advance next_billing_date
+    const nextDate = new Date(project.next_billing_date)
+    if (project.billing_cycle === 'MONTHLY') {
+      nextDate.setMonth(nextDate.getMonth() + 1)
+    } else if (project.billing_cycle === 'ANNUAL') {
+      nextDate.setFullYear(nextDate.getFullYear() + 1)
+    }
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { next_billing_date: nextDate }
+    })
+
+    revalidatePath('/finance/invoices')
+    revalidatePath('/projects')
+    return { success: true, invoice: newInvoice }
+  } catch (error) {
+    console.error('Error generating next invoice:', error)
+    return { success: false, error: 'Failed to generate next invoice' }
+  }
+}

@@ -177,6 +177,12 @@ model Client {
   updatedAt DateTime @updatedAt
 }
 
+enum BillingCycle {
+  ONE_TIME
+  MONTHLY
+  ANNUAL
+}
+
 model Project {
   id                  String        @id @default(cuid())
   project_code        String        @unique
@@ -185,6 +191,8 @@ model Project {
   client              Client?       @relation(fields: [client_id], references: [id], onDelete: SetNull)
   service_type        String
   quoted_price        Float
+  billing_cycle       BillingCycle  @default(ONE_TIME)
+  next_billing_date   DateTime?
   start_date          DateTime?
   expected_completion DateTime?
   team_lead_id        String?

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Fragment } from 'react'
+import { useState, Fragment, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Search, FolderKanban, IndianRupee, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Project, Client, Profile, ProjectInvoice } from '@/types'
 import { getProjects, deleteProject as deleteProjectAction } from '@/app/actions/projects'
+import { generateNextInvoice } from '@/app/actions/finance'
 import { getClients } from '@/app/actions/clients'
 import { getTeamMembers } from '@/app/actions/team'
 import { Button } from '@/components/ui/button'
@@ -44,8 +45,10 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [viewProject, setViewProject] = useState<Project | null>(null)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
   const [paymentProject, setPaymentProject] = useState<Project | null>(null)
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
@@ -80,6 +83,15 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
   const activeProfiles = profilesData ?? profiles
   const isLoading = isProjectsLoading || isClientsLoading || isProfilesLoading
 
+  useEffect(() => {
+    if (paymentProject && projects) {
+      const updatedProject = projects.find(p => p.id === paymentProject.id)
+      if (updatedProject && JSON.stringify(updatedProject) !== JSON.stringify(paymentProject)) {
+        setPaymentProject(updatedProject)
+      }
+    }
+  }, [projects, paymentProject])
+
   const deleteProject = useMutation({
     mutationFn: async (id: string) => {
       const result = await deleteProjectAction(id)
@@ -103,7 +115,10 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       if (context?.previous) qc.setQueryData(['projects'], context.previous)
       toast.error('Failed to delete project')
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
   })
 
   const STATUSES = ['all', 'pending', 'in_progress', 'on_hold', 'delivered', 'completed']
@@ -444,12 +459,29 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
                   <div>
-                    <h3 className="font-semibold text-text">{paymentProject.name}</h3>
-                    <p className="text-xs text-text-muted mt-0.5">{paymentProject.project_code} · Payment Details</p>
+                    <h3 className="font-semibold text-text flex items-center gap-2">
+                      {paymentProject.name}
+                      {paymentProject.billing_cycle !== 'ONE_TIME' && (
+                        <span className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full uppercase tracking-wide font-medium">
+                          {paymentProject.billing_cycle}
+                        </span>
+                      )}
+                    </h3>
+                    <div className="text-xs text-text-muted mt-1 flex items-center gap-3">
+                      <span>{paymentProject.project_code} · Payment Details</span>
+                      {paymentProject.next_billing_date && (
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-border" />
+                          <span>Next Billing: <span className="font-medium text-text-secondary">{formatDate(paymentProject.next_billing_date)}</span></span>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <button onClick={() => setPaymentProject(null)} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all">
-                    <X size={16} />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setPaymentProject(null)} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all">
+                      <X size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -539,7 +571,42 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                       </div>
                     )}
                   </div>
-                </div>
+
+                  </div>
+
+                {/* Footer */}
+                {paymentProject.billing_cycle !== 'ONE_TIME' && paymentProject.next_billing_date && isAdmin && (
+                  <div className="px-6 py-4 border-t border-border bg-bg-secondary flex justify-end gap-3 shrink-0">
+                    <Button variant="secondary" onClick={() => setPaymentProject(null)} className="text-xs h-8 px-3">Close</Button>
+                    <Button
+                      size="md"
+                      variant="primary"
+                      className="text-xs h-8 px-3"
+                      disabled={isGeneratingInvoice}
+                      onClick={async () => {
+                        setIsGeneratingInvoice(true)
+                        try {
+                          const res = await generateNextInvoice(paymentProject.id)
+                          if (res.success) {
+                            toast.success('Next recurring invoice generated')
+                            qc.invalidateQueries({ queryKey: ['projects'] })
+                            qc.invalidateQueries({ queryKey: ['dashboard'] })
+                            qc.invalidateQueries({ queryKey: ['invoices'] })
+                            setPaymentProject(null)
+                          } else {
+                            toast.error(res.error || 'Failed to generate invoice')
+                          }
+                        } catch (err: any) {
+                          toast.error('An error occurred')
+                        } finally {
+                          setIsGeneratingInvoice(false)
+                        }
+                      }}
+                    >
+                      {isGeneratingInvoice ? 'Generating...' : 'Generate Next Invoice'}
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             </>
           )

@@ -196,6 +196,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       }
       toast.success('Invoice deleted successfully')
       qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       onClose()
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred.')
@@ -244,6 +246,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       }
 
       qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       onClose()
     } catch (err: any) {
       toast.error(isEdit ? 'Failed to update invoice' : 'Failed to create invoice')

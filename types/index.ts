@@ -53,6 +53,8 @@ export interface Project {
   client_id?: string
   service_type: string
   quoted_price: number
+  billing_cycle: 'ONE_TIME' | 'MONTHLY' | 'ANNUAL'
+  next_billing_date?: string
   start_date?: string
   expected_completion?: string
   team_lead_id?: string

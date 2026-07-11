@@ -24,6 +24,8 @@ const schema = z.object({
   start_date: z.string().optional(),
   expected_completion: z.string().optional(),
   status: z.enum(['pending', 'in_progress', 'on_hold', 'delivered', 'completed']),
+  billing_cycle: z.enum(['ONE_TIME', 'MONTHLY', 'ANNUAL']).default('ONE_TIME'),
+  next_billing_date: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -70,10 +72,12 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const teamMembers = profiles.filter(p => p.role === 'team_member')
   const selectedTeamLead = teamLeads.find(p => p.id === selectedTeamLeadId) ?? null
 
-  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
+  const { register, watch, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { status: 'pending', quoted_price: 0, notes: '' },
+    defaultValues: { status: 'pending', quoted_price: 0, notes: '', billing_cycle: 'ONE_TIME' },
   })
+
+  const currentBillingCycle = watch('billing_cycle')
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
@@ -95,6 +99,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
         client_id: project.client_id ?? '',
         service_type: project.service_type,
         quoted_price: project.quoted_price,
+        billing_cycle: project.billing_cycle,
+        next_billing_date: project.next_billing_date ? new Date(project.next_billing_date).toISOString().split('T')[0] : '',
         start_date: project.start_date ? new Date(project.start_date).toISOString().split('T')[0] : '',
         expected_completion: project.expected_completion ? new Date(project.expected_completion).toISOString().split('T')[0] : '',
         status: project.status,
@@ -104,6 +110,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
         client_id: '',
         service_type: '',
         quoted_price: 0,
+        billing_cycle: 'ONE_TIME',
+        next_billing_date: '',
         start_date: '',
         expected_completion: '',
         status: 'pending',
@@ -132,6 +140,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       client_id: data.client_id || null,
       service_type: selectedServices.join(', '),
       quoted_price: data.quoted_price,
+      billing_cycle: data.billing_cycle,
+      next_billing_date: data.next_billing_date ? new Date(data.next_billing_date).toISOString() : null,
       start_date: data.start_date ? new Date(data.start_date).toISOString() : null,
       expected_completion: data.expected_completion ? new Date(data.expected_completion).toISOString() : null,
       team_lead_id: selectedTeamLeadId || null,
@@ -175,6 +185,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       }
 
       qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       onClose()
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred. Please try again.')
@@ -289,7 +300,9 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               <div className={isAdmin ? "grid grid-cols-2 gap-4" : ""}>
                 {isAdmin && (
                   <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Quoted Price (₹)</label>
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                      {currentBillingCycle === 'MONTHLY' ? 'Monthly Fee (₹)' : currentBillingCycle === 'ANNUAL' ? 'Annual Fee (₹)' : 'Quoted Price (₹)'} *
+                    </label>
                     <input {...register('quoted_price')} type="number" min="0" placeholder="50000" className={inputClass} />
                   </div>
                 )}
@@ -304,6 +317,26 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                   </select>
                 </div>
               </div>
+
+              {/* Billing Cycle Row */}
+              {isAdmin && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Billing Cycle</label>
+                    <select {...register('billing_cycle')} className={inputClass}>
+                      <option value="ONE_TIME">One-Time</option>
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="ANNUAL">Annual</option>
+                    </select>
+                  </div>
+                  {currentBillingCycle !== 'ONE_TIME' && (
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Next Billing Date *</label>
+                      <input {...register('next_billing_date')} type="date" className={inputClass} />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
