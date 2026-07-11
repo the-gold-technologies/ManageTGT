@@ -31,6 +31,9 @@ export async function getInvoices() {
         },
         client: {
           select: { id: true, name: true }
+        },
+        payments: {
+          orderBy: { payment_date: 'asc' }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -341,4 +344,69 @@ export async function deleteExpense(id: string) {
   }
 }
 
+export async function recordInvoicePayment(invoiceId: string, data: { amount: number, payment_date: string, payment_mode: string, notes?: string }) {
+  try {
+    const session = await auth()
+    
+    const invoice = await prisma.invoice.findUnique({ 
+      where: { id: invoiceId },
+      include: { payments: true }
+    })
 
+    if (invoice && invoice.payments.length === 0 && invoice.amount_received > 0) {
+      await prisma.invoicePayment.create({
+        data: {
+          invoice_id: invoiceId,
+          amount: invoice.amount_received,
+          payment_date: invoice.payment_date || invoice.invoice_date || new Date(),
+          payment_mode: invoice.payment_mode || 'other',
+          notes: 'Initial Record',
+          recorded_by: session?.user?.id
+        }
+      })
+    }
+
+    // Create the new payment record
+    await prisma.invoicePayment.create({
+      data: {
+        invoice_id: invoiceId,
+        amount: data.amount,
+        payment_date: new Date(data.payment_date),
+        payment_mode: data.payment_mode as any,
+        notes: data.notes || '',
+        recorded_by: session?.user?.id
+      }
+    })
+
+    // Re-calculate total amount received
+    const allPayments = await prisma.invoicePayment.findMany({
+      where: { invoice_id: invoiceId }
+    })
+    const totalReceived = allPayments.reduce((sum, p) => sum + p.amount, 0)
+    
+    if (invoice) {
+      let newStatus = invoice.status
+      if (totalReceived >= invoice.final_billing) {
+        newStatus = 'paid'
+      } else if (totalReceived > 0) {
+        newStatus = 'partially_paid'
+      }
+
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          amount_received: totalReceived,
+          status: newStatus,
+          payment_date: new Date(data.payment_date) // Keep the latest payment date on the invoice
+        }
+      })
+    }
+
+    revalidatePath('/finance/invoices')
+    revalidatePath('/projects')
+    return { success: true }
+  } catch (error) {
+    console.error('Error recording payment:', error)
+    return { success: false, error: 'Failed to record payment' }
+  }
+}

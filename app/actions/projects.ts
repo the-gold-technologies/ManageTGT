@@ -37,6 +37,9 @@ export async function getProjects() {
             payment_mode: true,
             status: true,
             notes: true,
+            payments: {
+              orderBy: { payment_date: 'asc' }
+            }
           },
           orderBy: { invoice_date: 'asc' }
         }

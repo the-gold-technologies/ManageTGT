@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Trash2, Loader2, UploadCloud, FileText, Plus, ExternalLink } from 'lucide-react'
+import { X, Trash2, Loader2, UploadCloud, FileText, Plus, ExternalLink, Check } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
-import { createInvoice, updateInvoice, deleteInvoice } from '@/app/actions/finance'
+import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment } from '@/app/actions/finance'
 
 const schema = z.object({
   invoice_number: z.string().min(1, 'Invoice number is required'),
@@ -55,6 +55,33 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
   const finalBilling = watch('final_billing')
   const amountReceived = watch('amount_received')
   const [projectBalance, setProjectBalance] = useState<number | null>(null)
+  const [showFullForm, setShowFullForm] = useState(false)
+
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [newPayment, setNewPayment] = useState({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+
+  const handleAddPayment = async () => {
+    if (!newPayment.amount || !invoice) return
+    setIsSubmittingPayment(true)
+    const res = await recordInvoicePayment(invoice.id, {
+      amount: Number(newPayment.amount),
+      payment_date: newPayment.date,
+      payment_mode: newPayment.mode,
+      notes: newPayment.notes
+    })
+    if (res.success) {
+      toast.success('Payment recorded')
+      qc.invalidateQueries({ queryKey: ['invoices'] })
+      setShowPaymentForm(false)
+      setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
+      // Update the form's amount_received so the smart status picks it up
+      setValue('amount_received', Number(getValues('amount_received')) + Number(newPayment.amount), { shouldDirty: true })
+    } else {
+      toast.error('Failed to record payment')
+    }
+    setIsSubmittingPayment(false)
+  }
 
   // Smart Status Update
   useEffect(() => {
@@ -96,17 +123,17 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         if (project.client_id) {
           setValue('client_id', project.client_id, { shouldDirty: true })
         }
-        
+
         // Auto-fill quotation amounts
         const quoted = project.quoted_price || 0
         setValue('quoted_value', quoted, { shouldDirty: true })
-        
+
         // Only override final_billing if it's currently 0 or empty
         const currentFinal = getValues('final_billing')
         if (!currentFinal) {
           setValue('final_billing', quoted, { shouldDirty: true })
         }
-        
+
         // Auto-fill due date
         if (project.expected_completion) {
           const currentDueDate = getValues('due_date')
@@ -133,21 +160,22 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         payment_mode: invoice.payment_mode ?? '',
         status: invoice.status,
         notes: invoice.notes ?? '',
-      } : { 
-        invoice_number: '', 
+      } : {
+        invoice_number: '',
         project_id: '',
         client_id: '',
-        quoted_value: 0, 
-        final_billing: 0, 
-        amount_received: 0, 
+        quoted_value: 0,
+        final_billing: 0,
+        amount_received: 0,
         invoice_date: new Date().toISOString().split('T')[0],
         due_date: '',
         payment_date: '',
         payment_mode: '',
-        status: 'pending', 
+        status: 'pending',
         notes: ''
       })
       setConfirmDelete(false)
+      setShowFullForm(!invoice)
       setFiles([])
     }
   }, [open, invoice, reset])
@@ -193,10 +221,10 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       formData.append('quoted_value', data.quoted_value.toString())
       formData.append('final_billing', data.final_billing.toString())
       formData.append('amount_received', data.amount_received.toString())
-      
+
       const invDate = data.invoice_date ? new Date(data.invoice_date).toISOString() : new Date().toISOString()
       formData.append('invoice_date', invDate)
-      
+
       if (data.due_date) formData.append('due_date', new Date(data.due_date).toISOString())
       if (data.payment_date) formData.append('payment_date', new Date(data.payment_date).toISOString())
       if (data.payment_mode) formData.append('payment_mode', data.payment_mode)
@@ -246,192 +274,292 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-medium text-text-secondary">Project</label>
-                    {projectBalance !== null && (
-                      <span className="text-[10px] font-medium text-text-muted bg-bg-tertiary px-1.5 py-0.5 rounded">
-                        Balance to Bill: <span className="text-text  tabular-nums">₹{projectBalance.toLocaleString('en-IN')}</span>
-                      </span>
+              {showFullForm && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-medium text-text-secondary">Project</label>
+                        {projectBalance !== null && (
+                          <span className="text-[10px] font-medium text-text-muted bg-bg-tertiary px-1.5 py-0.5 rounded">
+                            Balance to Bill: <span className="text-text  tabular-nums">₹{projectBalance.toLocaleString('en-IN')}</span>
+                          </span>
+                        )}
+                      </div>
+                      <select {...register('project_id')} className={`${inputClass} pr-5`}>
+                        <option value="">No project</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Client</label>
+                      <select {...register('client_id')} className={`${inputClass} pr-5`}>
+                        <option value="">Select client</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {[['quoted_value', 'Quoted (₹)'], ['final_billing', 'Final Billing (₹)'], ['amount_received', 'Received (₹)']].map(([name, label]) => (
+                      <div key={name}>
+                        <label className="block text-xs font-medium text-text-secondary mb-1.5">{label}</label>
+                        <input {...register(name as keyof FormData)} type="number" min="0" placeholder="0" className={inputClass} readOnly={isEdit && name === 'amount_received'} disabled={isEdit && name === 'amount_received'} />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Invoice Number *</label>
+                      <input {...register('invoice_number')} type="text" placeholder="e.g. INV-001" className={inputClass} />
+                      {errors.invoice_number && <p className="text-xs text-danger mt-1">{errors.invoice_number.message}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Invoice Date *</label>
+                      <input {...register('invoice_date')} type="date" className={inputClass} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Due Date</label>
+                      <input {...register('due_date')} type="date" className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Payment Date</label>
+                      <input {...register('payment_date')} type="date" className={inputClass} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Payment Mode</label>
+                      <select {...register('payment_mode')} className={`${inputClass} pr-5`}>
+                        <option value="">Select Mode</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="upi">UPI</option>
+                        <option value="cash">Cash</option>
+                        <option value="cheque">Cheque</option>
+                        <option value="card">Credit/Debit Card</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5">Status *</label>
+                      <select {...register('status')} className={`${inputClass} pr-5`}>
+                        <option value="pending">Pending</option>
+                        <option value="partially_paid">Partially Paid</option>
+                        <option value="paid">Paid</option>
+                        <option value="overdue">Overdue</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes</label>
+                    <textarea {...register('notes')} placeholder="Any payment notes..." rows={2}
+                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none" />
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5 font-semibold">Attachments / Proof (Optional)</label>
+
+                    {isEdit && invoice?.file_urls && invoice.file_urls.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        <label className="block text-xs font-medium text-text-secondary mb-1">Existing Files:</label>
+                        {invoice.file_urls.map((url, idx) => (
+                          <div key={idx} className="p-2.5 bg-bg border border-border rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <FileText size={16} className="text-primary shrink-0" />
+                              <span className="text-xs text-text truncate">File {idx + 1}</span>
+                            </div>
+                            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary flex items-center gap-1 hover:underline">
+                              <ExternalLink size={12} /> View
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {files.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        {files.map((f, idx) => (
+                          <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <FileText size={16} className="text-primary shrink-0" />
+                              <span className="text-sm text-text truncate">{f.name}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                              className="text-text-muted hover:text-danger"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {files.length > 0 ? (
+                      <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
+                        <input
+                          type="file"
+                          multiple
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                            }
+                          }}
+                        />
+                        <Plus size={16} className="text-text-muted" /> Add more files
+                      </div>
+                    ) : (
+                      <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                        <input
+                          type="file"
+                          multiple
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                            }
+                          }}
+                        />
+                        <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
+                          <UploadCloud size={18} />
+                        </div>
+                        <p className="text-sm font-medium text-text">
+                          Click or drag files to upload
+                        </p>
+                      </div>
                     )}
                   </div>
-                  <select {...register('project_id')} className={`${inputClass} pr-5`}>
-                    <option value="">No project</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.name}</option>)}
-                  </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Client</label>
-                  <select {...register('client_id')} className={`${inputClass} pr-5`}>
-                    <option value="">Select client</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                {[['quoted_value', 'Quoted (₹)'], ['final_billing', 'Final Billing (₹)'], ['amount_received', 'Received (₹)']].map(([name, label]) => (
-                  <div key={name}>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">{label}</label>
-                    <input {...register(name as keyof FormData)} type="number" min="0" placeholder="0" className={inputClass} />
+              )}
+              {isEdit && invoice && (
+                <div className={showFullForm ? "mt-8 border-t border-border pt-6" : ""}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-text text-sm">Payment History</h4>
+                    <Button type="button" size="sm" onClick={() => setShowPaymentForm(!showPaymentForm)} className="h-8 text-xs bg-primary hover:bg-primary/90 text-white rounded-lg px-3">
+                      <Plus size={14} className="mr-1 inline-block" /> Add Payment
+                    </Button>
                   </div>
-                ))}
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Invoice Number *</label>
-                  <input {...register('invoice_number')} type="text" placeholder="e.g. INV-001" className={inputClass} />
-                  {errors.invoice_number && <p className="text-xs text-danger mt-1">{errors.invoice_number.message}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Invoice Date *</label>
-                  <input {...register('invoice_date')} type="date" className={inputClass} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Due Date</label>
-                  <input {...register('due_date')} type="date" className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Payment Date</label>
-                  <input {...register('payment_date')} type="date" className={inputClass} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Payment Mode</label>
-                  <select {...register('payment_mode')} className={`${inputClass} pr-5`}>
-                    <option value="">Select Mode</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="upi">UPI</option>
-                    <option value="cash">Cash</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="card">Credit/Debit Card</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Status *</label>
-                  <select {...register('status')} className={`${inputClass} pr-5`}>
-                    <option value="pending">Pending</option>
-                    <option value="partially_paid">Partially Paid</option>
-                    <option value="paid">Paid</option>
-                    <option value="overdue">Overdue</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes</label>
-                <textarea {...register('notes')} placeholder="Any payment notes..." rows={2}
-                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none" />
-              </div>
-
-              <div className="pt-2">
-                <label className="block text-xs font-medium text-text-secondary mb-1.5 font-semibold">Attachments / Proof (Optional)</label>
-                
-                {isEdit && invoice?.file_urls && invoice.file_urls.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    <label className="block text-xs font-medium text-text-secondary mb-1">Existing Files:</label>
-                    {invoice.file_urls.map((url, idx) => (
-                      <div key={idx} className="p-2.5 bg-bg border border-border rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileText size={16} className="text-primary shrink-0" />
-                          <span className="text-xs text-text truncate">File {idx + 1}</span>
+                  {showPaymentForm && (
+                    <div className="p-4 bg-bg rounded-lg border border-border mb-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-medium text-text-secondary mb-1">Amount (₹)</label>
+                          <input type="number" min="1" value={newPayment.amount} onChange={e => setNewPayment(prev => ({ ...prev, amount: e.target.value }))} className={inputClass} placeholder="e.g. 5000" />
                         </div>
-                        <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary flex items-center gap-1 hover:underline">
-                          <ExternalLink size={12} /> View
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {files.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {files.map((f, idx) => (
-                      <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileText size={16} className="text-primary shrink-0" />
-                          <span className="text-sm text-text truncate">{f.name}</span>
+                        <div>
+                          <label className="block text-[10px] font-medium text-text-secondary mb-1">Date</label>
+                          <input type="date" value={newPayment.date} onChange={e => setNewPayment(prev => ({ ...prev, date: e.target.value }))} className={inputClass} />
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setFiles(files.filter((_, i) => i !== idx))}
-                          className="text-text-muted hover:text-danger"
-                        >
-                          <X size={14} />
-                        </button>
+                        <div>
+                          <label className="block text-[10px] font-medium text-text-secondary mb-1">Mode</label>
+                          <select value={newPayment.mode} onChange={e => setNewPayment(prev => ({ ...prev, mode: e.target.value }))} className={`${inputClass} pr-5`}>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="upi">UPI</option>
+                            <option value="cash">Cash</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="card">Card</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-medium text-text-secondary mb-1">Notes</label>
+                          <input type="text" value={newPayment.notes} onChange={e => setNewPayment(prev => ({ ...prev, notes: e.target.value }))} className={inputClass} placeholder="Optional" />
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {files.length > 0 ? (
-                  <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
-                    <input 
-                      type="file" 
-                      multiple
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
-                        }
-                      }}
-                    />
-                    <Plus size={16} className="text-text-muted" /> Add more files
-                  </div>
-                ) : (
-                  <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
-                    <input 
-                      type="file" 
-                      multiple
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
-                        }
-                      }}
-                    />
-                    <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
-                      <UploadCloud size={18} />
+                      <div className="flex justify-end gap-2 mt-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowPaymentForm(false)} className="h-7 text-xs">Cancel</Button>
+                        <Button type="button" size="sm" onClick={handleAddPayment} disabled={isSubmittingPayment || !newPayment.amount} className="h-7 text-xs bg-primary hover:bg-primary/90 text-white">
+                          {isSubmittingPayment ? <Loader2 size={12} className="animate-spin mr-1" /> : <Check size={12} className="mr-1 inline-block" />} Save Payment
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-sm font-medium text-text">
-                      Click or drag files to upload
-                    </p>
-                  </div>
-                )}
-              </div>
-            </form>
+                  )}
 
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-              <div>
-                {isEdit && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleDelete}
-                    loading={isDeleting}
-                    className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
-                  >
-                    {!isDeleting && <Trash2 size={14} />}
-                    <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Invoice'}</span>
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isUploading || isDeleting} className="text-xs h-8 px-3">Cancel</Button>
+                  {(() => {
+                    const hasPayments = invoice.payments && invoice.payments.length > 0;
+                    const sumOfPayments = hasPayments ? invoice.payments!.reduce((sum, p) => sum + p.amount, 0) : 0;
+                    const legacyAmount = invoice.amount_received - sumOfPayments;
+                    const hasLegacy = legacyAmount > 0;
+
+                    if (!hasPayments && !hasLegacy) {
+                      return <p className="text-xs text-text-muted text-center py-4 bg-bg border border-border border-dashed rounded-lg">No payments recorded yet.</p>;
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {hasLegacy && (
+                          <div className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between opacity-80">
+                            <div>
+                              <p className="text-sm font-semibold text-text">₹{legacyAmount.toLocaleString('en-IN')}</p>
+                              <p className="text-[10px] text-text-muted mt-0.5">
+                                {invoice.payment_date ? new Date(invoice.payment_date).toLocaleDateString() : 'Initial Record'} &middot; {invoice.payment_mode ? invoice.payment_mode.replace('_', ' ').toUpperCase() : 'LEGACY'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-text-secondary max-w-[50%] truncate text-right italic border border-border px-1.5 py-0.5 rounded bg-bg-secondary">Initial Record</p>
+                          </div>
+                        )}
+                        
+                        {hasPayments && invoice.payments!.map(p => (
+                          <div key={p.id} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-text">₹{p.amount.toLocaleString('en-IN')}</p>
+                              <p className="text-[10px] text-text-muted mt-0.5">{new Date(p.payment_date).toLocaleDateString()} &middot; {p.payment_mode.replace('_', ' ').toUpperCase()}</p>
+                            </div>
+                            {p.notes && <p className="text-xs text-text-secondary max-w-[50%] truncate text-right">{p.notes}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {!showFullForm && (
+                    <div className="mt-6 flex justify-center">
+                      <Button type="button" variant="outline" onClick={() => setShowFullForm(true)} className="text-xs h-8">
+                        Edit Invoice Details
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+           
+          </form>
+
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+            <div>
+              {isEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleDelete}
+                  loading={isDeleting}
+                  className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
+                >
+                  {!isDeleting && <Trash2 size={14} />}
+                  <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Invoice'}</span>
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isUploading || isDeleting} className="text-xs h-8 px-3">
+                {showFullForm ? 'Cancel' : 'Close'}
+              </Button>
+              {showFullForm && (
                 <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading} disabled={isDeleting} className="text-xs h-8 px-3">
                   {isSubmitting || isUploading ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Invoice')}
                 </Button>
-              </div>
+              )}
             </div>
-          </motion.div>
+          </div>
+        </motion.div>
         </>
       )}
     </AnimatePresence>

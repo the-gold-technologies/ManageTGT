@@ -43,6 +43,7 @@ export interface ProjectInvoice {
   payment_mode?: PaymentMode
   status: InvoiceStatus
   notes?: string
+  payments?: InvoicePayment[]
 }
 
 export interface Project {
@@ -112,6 +113,17 @@ export interface ActivityLog {
   performer?: Profile
 }
 
+export interface InvoicePayment {
+  id: string
+  invoice_id: string
+  amount: number
+  payment_date: string
+  payment_mode: PaymentMode
+  notes?: string
+  recorded_by?: string
+  createdAt: string
+}
+
 export interface Invoice {
   id: string
   invoice_number: string
@@ -133,6 +145,7 @@ export interface Invoice {
   // Joined
   project?: Project
   client?: Client
+  payments?: InvoicePayment[]
 }
 
 export interface Expense {

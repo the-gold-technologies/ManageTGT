@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Search, FolderKanban, IndianRupee, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -383,7 +383,41 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           const totalBilled = invoices.reduce((s, i) => s + i.final_billing, 0)
           const totalReceived = invoices.reduce((s, i) => s + i.amount_received, 0)
           const balance = totalBilled - totalReceived
-          const paidCount = invoices.filter(i => i.amount_received > 0).length
+          const allInstallments: any[] = []
+          invoices.forEach(inv => {
+            const hasPayments = inv.payments && inv.payments.length > 0
+            const sumOfPayments = hasPayments ? inv.payments!.reduce((sum, p) => sum + p.amount, 0) : 0
+            const legacyAmount = inv.amount_received - sumOfPayments
+            if (legacyAmount > 0) {
+              allInstallments.push({
+                id: inv.id + '-legacy',
+                date: inv.payment_date || inv.invoice_date,
+                amount: legacyAmount,
+                mode: inv.payment_mode || 'other',
+                notes: 'Initial Record'
+              })
+            }
+            if (hasPayments) {
+              inv.payments!.forEach(p => {
+                allInstallments.push({
+                  id: p.id,
+                  date: p.payment_date,
+                  amount: p.amount,
+                  mode: p.payment_mode,
+                  notes: p.notes
+                })
+              })
+            }
+          })
+
+          allInstallments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          let currentBalance = totalBilled
+          const displayInstallments = allInstallments.map(inst => {
+            currentBalance -= inst.amount
+            return { ...inst, balance: currentBalance }
+          })
+
+          const paidCount = allInstallments.length
           const pct = totalBilled > 0 ? Math.round((totalReceived / totalBilled) * 100) : 0
 
           const STATUS_COLORS: Record<string, string> = {
@@ -439,7 +473,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                     {[
                       { label: 'Total Invoices', value: invoices.length, color: 'text-text' },
                       { label: 'Payments Made', value: paidCount, color: 'text-success' },
-                      { label: 'Pending', value: invoices.length - paidCount, color: 'text-warning' },
+                      { label: 'Pending (Overall)', value: invoices.length > 0 && balance > 0 ? 1 : 0, color: 'text-warning' },
                     ].map((c, i) => (
                       <div key={c.label} className="flex items-center gap-4">
                         {i > 0 && <div className="w-px h-8 bg-border" />}
@@ -465,38 +499,37 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                   {/* Installments Table */}
                   <div>
                     <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Installment History</p>
-                    {invoices.length === 0 ? (
+                    {displayInstallments.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12 text-center bg-bg border border-border rounded-xl">
                         <IndianRupee size={28} className="text-text-muted mb-2" />
-                        <p className="text-sm text-text-secondary">No invoices yet</p>
-                        <p className="text-xs text-text-muted mt-1">Add invoices from the Revenue page</p>
+                        <p className="text-sm text-text-secondary">No payments yet</p>
+                        <p className="text-xs text-text-muted mt-1">Add payments from the invoice modal</p>
                       </div>
                     ) : (
                       <div className="rounded-xl border border-border overflow-hidden">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="bg-bg-tertiary border-b border-border">
-                              {['Invoice #', 'Date', 'Billed', 'Received', 'Balance', 'Status'].map(h => (
+                              {['Date', 'Received', 'Balance', 'Mode / Notes'].map(h => (
                                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
-                            {invoices.map((inv, idx) => {
-                              const invBalance = inv.final_billing - inv.amount_received
+                            {displayInstallments.map((inst, idx) => {
+                              const rowBg = idx % 2 === 0 ? 'bg-bg-secondary' : 'bg-bg'
                               return (
-                                <tr key={inv.id} className={cn('border-b border-border last:border-0', idx % 2 === 0 ? 'bg-bg-secondary' : 'bg-bg')}>
-                                  <td className="px-4 py-2.5 font-medium text-text whitespace-nowrap text-xs">{inv.invoice_number}</td>
-                                  <td className="px-4 py-2.5 text-text-secondary whitespace-nowrap text-xs">{formatDate(inv.invoice_date)}</td>
-                                  <td className="px-4 py-2.5 font-medium text-text whitespace-nowrap tabular-nums text-xs">{formatCurrency(inv.final_billing)}</td>
-                                  <td className="px-4 py-2.5 font-medium text-success whitespace-nowrap tabular-nums text-xs">{formatCurrency(inv.amount_received)}</td>
+                                <tr key={inst.id} className={cn('border-b border-border last:border-0', rowBg)}>
+                                  <td className="px-4 py-2.5 text-text-secondary whitespace-nowrap text-xs">{formatDate(inst.date)}</td>
+                                  <td className="px-4 py-2.5 font-medium text-success whitespace-nowrap tabular-nums text-xs">{formatCurrency(inst.amount)}</td>
                                   <td className="px-4 py-2.5 font-medium whitespace-nowrap tabular-nums text-xs">
-                                    <span className={invBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(invBalance)}</span>
+                                    <span className={inst.balance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(inst.balance)}</span>
                                   </td>
-                                  <td className="px-4 py-2.5 whitespace-nowrap">
-                                    <span className={cn('text-xs px-2 py-1 rounded-md font-medium whitespace-nowrap', STATUS_COLORS[inv.status] ?? 'text-text-secondary bg-bg-tertiary')}>
-                                      {inv.status === 'partially_paid' ? 'Partial' : inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                                  <td className="px-4 py-2.5 whitespace-nowrap flex items-center gap-2">
+                                    <span className={cn('text-[10px] px-2 py-1 rounded-md font-medium whitespace-nowrap uppercase text-text-secondary bg-bg-tertiary')}>
+                                      {inst.mode.replace('_', ' ')}
                                     </span>
+                                    {inst.notes && <span className="text-xs text-text-muted truncate max-w-[150px]" title={inst.notes}>{inst.notes}</span>}
                                   </td>
                                 </tr>
                               )
