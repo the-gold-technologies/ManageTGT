@@ -3,10 +3,21 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { createNotification } from './notifications'
+import { auth } from '@/auth'
 
 export async function getProjects() {
   try {
+    const session = await auth()
+    let whereClause = {}
+    
+    if (session?.user?.role === 'team_lead') {
+      whereClause = { team_lead_id: session.user.id }
+    } else if (session?.user?.role === 'team_member') {
+      whereClause = { assigned_member_ids: { has: session.user.id } }
+    }
+
     const projects = await prisma.project.findMany({
+      where: whereClause,
       include: {
         client: {
           select: { id: true, name: true, company_name: true }
@@ -56,7 +67,6 @@ export async function deleteProject(id: string) {
   }
 }
 
-import { auth } from '@/auth'
 
 export async function createProject(data: any) {
   try {
@@ -64,7 +74,7 @@ export async function createProject(data: any) {
     const project_code = `PRJ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
     
     // Extract relation IDs and other fields
-    const { client_id, team_lead_id, deliverable_urls, ...restData } = data
+    const { client_id, team_lead_id, deliverable_urls, assigned_member_ids, ...restData } = data
 
     const project = await prisma.project.create({
       data: {
@@ -72,6 +82,7 @@ export async function createProject(data: any) {
         project_code,
         created_by: session?.user?.id,
         deliverable_urls: deliverable_urls || [],
+        assigned_member_ids: assigned_member_ids || [],
         ...(client_id ? { client: { connect: { id: client_id } } } : {}),
         ...(team_lead_id ? { teamLead: { connect: { id: team_lead_id } } } : {})
       }
@@ -86,6 +97,21 @@ export async function createProject(data: any) {
         message: `You have been assigned as the team lead for project: ${restData.name}`,
         link: '/projects'
       })
+    }
+
+    // Notify team members if they are assigned
+    if (assigned_member_ids && assigned_member_ids.length > 0) {
+      for (const member_id of assigned_member_ids) {
+        if (member_id !== session?.user?.id) {
+          await createNotification({
+            user_id: member_id,
+            type: 'project_assigned',
+            title: 'Assigned to Project',
+            message: `You have been assigned as a team member for project: ${restData.name}`,
+            link: '/projects'
+          })
+        }
+      }
     }
     
     // Automatically record a SalesClosure if there's an active target for this service type this month
@@ -130,17 +156,51 @@ export async function createProject(data: any) {
 
 export async function updateProject(id: string, data: any) {
   try {
-    const { client_id, team_lead_id, deliverable_urls, ...restData } = data
+    const session = await auth()
+    const { client_id, team_lead_id, deliverable_urls, assigned_member_ids, ...restData } = data
+
+    const oldProject = await prisma.project.findUnique({ where: { id } })
 
     const project = await prisma.project.update({
       where: { id },
       data: {
         ...restData,
         deliverable_urls: deliverable_urls || [],
+        assigned_member_ids: assigned_member_ids || [],
         ...(client_id !== undefined ? { client: client_id ? { connect: { id: client_id } } : { disconnect: true } } : {}),
         ...(team_lead_id !== undefined ? { teamLead: team_lead_id ? { connect: { id: team_lead_id } } : { disconnect: true } } : {})
       }
     })
+
+    if (oldProject) {
+      // Notify new team lead
+      if (team_lead_id && team_lead_id !== oldProject.team_lead_id && team_lead_id !== session?.user?.id) {
+        await createNotification({
+          user_id: team_lead_id,
+          type: 'project_assigned',
+          title: 'Assigned as Team Lead',
+          message: `You have been assigned as the team lead for project: ${project.name}`,
+          link: '/projects'
+        })
+      }
+
+      // Notify new team members
+      if (assigned_member_ids) {
+        const oldMembers = oldProject.assigned_member_ids || []
+        const newMembers = assigned_member_ids.filter((mId: string) => !oldMembers.includes(mId))
+        for (const member_id of newMembers) {
+          if (member_id !== session?.user?.id) {
+            await createNotification({
+              user_id: member_id,
+              type: 'project_assigned',
+              title: 'Assigned to Project',
+              message: `You have been assigned as a team member for project: ${project.name}`,
+              link: '/projects'
+            })
+          }
+        }
+      }
+    }
 
     revalidatePath('/projects')
     return { success: true, project }

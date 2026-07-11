@@ -55,6 +55,7 @@ export interface Project {
   start_date?: string
   expected_completion?: string
   team_lead_id?: string
+  assigned_member_ids?: string[]
   status: ProjectStatus
   delivery_date?: string
   completion_date?: string

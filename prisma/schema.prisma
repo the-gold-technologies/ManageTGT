@@ -189,6 +189,7 @@ model Project {
   expected_completion DateTime?
   team_lead_id        String?
   teamLead            User?         @relation("TeamLead", fields: [team_lead_id], references: [id], onDelete: SetNull)
+  assigned_member_ids String[]      @default([])
   status              ProjectStatus @default(pending)
   delivery_date       DateTime?
   completion_date     DateTime?
