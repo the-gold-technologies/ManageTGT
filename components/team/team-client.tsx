@@ -34,13 +34,6 @@ const ROLE_LABELS: Record<string, string> = {
   team_member: 'Team Member',
 }
 
-const ROLE_ICONS: Record<string, LucideIcon> = {
-  admin: Shield,
-  team_lead: Briefcase,
-  sales_executive: Target,
-  team_member: User,
-}
-
 export default function TeamClient({ initialProfiles, userRole }: TeamClientProps) {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -176,7 +169,6 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
               </thead>
               <motion.tbody variants={containerVariants} initial="hidden" animate="show">
                 {paginated.map(profile => {
-                  const RoleIcon = ROLE_ICONS[profile.role] || User
                   return (
                     <motion.tr
                       key={profile.id}
@@ -185,12 +177,17 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                     >
                       <td className="px-6 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center overflow-hidden shrink-0 border border-border">
-                            {profile.avatar_url ? (
-                              <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
-                            ) : (
-                              profile.full_name.charAt(0)
+                          <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center overflow-hidden shrink-0 border border-border relative">
+                            {profile.avatar_url && (
+                              <img 
+                                src={profile.avatar_url} 
+                                alt={profile.full_name} 
+                                className="w-full h-full object-cover absolute inset-0 z-10" 
+                                referrerPolicy="no-referrer"
+                                onError={(e) => { e.currentTarget.style.display = 'none' }}
+                              />
                             )}
+                            <span className="text-primary font-bold relative z-0">{profile.full_name.charAt(0)}</span>
                           </div>
                           <div>
                             <span className="font-medium text-text block">{profile.full_name}</span>
@@ -201,7 +198,6 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                       <td className="px-6 py-3">
                         {isAdmin ? (
                           <div className="flex items-center gap-2">
-                            <RoleIcon size={14} className="text-text-muted" />
                             <select
                               value={profile.role}
                               onChange={(e) => updateRoleMutation.mutate({ id: profile.id, newRole: e.target.value })}
@@ -215,7 +211,6 @@ export default function TeamClient({ initialProfiles, userRole }: TeamClientProp
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <RoleIcon size={14} className="text-text-muted" />
                             <Badge variant={ROLE_BADGE_MAP[profile.role] || 'default'}>
                               {ROLE_LABELS[profile.role] || profile.role}
                             </Badge>

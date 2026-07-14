@@ -8,22 +8,28 @@ export async function getTasks() {
   try {
     const tasks = await prisma.task.findMany({
       include: {
-        assignee: {
-          select: { id: true, name: true }
-        },
         assigner: {
           select: { id: true, name: true }
         },
         project: {
           select: { id: true, name: true, project_code: true }
         },
-        files: true
+        files: true,
+        subtasks: {
+          orderBy: { createdAt: 'asc' }
+        },
+        logs: {
+          include: {
+            performer: { select: { id: true, name: true } }
+          },
+          orderBy: { performed_at: 'asc' }
+        }
       },
       orderBy: { createdAt: 'desc' }
     })
     return tasks.map(t => ({
       ...t,
-      assignee: t.assignee ? { id: t.assignee.id, full_name: t.assignee.name } : null,
+      assignee: null,
       assigner: t.assigner ? { id: t.assigner.id, full_name: t.assigner.name } : null
     }))
   } catch (error) {
@@ -77,7 +83,7 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
       })
     }
 
-    revalidatePath('/tasks')
+    revalidatePath('/', 'layout')
     return { success: true }
   } catch (error) {
     console.error('Error updating task status:', error)
@@ -140,7 +146,7 @@ export async function createTask(data: any) {
       })
     }
 
-    revalidatePath('/tasks')
+    revalidatePath('/', 'layout')
     return { success: true, task: result }
   } catch (error) {
     console.error('Error creating task:', error)
@@ -176,7 +182,7 @@ export async function updateTask(id: string, data: any) {
       return task
     })
 
-    revalidatePath('/tasks')
+    revalidatePath('/', 'layout')
     return { success: true, task: result }
   } catch (error) {
     console.error('Error updating task:', error)
@@ -244,5 +250,45 @@ export async function logActivity(data: { task_id?: string, project_id?: string,
   } catch (error) {
     console.error('Error logging activity:', error)
     return { success: false, error: 'Failed to log activity' }
+  }
+}
+
+export async function createSubtask(taskId: string, title: string) {
+  try {
+    const subtask = await prisma.subtask.create({
+      data: { task_id: taskId, title }
+    })
+    revalidatePath('/', 'layout')
+    return { success: true, subtask }
+  } catch (error) {
+    console.error('Error creating subtask:', error)
+    return { success: false, error: 'Failed to create subtask' }
+  }
+}
+
+export async function toggleSubtask(id: string, is_completed: boolean) {
+  try {
+    const subtask = await prisma.subtask.update({
+      where: { id },
+      data: { is_completed }
+    })
+    revalidatePath('/', 'layout')
+    return { success: true, subtask }
+  } catch (error) {
+    console.error('Error toggling subtask:', error)
+    return { success: false, error: 'Failed to toggle subtask' }
+  }
+}
+
+export async function deleteSubtask(id: string) {
+  try {
+    await prisma.subtask.delete({
+      where: { id }
+    })
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting subtask:', error)
+    return { success: false, error: 'Failed to delete subtask' }
   }
 }

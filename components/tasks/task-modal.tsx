@@ -1,24 +1,29 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Paperclip, Loader2, FileText, Download, Trash2, Plus } from 'lucide-react'
+import { X, Paperclip, Loader2, FileText, Download, Trash2, Plus, ChevronDown, Check, MessageSquare, Clock, format } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Task, Project, Profile, TaskFile } from '@/types'
-import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile } from '@/app/actions/tasks'
+import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile, createSubtask, toggleSubtask, deleteSubtask, addTaskComment } from '@/app/actions/tasks'
 import { uploadFileAction } from '@/app/actions/upload'
+import dynamic from 'next/dynamic'
+import '@uiw/react-md-editor/markdown-editor.css'
+import { format as formatDate } from 'date-fns'
+
+const CustomEditor = dynamic(() => import('./custom-editor'), { ssr: false })
 
 const schema = z.object({
   title: z.string().min(1, 'Required'),
   description: z.string().optional(),
   project_id: z.string().optional(),
-  assigned_to: z.string().optional(),
+  assigned_member_ids: z.array(z.string()).optional(),
   deadline: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   status: z.enum(['todo', 'in_progress', 'review', 'completed']),
@@ -45,8 +50,9 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
+  const { register, handleSubmit, reset, watch, control, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
     defaultValues: { priority: 'medium', status: 'todo' },
   })
@@ -57,7 +63,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         title: task.title,
         description: task.description ?? '',
         project_id: task.project_id ?? '',
-        assigned_to: task.assigned_to ?? '',
+        assigned_member_ids: task.assigned_member_ids ?? [],
         deadline: task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '',
         priority: task.priority,
         status: task.status,
@@ -65,7 +71,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
         title: '',
         description: '',
         project_id: '',
-        assigned_to: '',
+        assigned_member_ids: [],
         deadline: '',
         priority: 'medium', 
         status: 'todo' 
@@ -84,7 +90,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       title: data.title,
       description: data.description || null,
       project_id: data.project_id || null,
-      assigned_to: data.assigned_to || null,
+      assigned_member_ids: data.assigned_member_ids || [],
       assigned_by: user?.id,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
       priority: data.priority,
@@ -207,8 +213,17 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
 
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Description</label>
-                <textarea {...register('description')} placeholder="Additional details, references, links..." rows={3}
-                  className={cn(inputClass, 'resize-none')} disabled={isRestricted} />
+                <Controller
+                  name="description"
+                  control={control}
+                  render={({ field }) => (
+                    <CustomEditor
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      disabled={isRestricted}
+                    />
+                  )}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -219,12 +234,53 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                     {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.name}</option>)}
                   </select>
                 </div>
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Assign To</label>
-                  <select {...register('assigned_to')} className={inputClass} disabled={isRestricted}>
-                    <option value="">Unassigned</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
+                  <button 
+                    type="button" 
+                    disabled={isRestricted}
+                    onClick={() => setIsAssigneeOpen(!isAssigneeOpen)}
+                    className="w-full flex items-center justify-between px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 transition-all disabled:opacity-50"
+                  >
+                    <span className="truncate">
+                      {(() => {
+                        const selectedIds = watch('assigned_member_ids') || []
+                        if (selectedIds.length === 0) return <span className="text-text-muted">Unassigned</span>
+                        if (selectedIds.length === 1) return profiles.find(p => p.id === selectedIds[0])?.full_name || '1 selected'
+                        return `${selectedIds.length} selected`
+                      })()}
+                    </span>
+                    <ChevronDown size={14} className={cn("text-text-muted transition-transform", isAssigneeOpen && "rotate-180")} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isAssigneeOpen && !isRestricted && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        className="absolute top-[calc(100%+4px)] left-0 w-full bg-bg border border-border rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar py-1"
+                      >
+                        {profiles.map(p => {
+                          const isSelected = watch('assigned_member_ids')?.includes(p.id)
+                          return (
+                            <label key={p.id} className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-bg-tertiary transition-all">
+                              <div className="flex items-center gap-2">
+                                <input type="checkbox" value={p.id} className="hidden" 
+                                  {...register('assigned_member_ids')} 
+                                />
+                                <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold uppercase ring-1 ring-primary/30 shrink-0">
+                                  {p.full_name.substring(0, 2)}
+                                </div>
+                                <span className="text-xs text-text">{p.full_name}</span>
+                              </div>
+                              {isSelected && <Check size={14} className="text-primary" />}
+                            </label>
+                          )
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
@@ -298,7 +354,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                   </div>
                 )}
 
-                {/* Upload Zone */}
+                    {/* Upload Zone */}
                 {((isEdit && task?.files && task.files.length > 0) || selectedFiles.length > 0) ? (
                   <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
                     <input 
@@ -386,10 +442,12 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                   </div>
                 )}
               </div>
+
+              {/* Removed Subtasks and Activity Logs */}
             </form>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border">
-              <div>
+              <div className="flex items-center gap-4">
                 {isEdit && !isRestricted && (
                   <Button
                     type="button"
@@ -401,7 +459,12 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                     {!isDeleting && <Trash2 size={14} />}
                     <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Task'}</span>
                   </Button>
-
+                )}
+                {isEdit && task?.createdAt && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-text-muted ml-2">
+                    <Clock size={12} />
+                    <span>Created {formatDate(new Date(task.createdAt), "MMM d, h:mm a")}</span>
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-3">

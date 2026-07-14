@@ -136,12 +136,17 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
           </div>
         ) : profile && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 border border-border shadow-glow-sm">
-               {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
-              ) : (
-                getInitials(profile.full_name)
+            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 border border-border shadow-glow-sm relative">
+               {profile.avatar_url && (
+                <img 
+                  src={profile.avatar_url} 
+                  alt={profile.full_name} 
+                  className="w-full h-full object-cover absolute inset-0 z-10" 
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
               )}
+              <span className="relative z-0">{getInitials(profile.full_name)}</span>
             </div>
             <div className="space-y-2.5 flex-1 w-full">
               <div>

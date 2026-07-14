@@ -7,12 +7,12 @@ interface BadgeProps {
 }
 
 const VARIANTS = {
-  default: 'bg-primary/10 text-primary border-primary/20',
-  success: 'bg-success-muted text-success border-success/20',
-  warning: 'bg-warning-muted text-warning border-warning/20',
-  danger: 'bg-danger-muted text-danger border-danger/20',
-  info: 'bg-info-muted text-info border-info/20',
-  muted: 'bg-border text-text-secondary border-border-muted',
+  default: 'bg-[#E06A26]/10 text-primary border-[#E06A26]/30',
+  success: 'bg-success-muted text-success border-[#10B981]/30',
+  warning: 'bg-warning-muted text-warning border-[#F59E0B]/30',
+  danger: 'bg-danger-muted text-danger border-[#EF4444]/30',
+  info: 'bg-info-muted text-info border-[#3B82F6]/30',
+  muted: 'bg-bg-tertiary text-text-secondary border-border-muted',
 }
 
 export function Badge({ children, className, variant = 'default' }: BadgeProps) {

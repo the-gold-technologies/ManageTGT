@@ -235,7 +235,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
               return (
                 <tr 
                   key={task.id} 
-                  onClick={() => router.push('/tasks')}
+                  onClick={() => router.push('/my-tasks')}
                   className="border-b border-border last:border-0 hover:bg-bg-tertiary/50 transition-colors cursor-pointer text-xs"
                 >
                   <td className="px-5 py-3 font-medium text-text">{task.title}</td>
@@ -359,21 +359,21 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
               value={String(data.taskStats.total)}
               icon={CheckSquare}
               iconColor="bg-primary/10 text-primary"
-              href="/tasks"
+              href="/my-tasks"
             />
             <StatCard
               title="Pending Tasks"
               value={String(data.taskStats.pending)}
               icon={Clock}
               iconColor="bg-warning/10 text-warning"
-              href="/tasks"
+              href="/my-tasks"
             />
             <StatCard
               title="Completed Tasks"
               value={String(data.taskStats.completed)}
               icon={CheckCircle2}
               iconColor="bg-success/10 text-success"
-              href="/tasks"
+              href="/my-tasks"
             />
           </>
         )}

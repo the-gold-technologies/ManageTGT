@@ -79,7 +79,7 @@ export interface Task {
   title: string
   description?: string
   assigned_by?: string
-  assigned_to?: string
+  assigned_member_ids?: string[]
   deadline?: string
   completion_date?: string
   status: TaskStatus
@@ -88,10 +88,19 @@ export interface Task {
   updatedAt: string
   // Joined
   project?: Project
-  assignee?: Profile
   assigner?: Profile
   files?: TaskFile[]
   logs?: ActivityLog[]
+  subtasks?: Subtask[]
+}
+
+export interface Subtask {
+  id: string
+  task_id: string
+  title: string
+  is_completed: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TaskFile {

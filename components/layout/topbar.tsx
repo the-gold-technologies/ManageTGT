@@ -42,9 +42,10 @@ export default function TopBar({ user }: TopBarProps) {
 
   const getBreadcrumbs = (path: string) => {
     if (path === '/') return []
+    if (path.startsWith('/boards')) return ['Dashboard', 'Boards']
     if (path.startsWith('/clients')) return ['Dashboard', 'Clients']
     if (path.startsWith('/projects')) return ['Dashboard', 'Projects']
-    if (path.startsWith('/tasks')) return ['Dashboard', 'Tasks']
+    if (path.startsWith('/my-tasks')) return ['Dashboard', 'My Tasks']
     if (path.startsWith('/growth/prospects')) return ['Growth', 'Prospects']
     if (path.startsWith('/finance/revenue')) return ['Finance', 'Revenue']
     if (path.startsWith('/finance/expenses')) return ['Finance', 'Expenses']
@@ -107,14 +108,16 @@ export default function TopBar({ user }: TopBarProps) {
       {/* Right: search + bells + avatar */}
       <div className="flex items-center gap-3">
         {/* Search */}
-        <div className="relative hidden md:flex items-center">
-          <Search size={14} className="absolute left-3 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="pl-8 pr-4 py-2 text-sm bg-bg-secondary border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 w-48 transition-all focus:w-64"
-          />
-        </div>
+        {!(pathname.startsWith('/boards') || pathname.startsWith('/my-tasks')) && (
+          <div className="relative hidden md:flex items-center">
+            <Search size={14} className="absolute left-3 text-text-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="pl-8 pr-4 py-2 text-sm bg-bg-secondary border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 w-48 transition-all focus:w-64"
+            />
+          </div>
+        )}
 
         {/* Theme Toggle */}
         {mounted && (
@@ -133,14 +136,19 @@ export default function TopBar({ user }: TopBarProps) {
         <div className="relative" ref={menuRef}>
           <div 
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
+            className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity relative overflow-hidden"
           >
-            {user.avatar_url ? (
+            {user.avatar_url && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatar_url} alt={user.full_name} className="w-full h-full rounded-full object-cover" />
-            ) : (
-              getInitials(user.full_name)
+              <img 
+                src={user.avatar_url} 
+                alt={user.full_name} 
+                className="w-full h-full rounded-full object-cover absolute inset-0 z-10" 
+                referrerPolicy="no-referrer"
+                onError={(e) => { e.currentTarget.style.display = 'none' }}
+              />
             )}
+            <span className="relative z-0">{getInitials(user.full_name)}</span>
           </div>
 
           {/* Profile Menu Dropdown */}

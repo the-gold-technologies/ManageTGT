@@ -1,29 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Plus, Search, FileDown, CheckSquare, AlertCircle, Calendar, FileText, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Search, CheckSquare, AlertCircle, KanbanSquare, Calendar, FileText, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
 import type { Task, Project, Profile, TaskStatus } from '@/types'
 import { getTasks, updateTaskStatus as updateTaskStatusAction, updateTask as updateTaskAction } from '@/app/actions/tasks'
+import TaskModal from '@/components/tasks/task-modal'
+import CardMarkdownPreview from '@/components/tasks/markdown-preview'
 import { getProjects } from '@/app/actions/projects'
 import { getTeamMembers } from '@/app/actions/team'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Glow } from '@/components/ui/glow'
-import { formatDate, isOverdue } from '@/lib/utils'
-import TaskModal from './task-modal'
-import CardMarkdownPreview from '@/components/tasks/markdown-preview'
+import { isOverdue } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import ExportDropdown from '@/components/ui/export-dropdown'
-import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 
-interface TasksClientProps {
-  initialTasks: Task[]
-  projects: Pick<Project, 'id' | 'name' | 'project_code'>[]
-  profiles: Pick<Profile, 'id' | 'full_name' | 'role'>[]
+interface BoardsClientProps {
   userRole?: string
   userId?: string
 }
@@ -42,18 +36,16 @@ const PRIORITY_BADGE_MAP = {
   urgent: 'danger',
 } as const
 
-export default function TasksClient({ initialTasks, projects: initialProjects, profiles: initialProfiles, userRole, userId }: TasksClientProps) {
+export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [search, setSearch] = useState('')
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>('all')
-  const [customDateStart, setCustomDateStart] = useState<Date | null>(null)
-  const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all')
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const qc = useQueryClient()
 
-  const { data: tasksData, isLoading: isTasksLoading } = useQuery({
+  const { data: tasksData = [], isLoading: isTasksLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const data = await getTasks()
@@ -62,7 +54,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     refetchInterval: 15000,
   })
 
-  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
+  const { data: projectsData = [], isLoading: isProjectsLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       const data = await getProjects()
@@ -70,7 +62,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     }
   })
 
-  const { data: profilesData, isLoading: isProfilesLoading } = useQuery({
+  const { data: profilesData = [], isLoading: isProfilesLoading } = useQuery({
     queryKey: ['profiles'],
     queryFn: async () => {
       const data = await getTeamMembers()
@@ -78,20 +70,32 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     }
   })
 
+  const updateDescription = useMutation({
+    mutationFn: async ({ id, description }: { id: string, description: string }) => {
+      return updateTaskAction(id, { description })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    }
+  })
+
   const isLoading = isTasksLoading || isProjectsLoading || isProfilesLoading
 
   // Server-side filtering logic migrated to client
-  const allProjects = projectsData ?? initialProjects
-  const allTasks = tasksData ?? initialTasks
-  const profiles = profilesData ?? initialProfiles
-
-  const teamLeadProjectIds = allProjects
-    .filter(p => (p as Project).team_lead_id === userId)
+  const teamLeadProjectIds = projectsData
+    .filter(p => p.team_lead_id === userId)
     .map(p => p.id)
 
-  const roleFilteredTasks = allTasks.filter(t => t.assigned_member_ids?.includes(userId))
-
-  const projects = allProjects.filter(p => ['pending', 'in_progress', 'on_hold'].includes((p as Project).status || ''))
+  let roleFilteredTasks = tasksData
+  if (userRole === 'team_lead') {
+    roleFilteredTasks = tasksData.filter(t =>
+      teamLeadProjectIds.includes(t.project_id || '') ||
+      t.assigned_by === userId ||
+      t.assigned_to === userId
+    )
+  } else if (userRole === 'team_member') {
+    roleFilteredTasks = tasksData.filter(t => t.assigned_to === userId)
+  }
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
@@ -108,7 +112,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
       )
       return { previous }
     },
-    onSuccess: () => toast.success('Task updated'),
+    onSuccess: () => toast.success('Task status updated'),
     onError: (err, _, context) => {
       if (context?.previous) qc.setQueryData(['tasks'], context.previous)
       toast.error('Failed to update task')
@@ -116,23 +120,22 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     onSettled: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 
-  const updateDescription = useMutation({
-    mutationFn: async ({ id, description }: { id: string, description: string }) => {
-      return updateTaskAction(id, { description })
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] })
-    }
+  // Filtering based on search and selected project
+  const filteredTasks = roleFilteredTasks.filter(t => {
+    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase())
+    const matchesProject = selectedProjectId === 'all' || t.project_id === selectedProjectId
+    return matchesSearch && matchesProject
   })
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData('text/plain', id)
-    e.dataTransfer.effectAllowed = 'move'
-    setTimeout(() => setDraggedTaskId(id), 0)
-  }
+  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
+  const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
-  const handleDragEnd = () => {
-    setDraggedTaskId(null)
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    setDraggedTaskId(taskId)
+    // For Firefox compatibility
+    e.dataTransfer.setData('text/plain', taskId)
+    e.dataTransfer.effectAllowed = 'move'
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -140,85 +143,49 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     e.dataTransfer.dropEffect = 'move'
   }
 
-  const handleDrop = async (e: React.DragEvent, status: TaskStatus) => {
+  const handleDrop = (e: React.DragEvent, status: TaskStatus) => {
     e.preventDefault()
-    const id = e.dataTransfer.getData('text/plain')
-    if (id) {
-      updateStatus.mutate({ id, status })
+    if (!draggedTaskId) return
+
+    const task = tasksData.find(t => t.id === draggedTaskId)
+    if (task && task.status !== status) {
+      updateStatus.mutate({ id: draggedTaskId, status })
     }
     setDraggedTaskId(null)
   }
-
-  const filteredTasks = (roleFilteredTasks ?? []).filter(t => {
-    const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) ||
-                          t.project?.name.toLowerCase().includes(search.toLowerCase()) || ''
-                          
-    let matchesDate = true
-    if (dateFilter !== 'all' && t.createdAt) {
-      const expected = startOfDay(new Date(t.createdAt))
-      const today = startOfDay(new Date())
-      
-      if (dateFilter === 'today') matchesDate = isSameDay(expected, today)
-      else if (dateFilter === 'this_week') matchesDate = isSameWeek(expected, today)
-      else if (dateFilter === 'this_month') matchesDate = isSameMonth(expected, today)
-      else if (dateFilter === 'this_quarter') matchesDate = isSameQuarter(expected, today)
-      else if (dateFilter === 'this_year') matchesDate = isSameYear(expected, today)
-      else if (dateFilter === 'custom') {
-        if (customDateStart && expected < startOfDay(customDateStart)) matchesDate = false
-        if (customDateEnd && expected > startOfDay(customDateEnd)) matchesDate = false
-      }
-    } else if (dateFilter !== 'all' && !t.createdAt) {
-      matchesDate = false
-    }
-    return matchesSearch && matchesDate
-  })
-
-  const exportHeaders = ['Title', 'Project', 'Assignee', 'Status', 'Priority', 'Deadline', 'Created At']
-  const mapExportData = (t: Task) => [
-    t.title,
-    t.project?.name || 'N/A',
-    t.assignee?.full_name || 'Unassigned',
-    t.status,
-    t.priority,
-    t.deadline ? new Date(t.deadline).toLocaleDateString() : 'N/A',
-    new Date(t.createdAt).toLocaleDateString()
-  ]
-
-  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
-  const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
   return (
     <div className="space-y-5 h-full flex flex-col">
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-text">My Tasks</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
+          <h2 className="text-xl font-bold text-text flex items-center gap-2">
+            Project Boards
+          </h2>
+          <p className="text-sm text-text-secondary mt-0.5">Manage tasks visually across your projects</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative max-w-sm">
+        <div className="flex items-center gap-3">
+           <div className="relative max-w-sm">
             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks..."
+              placeholder="Search board..."
               className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
             />
           </div>
-          <DateFilterDropdown 
-            value={dateFilter} 
-            onChange={setDateFilter} 
-            onCustomDateChange={(start, end) => {
-              setCustomDateStart(start)
-              setCustomDateEnd(end)
-              setDateFilter('custom')
-            }} 
-          />
-          <ExportDropdown 
-            data={filteredTasks} 
-            headers={exportHeaders} 
-            filename={`tasks_export_${new Date().toISOString().split('T')[0]}`} 
-            mapData={mapExportData} 
-          />
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="px-3 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 transition-all max-w-[200px]"
+          >
+            <option value="all">All Projects</option>
+            {projectsData.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+            <Plus size={15} /> Add Task
+          </Button>
         </div>
       </div>
 
@@ -259,12 +226,13 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
                 )}
                 {colTasks.map(task => {
                   const overdue = isOverdue(task.deadline) && task.status !== 'completed'
+                  const assignees = profilesData.filter(p => task.assigned_member_ids?.includes(p.id))
+                  
                   return (
                     <motion.div
                       key={task.id}
                       draggable
                       onDragStart={(e: any) => handleDragStart(e, task.id)}
-                      onDragEnd={handleDragEnd}
                       variants={itemVariants}
                       className={cn(
                         "relative bg-bg border rounded-lg p-3 hover:border-border-muted transition-all cursor-grab active:cursor-grabbing group",
@@ -334,39 +302,37 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
                         )}
 
                         {/* Bottom row */}
-                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border">
-                          {(() => {
-                            const assignees = profiles.filter(p => task.assigned_member_ids?.includes(p.id))
-                            return assignees.length > 0 ? (
-                              <div className="flex items-center gap-1">
-                                {assignees.slice(0, 5).map((assignee) => (
-                                  <div key={assignee.id} title={assignee.full_name} className="w-5 h-5 rounded-full text-primary flex items-center justify-center text-[9px] font-bold uppercase ring-1 ring-border-muted relative z-10 hover:z-20 transition-all bg-bg overflow-hidden">
-                                    {assignee.avatar_url && (
-                                      <img 
-                                        src={assignee.avatar_url} 
-                                        alt={assignee.full_name} 
-                                        className="w-full h-full object-cover absolute inset-0 z-10" 
-                                        referrerPolicy="no-referrer"
-                                        onError={(e) => { e.currentTarget.style.display = 'none' }}
-                                      />
-                                    )}
-                                    <span className="relative z-0">{assignee.full_name.charAt(0)}</span>
-                                  </div>
-                                ))}
-                                {assignees.length > 5 && (
-                                  <div className="w-5 h-5 rounded-full text-text-secondary flex items-center justify-center text-[9px] font-bold uppercase ring-1 ring-border relative z-10 bg-bg">
-                                    +{assignees.length - 5}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-text-muted italic">Unassigned</span>
-                            )
-                          })()}
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                          {assignees.length > 0 ? (
+                            <div className="flex items-center gap-1">
+                              {assignees.slice(0, 5).map((assignee, idx) => (
+                                <div key={assignee.id} title={assignee.full_name} className="w-5 h-5 rounded-full text-primary flex items-center justify-center text-[9px] font-bold uppercase ring-1 ring-border-muted relative z-10 hover:z-20 transition-all bg-bg overflow-hidden">
+                                  {assignee.avatar_url && (
+                                    <img 
+                                      src={assignee.avatar_url} 
+                                      alt={assignee.full_name} 
+                                      className="w-full h-full object-cover absolute inset-0 z-10" 
+                                      referrerPolicy="no-referrer"
+                                      onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                    />
+                                  )}
+                                  <span className="relative z-0">{assignee.full_name.charAt(0)}</span>
+                                </div>
+                              ))}
+                              {assignees.length > 5 && (
+                                <div className="w-5 h-5 rounded-full text-text-secondary flex items-center justify-center text-[9px] font-bold uppercase ring-1 ring-border relative z-10 bg-bg">
+                                  +{assignees.length - 5}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-text-muted italic">Unassigned</span>
+                          )}
+                          
                           {task.deadline && (
-                            <div className={cn('flex items-center gap-1 text-[10px]', overdue ? 'text-danger font-semibold' : 'text-text-muted')}>
+                            <div className={cn('flex items-center gap-1 text-[10px] font-medium', overdue ? 'text-danger' : 'text-text-muted')}>
                               <Calendar size={12} />
-                              <span>{formatDate(task.deadline)}</span>
+                              <span>{new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                             </div>
                           )}
                         </div>
@@ -377,45 +343,46 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
               </div>
             </div>
           )
-        })}
+          })}
         </motion.div>
       )}
 
       {/* Image Preview Modal */}
-      {previewImage && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out !m-0"
-          onClick={() => setPreviewImage(null)}
-        >
-          <motion.img
-            initial={{ scale: 0.95 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.95 }}
-            src={previewImage}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out !m-0"
             onClick={() => setPreviewImage(null)}
-            className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-all"
           >
-            <X size={20} />
-          </button>
-        </motion.div>
-      )}
+            <motion.img
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              src={previewImage}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute top-4 right-4 w-10 h-10 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center transition-all"
+            >
+              <X size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <TaskModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { setModalOpen(false); setEditingTask(null) }}
         task={editingTask}
-        projects={projects}
-        profiles={profiles}
+        projects={projectsData}
+        profiles={profilesData}
         userRole={userRole}
       />
     </div>
   )
 }
-

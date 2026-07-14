@@ -22,7 +22,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   ChevronDown,
-  Clock
+  Clock,
+  KanbanSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +49,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
       { href: '/clients', icon: Users, label: 'Clients', moduleKey: 'clients' },
       { href: '/projects', icon: FolderKanban, label: 'Projects', moduleKey: 'projects' },
-      { href: '/tasks', icon: CheckSquare, label: 'Tasks', moduleKey: 'tasks' },
+      { href: '/boards', icon: KanbanSquare, label: 'Boards', moduleKey: 'tasks' },
+      { href: '/my-tasks', icon: CheckSquare, label: 'My Tasks', moduleKey: 'tasks' },
     ]
   },
   {
@@ -137,7 +139,7 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+      <nav className={cn("flex-1 py-4", collapsed ? "overflow-visible" : "overflow-y-auto overflow-x-hidden")}>
         {NAV_SECTIONS.map((section, sIdx) => {
           const visibleItems = section.items.filter(item => allowedModules.includes(item.moduleKey))
           if (visibleItems.length === 0) return null
@@ -210,7 +212,7 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                     initial={collapsed || !section.label ? false : { height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden space-y-1 relative"
+                    className={cn("space-y-1 relative", collapsed ? "overflow-visible" : "overflow-hidden")}
                   >
                     {/* Vertical line for indented items */}
                     {!collapsed && section.label && (

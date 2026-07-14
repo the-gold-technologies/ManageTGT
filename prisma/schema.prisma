@@ -28,7 +28,6 @@ model User {
   // Domain relations
   projectsLed     Project[]      @relation("TeamLead")
   tasksAssignedBy Task[]         @relation("AssignedBy")
-  tasksAssignedTo Task[]         @relation("AssignedTo")
   activityLogs    ActivityLog[]  @relation("PerformedBy")
   salesClosures   SalesClosure[] @relation("ClosedBy")
   notifications   Notification[]
@@ -226,8 +225,7 @@ model Task {
   description     String?    @db.Text
   assigned_by     String?
   assigner        User?      @relation("AssignedBy", fields: [assigned_by], references: [id], onDelete: SetNull)
-  assigned_to     String?
-  assignee        User?      @relation("AssignedTo", fields: [assigned_to], references: [id], onDelete: SetNull)
+  assigned_member_ids String[] @default([])
   deadline        DateTime?
   completion_date DateTime?
   status          TaskStatus @default(todo)
@@ -235,13 +233,26 @@ model Task {
 
   files TaskFile[]
   logs  ActivityLog[]
+  subtasks Subtask[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
-  @@index([assigned_to])
   @@index([project_id])
+}
+
+model Subtask {
+  id           String   @id @default(cuid())
+  task_id      String
+  task         Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  title        String
+  is_completed Boolean  @default(false)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([task_id])
 }
 
 model TaskFile {
