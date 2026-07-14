@@ -188,8 +188,8 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
   const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
   return (
-    <div className="space-y-5 h-full flex flex-col">
-      <div className="flex items-center justify-between shrink-0">
+    <div className="space-y-5 flex flex-col lg:h-[calc(100vh-112px)] min-h-full">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between shrink-0 gap-4 lg:gap-0">
         <div>
           <h2 className="text-xl font-bold text-text">My Tasks</h2>
           <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
@@ -223,9 +223,9 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
       </div>
 
       {isLoading ? (
-        <div className="flex gap-6 overflow-hidden min-h-[500px]">
+        <div className="flex flex-col lg:flex-row gap-6 overflow-hidden flex-1 lg:min-h-0 min-h-[500px]">
           {[1, 2, 3, 4].map(col => (
-            <div key={col} className="w-full lg:w-1/4 shrink-0 bg-bg-secondary/50 rounded-2xl p-4 border border-border">
+            <div key={col} className="w-full lg:w-1/4 shrink-0 bg-bg-secondary/50 rounded-2xl p-4 border border-border flex flex-col">
               <div className="h-6 w-24 bg-bg-secondary rounded-md mb-4 animate-pulse"></div>
               <div className="space-y-3">
                 {[1, 2, 3].map(card => (
@@ -236,13 +236,13 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
           ))}
         </div>
       ) : (
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-[500px] overflow-hidden">
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 lg:min-h-0 min-h-[500px]">
           {COLUMNS.map(col => {
           const colTasks = filteredTasks.filter(t => t.status === col.key)
           return (
             <div 
               key={col.key} 
-              className={cn('rounded-xl border bg-bg-secondary flex flex-col', col.color)}
+              className={cn('rounded-xl border bg-bg-secondary flex flex-col overflow-hidden max-h-full', col.color)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.key)}
             >

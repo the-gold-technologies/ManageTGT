@@ -194,7 +194,15 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
             className="fixed right-4 top-4 bottom-4 w-[calc(100%-2rem)] max-w-lg bg-bg-secondary border border-border rounded-2xl z-50 flex flex-col shadow-2xl overflow-hidden !m-0"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-semibold text-text">{isEdit ? 'Edit Task' : 'New Task'}</h3>
+              <div className="flex items-center gap-3">
+                <h3 className="font-semibold text-text">{isEdit ? 'Edit Task' : 'New Task'}</h3>
+                {isEdit && task?.createdAt && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-text-muted bg-bg-tertiary px-2 py-1 rounded-md">
+                    <Clock size={12} />
+                    <span>Created {formatDate(new Date(task.createdAt), "MMM d, h:mm a")}</span>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleClose}
@@ -459,12 +467,6 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                     {!isDeleting && <Trash2 size={14} />}
                     <span>{confirmDelete ? 'Confirm Delete?' : 'Delete Task'}</span>
                   </Button>
-                )}
-                {isEdit && task?.createdAt && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-text-muted ml-2">
-                    <Clock size={12} />
-                    <span>Created {formatDate(new Date(task.createdAt), "MMM d, h:mm a")}</span>
-                  </div>
                 )}
               </div>
               <div className="flex items-center gap-3">
