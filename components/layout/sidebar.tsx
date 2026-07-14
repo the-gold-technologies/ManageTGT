@@ -263,7 +263,7 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                           </AnimatePresence>
                           {/* Tooltip when collapsed for root items */}
                           {collapsed && !section.label && (
-                            <div className="absolute left-full ml-2 px-2 py-1 bg-bg-secondary text-text text-xs rounded-md border border-border whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-card">
+                            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[100]">
                               {item.label}
                             </div>
                           )}
