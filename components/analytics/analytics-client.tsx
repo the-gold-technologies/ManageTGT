@@ -28,7 +28,7 @@ interface AnalyticsClientProps {
   monthlyData: Array<{ month: string; revenue: number; expenses: number; profit: number }>
   serviceData: Array<{ name: string; value: number }>
   projects: Array<{ status: string; service_type: string; quoted_price: number; createdAt: string }>
-  tasks: Array<{ status: string; createdAt: string; completion_date: string | null; assigned_to: string | null }>
+  tasks: Array<{ status: string; createdAt: string; completion_date: string | null }>
   prospects: Array<{ proposal_submitted: boolean; client_converted: boolean; createdAt: string }>
 }
 

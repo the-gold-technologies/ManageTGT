@@ -43,7 +43,7 @@ export async function getDashboardData() {
     allowedModules.includes('targets') ? prisma.salesTarget.findMany({ where: { month: new Date().getMonth() + 1, year: new Date().getFullYear() } }) : Promise.resolve([]),
     allowedModules.includes('targets') ? prisma.salesClosure.findMany({ select: { target_id: true, closed_at: true } }) : Promise.resolve([]),
     userRole !== 'admin' ? prisma.task.findMany({
-      where: { assigned_to: session?.user?.id || '' },
+      where: { assigned_member_ids: { has: session?.user?.id || '' } },
       include: { project: { select: { name: true } } },
       orderBy: { deadline: 'asc' }
     }) : Promise.resolve([]),

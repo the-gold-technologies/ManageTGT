@@ -63,14 +63,18 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
     })
 
     // Notify assignee if someone else changed the status
-    if (result.assigned_to && result.assigned_to !== session?.user?.id) {
-      await createNotification({
-        user_id: result.assigned_to,
-        type: 'task_status',
-        title: 'Task Status Updated',
-        message: `Status changed to ${status} for task: ${result.title}`,
-        link: '/tasks'
-      })
+    if (result.assigned_member_ids?.length > 0) {
+      for (const assigneeId of result.assigned_member_ids) {
+        if (assigneeId !== session?.user?.id) {
+          await createNotification({
+            user_id: assigneeId,
+            type: 'task_status',
+            title: 'Task Status Updated',
+            message: `Status changed to ${status} for task: ${result.title}`,
+            link: '/tasks'
+          })
+        }
+      }
     }
     // Notify assigner if someone else changed the status
     if (result.assigned_by && result.assigned_by !== session?.user?.id) {
@@ -110,7 +114,7 @@ import { auth } from '@/auth'
 export async function createTask(data: any) {
   try {
     const session = await auth()
-    const { project_id, assigned_to, assigned_by, ...restData } = data
+    const { project_id, assigned_member_ids, assigned_by, ...restData } = data
     const assignerId = session?.user?.id || assigned_by
 
     const result = await prisma.$transaction(async (tx) => {
@@ -118,7 +122,7 @@ export async function createTask(data: any) {
         data: {
           ...restData,
           ...(project_id ? { project: { connect: { id: project_id } } } : {}),
-          ...(assigned_to ? { assignee: { connect: { id: assigned_to } } } : {}),
+          ...(assigned_member_ids && assigned_member_ids.length > 0 ? { assigned_member_ids } : {}),
           ...(assignerId ? { assigner: { connect: { id: assignerId } } } : {})
         }
       })
@@ -136,14 +140,18 @@ export async function createTask(data: any) {
     })
     
     // Notify the assignee
-    if (result.assigned_to && result.assigned_to !== session?.user?.id) {
-      await createNotification({
-        user_id: result.assigned_to,
-        type: 'task_assigned',
-        title: 'New Task Assigned',
-        message: `You have been assigned to task: ${result.title}`,
-        link: '/tasks'
-      })
+    if (result.assigned_member_ids?.length > 0) {
+      for (const assigneeId of result.assigned_member_ids) {
+        if (assigneeId !== session?.user?.id) {
+          await createNotification({
+            user_id: assigneeId,
+            type: 'task_assigned',
+            title: 'New Task Assigned',
+            message: `You have been assigned to task: ${result.title}`,
+            link: '/tasks'
+          })
+        }
+      }
     }
 
     revalidatePath('/', 'layout')
@@ -157,7 +165,7 @@ export async function createTask(data: any) {
 export async function updateTask(id: string, data: any) {
   try {
     const session = await auth()
-    const { project_id, assigned_to, assigned_by, ...restData } = data
+    const { project_id, assigned_member_ids, assigned_by, ...restData } = data
 
     const result = await prisma.$transaction(async (tx) => {
       const task = await tx.task.update({
@@ -165,7 +173,7 @@ export async function updateTask(id: string, data: any) {
         data: {
           ...restData,
           ...(project_id !== undefined ? { project: project_id ? { connect: { id: project_id } } : { disconnect: true } } : {}),
-          ...(assigned_to !== undefined ? { assignee: assigned_to ? { connect: { id: assigned_to } } : { disconnect: true } } : {}),
+          ...(assigned_member_ids !== undefined ? { assigned_member_ids } : {}),
           ...(assigned_by !== undefined ? { assigner: assigned_by ? { connect: { id: assigned_by } } : { disconnect: true } } : {})
         }
       })

@@ -9,7 +9,7 @@ export async function getAnalyticsData() {
     prisma.invoice.findMany({ select: { amount_received: true, final_billing: true, createdAt: true, status: true } }),
     prisma.expense.findMany({ select: { amount: true, createdAt: true } }),
     prisma.project.findMany({ select: { status: true, service_type: true, quoted_price: true, createdAt: true } }),
-    prisma.task.findMany({ select: { status: true, createdAt: true, completion_date: true, assigned_to: true } }),
+    prisma.task.findMany({ select: { status: true, createdAt: true, completion_date: true } }),
     prisma.prospect.findMany({ select: { proposal_submitted: true, client_converted: true, createdAt: true } }),
   ])
 

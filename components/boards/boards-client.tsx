@@ -66,7 +66,7 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
     queryKey: ['profiles'],
     queryFn: async () => {
       const data = await getTeamMembers()
-      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role'>[]
+      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'>[]
     }
   })
 
@@ -75,7 +75,7 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
       return updateTaskAction(id, { description })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
     }
   })
 
@@ -91,10 +91,10 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
     roleFilteredTasks = tasksData.filter(t =>
       teamLeadProjectIds.includes(t.project_id || '') ||
       t.assigned_by === userId ||
-      t.assigned_to === userId
+      t.assigned_member_ids?.includes(userId || '')
     )
   } else if (userRole === 'team_member') {
-    roleFilteredTasks = tasksData.filter(t => t.assigned_to === userId)
+    roleFilteredTasks = tasksData.filter(t => t.assigned_member_ids?.includes(userId || ''))
   }
 
   const updateStatus = useMutation({
