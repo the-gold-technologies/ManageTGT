@@ -23,7 +23,7 @@ import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter
 interface TasksClientProps {
   initialTasks: Task[]
   projects: Pick<Project, 'id' | 'name' | 'project_code'>[]
-  profiles: Pick<Profile, 'id' | 'full_name' | 'role'>[]
+  profiles: Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'>[]
   userRole?: string
   userId?: string
 }
@@ -74,7 +74,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     queryKey: ['profiles'],
     queryFn: async () => {
       const data = await getTeamMembers()
-      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role'>[]
+      return data as unknown as Pick<Profile, 'id' | 'full_name' | 'role' | 'avatar_url'>[]
     }
   })
 
@@ -89,7 +89,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     .filter(p => (p as Project).team_lead_id === userId)
     .map(p => p.id)
 
-  const roleFilteredTasks = allTasks.filter(t => t.assigned_member_ids?.includes(userId))
+  const roleFilteredTasks = allTasks.filter(t => t.assigned_member_ids?.includes(userId || ''))
 
   const projects = allProjects.filter(p => ['pending', 'in_progress', 'on_hold'].includes((p as Project).status || ''))
 
@@ -177,7 +177,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
   const mapExportData = (t: Task) => [
     t.title,
     t.project?.name || 'N/A',
-    t.assignee?.full_name || 'Unassigned',
+    t.assigned_member_ids && t.assigned_member_ids.length > 0 ? profiles.filter(p => t.assigned_member_ids?.includes(p.id)).map(p => p.full_name).join(', ') : 'Unassigned',
     t.status,
     t.priority,
     t.deadline ? new Date(t.deadline).toLocaleDateString() : 'N/A',
