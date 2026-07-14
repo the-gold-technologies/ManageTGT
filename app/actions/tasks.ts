@@ -71,7 +71,7 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
             type: 'task_status',
             title: 'Task Status Updated',
             message: `Status changed to ${status} for task: ${result.title}`,
-            link: '/tasks'
+            link: '/my-tasks'
           })
         }
       }
@@ -83,7 +83,7 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
         type: 'task_status',
         title: 'Task Status Updated',
         message: `Status changed to ${status} for task: ${result.title}`,
-        link: '/tasks'
+        link: '/my-tasks'
       })
     }
 
@@ -101,7 +101,7 @@ export async function deleteTask(id: string) {
       where: { id }
     })
     
-    revalidatePath('/tasks')
+    revalidatePath('/my-tasks')
     return { success: true }
   } catch (error) {
     console.error('Error deleting task:', error)
@@ -148,7 +148,7 @@ export async function createTask(data: any) {
             type: 'task_assigned',
             title: 'New Task Assigned',
             message: `You have been assigned to task: ${result.title}`,
-            link: '/tasks'
+            link: '/my-tasks'
           })
         }
       }
@@ -208,7 +208,7 @@ export async function addTaskFile(data: any) {
         file_size: data.file_size
       }
     })
-    revalidatePath('/tasks')
+    revalidatePath('/my-tasks')
     return { success: true, file }
   } catch (error) {
     console.error('Error adding task file:', error)
@@ -221,7 +221,7 @@ export async function deleteTaskFile(id: string) {
     await prisma.taskFile.delete({
       where: { id }
     })
-    revalidatePath('/tasks')
+    revalidatePath('/my-tasks')
     return { success: true }
   } catch (error) {
     console.error('Error deleting task file:', error)
