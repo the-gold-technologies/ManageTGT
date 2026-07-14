@@ -300,3 +300,24 @@ export async function deleteSubtask(id: string) {
     return { success: false, error: 'Failed to delete subtask' }
   }
 }
+
+export async function addTaskComment(taskId: string, comment: string) {
+  try {
+    const session = await auth()
+    
+    await prisma.activityLog.create({
+      data: {
+        task_id: taskId,
+        action: 'commented',
+        performed_by: session?.user?.id || null,
+        metadata: { comment }
+      }
+    })
+    
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    console.error('Error adding task comment:', error)
+    return { success: false, error: 'Failed to add comment' }
+  }
+}
