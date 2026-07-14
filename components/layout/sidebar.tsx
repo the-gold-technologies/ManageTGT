@@ -179,8 +179,8 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
               
               {/* Floating Menu for Collapsed Sections */}
               {collapsed && section.label && (
-                <div className="absolute left-full top-0 ml-2 py-2 w-48 bg-bg-secondary border border-border rounded-xl shadow-card opacity-0 invisible group-hover/section:opacity-100 group-hover/section:visible transition-all z-50 pointer-events-none group-hover/section:pointer-events-auto">
-                  <div className="px-4 pb-2 mb-2 border-b border-border text-sm font-bold text-text">
+                <div className="absolute left-full top-0 py-2 w-48 bg-black dark:bg-white text-white dark:text-black rounded-xl shadow-2xl opacity-0 invisible group-hover/section:opacity-100 group-hover/section:visible transition-all z-[100] pointer-events-none group-hover/section:pointer-events-auto">
+                  <div className="px-4 pb-2 mb-2 border-b border-white/10 dark:border-black/10 text-sm font-bold">
                     {section.label}
                   </div>
                   <div className="px-2 space-y-1">
@@ -193,7 +193,9 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                           prefetch={true}
                           className={cn(
                             'flex items-center h-9 px-3 gap-3 rounded-lg text-sm font-medium transition-colors',
-                            isActive ? 'bg-primary/10 text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-bg-tertiary'
+                            isActive 
+                              ? 'bg-white/20 dark:bg-black/10 text-white dark:text-black' 
+                              : 'text-white/70 dark:text-black/70 hover:text-white dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/5'
                           )}
                         >
                           <item.icon size={16} />
@@ -263,7 +265,7 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                           </AnimatePresence>
                           {/* Tooltip when collapsed for root items */}
                           {collapsed && !section.label && (
-                            <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[100]">
+                            <div className="absolute left-full px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[100]">
                               {item.label}
                             </div>
                           )}
