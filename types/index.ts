@@ -16,6 +16,7 @@ export interface Profile {
   updatedAt: string
 }
 
+
 export interface Client {
   id: string
   name: string
