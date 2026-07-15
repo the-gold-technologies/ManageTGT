@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "ProjectStatus" AS ENUM ('pending', 'in_progress', 'on_hold', 'delivered', 'completed');
 
 -- CreateEnum
