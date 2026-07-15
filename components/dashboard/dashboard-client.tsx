@@ -204,6 +204,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
     </Card>
   )
 
+  
   // Extract pendingTasksCard into a variable to reuse
   const pendingTasksCard = data.pendingTasks && data.pendingTasks.length > 0 && (
     <Card title="Your Pending Tasks" className="w-full" padding={true}>
