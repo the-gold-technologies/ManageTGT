@@ -33,7 +33,7 @@ export default async function DashboardLayout({
   const roleId = dbUser?.roleId
   const roleName = userProfile.role
 
-  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks']
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'calendar']
 
   let allowedModules: string[] = [...DEFAULT_MODULES]
   if (roleId) {
@@ -44,7 +44,7 @@ export default async function DashboardLayout({
   }
   // Admin always has all access
   if (roleName === 'admin') {
-    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings']
+    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings', 'calendar']
   }
 
   return (

@@ -23,7 +23,8 @@ import {
   PanelLeft,
   ChevronDown,
   Clock,
-  KanbanSquare
+  KanbanSquare,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +48,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { href: '/', icon: LayoutDashboard, label: 'Dashboard', moduleKey: 'dashboard' },
+      { href: '/calendar', icon: CalendarDays, label: 'Calendar', moduleKey: 'calendar' },
       { href: '/clients', icon: Users, label: 'Clients', moduleKey: 'clients' },
       { href: '/projects', icon: FolderKanban, label: 'Projects', moduleKey: 'projects' },
       { href: '/boards', icon: KanbanSquare, label: 'Boards', moduleKey: 'tasks' },

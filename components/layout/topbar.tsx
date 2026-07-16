@@ -43,6 +43,7 @@ export default function TopBar({ user }: TopBarProps) {
   const getBreadcrumbs = (path: string) => {
     if (path === '/') return []
     if (path.startsWith('/boards')) return ['Dashboard', 'Boards']
+    if (path.startsWith('/calendar')) return ['Dashboard', 'Calendar']
     if (path.startsWith('/clients')) return ['Dashboard', 'Clients']
     if (path.startsWith('/projects')) return ['Dashboard', 'Projects']
     if (path.startsWith('/my-tasks')) return ['Dashboard', 'My Tasks']

@@ -399,6 +399,39 @@ model PasswordResetToken {
   @@index([token])
 }
 
+// --- Calendar Models ---
+
+enum CalendarEventType {
+  meeting
+  reminder
+  milestone
+  leave
+  custom
+}
+
+model CalendarEvent {
+  id           String            @id @default(cuid())
+  type         CalendarEventType @default(custom)
+  title        String
+  description  String?           @db.Text
+  start_date   DateTime
+  end_date     DateTime?
+  all_day      Boolean           @default(false)
+  color        String?
+  attendee_ids String[]          @default([])
+  created_by   String?
+  is_cancelled Boolean           @default(false)
+  // Optional link back to a source entity
+  source_type  String?           // 'task' | 'project' | 'invoice' | 'prospect'
+  source_id    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([start_date])
+  @@index([created_by])
+}
+
 model Prospect {
   id                       String    @id @default(cuid())
   name                     String
