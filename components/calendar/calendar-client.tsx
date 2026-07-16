@@ -279,7 +279,7 @@ export default function CalendarClient({
           </span>
           <button
             onClick={() => { setEditEvent(null); setDefaultModalDate(currentDate); setModalOpen(true) }}
-            className="flex items-center gap-2 h-9 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-hover shadow-glow-sm transition-colors"
+            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-hover shadow-glow-sm transition-colors"
           >
             <Plus size={15} />
             New Event
