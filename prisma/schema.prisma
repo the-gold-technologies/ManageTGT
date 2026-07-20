@@ -301,6 +301,7 @@ model Invoice {
   notes           String?       @db.Text
   created_by      String?
   file_urls       String[]      @default([])
+  gst_applied     Boolean       @default(false)
   payments        InvoicePayment[]
 
   createdAt DateTime @default(now())

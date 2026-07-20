@@ -62,6 +62,7 @@ export async function createInvoice(formData: FormData) {
     const payment_mode = formData.get('payment_mode') as any || null
     const status = formData.get('status') as any || 'pending'
     const notes = formData.get('notes') as string || null
+    const gst_applied = formData.get('gst_applied') === 'true'
 
     const files = formData.getAll('files') as File[]
     const file_urls: string[] = []
@@ -107,13 +108,14 @@ export async function createInvoice(formData: FormData) {
         status,
         notes,
         file_urls,
+        gst_applied,
         ...(project_id ? { project: { connect: { id: project_id } } } : {}),
         ...(client_id ? { client: { connect: { id: client_id } } } : {}),
         created_by: session?.user?.id
       }
     })
 
-    revalidatePath('/invoices')
+    revalidatePath('/finance/revenue')
     return { success: true, invoice }
   } catch (error) {
     console.error('Error creating invoice:', error)
@@ -135,6 +137,7 @@ export async function updateInvoice(id: string, formData: FormData) {
     const payment_mode = formData.get('payment_mode') as any || null
     const status = formData.get('status') as any || 'pending'
     const notes = formData.get('notes') as string || null
+    const gst_applied = formData.get('gst_applied') === 'true'
 
     const files = formData.getAll('files') as File[]
     const file_urls: string[] = []
@@ -186,12 +189,13 @@ export async function updateInvoice(id: string, formData: FormData) {
         status,
         notes,
         file_urls,
+        gst_applied,
         project: project_id ? { connect: { id: project_id } } : { disconnect: true },
         client: client_id ? { connect: { id: client_id } } : { disconnect: true }
       }
     })
 
-    revalidatePath('/invoices')
+    revalidatePath('/finance/revenue')
     return { success: true, invoice }
   } catch (error) {
     console.error('Error updating invoice:', error)
@@ -402,7 +406,7 @@ export async function recordInvoicePayment(invoiceId: string, data: { amount: nu
       })
     }
 
-    revalidatePath('/finance/invoices')
+    revalidatePath('/finance/revenue')
     revalidatePath('/projects')
     return { success: true }
   } catch (error) {

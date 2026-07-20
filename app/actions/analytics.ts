@@ -6,7 +6,7 @@ export async function getAnalyticsData() {
   const now = new Date()
 
   const [invoices, expenses, projects, tasks, prospects] = await Promise.all([
-    prisma.invoice.findMany({ select: { amount_received: true, final_billing: true, createdAt: true, status: true } }),
+    prisma.invoice.findMany({ select: { amount_received: true, final_billing: true, createdAt: true, status: true, gst_applied: true } }),
     prisma.expense.findMany({ select: { amount: true, createdAt: true } }),
     prisma.project.findMany({ select: { status: true, service_type: true, quoted_price: true, createdAt: true } }),
     prisma.task.findMany({ select: { status: true, createdAt: true, completion_date: true } }),
@@ -19,7 +19,7 @@ export async function getAnalyticsData() {
     const revenue = (invoices ?? []).filter(inv => {
       const id = new Date(inv.createdAt)
       return id.getMonth() === d.getMonth() && id.getFullYear() === d.getFullYear()
-    }).reduce((s, inv) => s + (inv.amount_received || 0), 0)
+    }).reduce((s, inv) => s + (inv.gst_applied ? (inv.amount_received || 0) / 1.18 : (inv.amount_received || 0)), 0)
     const expense = (expenses ?? []).filter(exp => {
       const ed = new Date(exp.createdAt)
       return ed.getMonth() === d.getMonth() && ed.getFullYear() === d.getFullYear()

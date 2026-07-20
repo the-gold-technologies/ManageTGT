@@ -6,13 +6,16 @@ import { calculateProfit, calculateMargin } from '@/lib/utils'
 export async function getProfitabilityData() {
   const [projects, invoices, expenses] = await Promise.all([
     prisma.project.findMany({ select: { id: true, project_code: true, name: true, client: { select: { name: true } } } }),
-    prisma.invoice.findMany({ select: { project_id: true, amount_received: true } }),
+    prisma.invoice.findMany({ select: { project_id: true, amount_received: true, gst_applied: true } }),
     prisma.expense.findMany({ select: { project_id: true, amount: true } }),
   ])
 
   const generalRevenue = (invoices ?? [])
     .filter(i => !i.project_id)
-    .reduce((s, i) => s + (i.amount_received || 0), 0)
+    .reduce((s, i) => {
+      const val = i.amount_received || 0
+      return s + (i.gst_applied ? val / 1.18 : val)
+    }, 0)
   const generalExpense = (expenses ?? [])
     .filter(e => !e.project_id)
     .reduce((s, e) => s + (e.amount || 0), 0)
@@ -20,7 +23,10 @@ export async function getProfitabilityData() {
   const profitData = (projects ?? []).map(project => {
     const revenue = (invoices ?? [])
       .filter(i => i.project_id === project.id)
-      .reduce((s, i) => s + (i.amount_received || 0), 0)
+      .reduce((s, i) => {
+        const val = i.amount_received || 0
+        return s + (i.gst_applied ? val / 1.18 : val)
+      }, 0)
     const expense = (expenses ?? [])
       .filter(e => e.project_id === project.id)
       .reduce((s, e) => s + (e.amount || 0), 0)

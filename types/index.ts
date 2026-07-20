@@ -153,6 +153,7 @@ export interface Invoice {
   notes?: string
   created_by?: string
   file_urls?: string[]
+  gst_applied?: boolean
   createdAt: string
   updatedAt: string
   // Joined

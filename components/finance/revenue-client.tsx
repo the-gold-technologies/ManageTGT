@@ -76,8 +76,8 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
   const activeClients = clientsData ?? clients
 
 
-  const totalBilled = inv.reduce((s, i) => s + (i.final_billing || 0), 0)
-  const totalReceived = inv.reduce((s, i) => s + (i.amount_received || 0), 0)
+  const totalBilled = inv.reduce((s, i) => s + (i.gst_applied ? (i.final_billing || 0) / 1.18 : (i.final_billing || 0)), 0)
+  const totalReceived = inv.reduce((s, i) => s + (i.gst_applied ? (i.amount_received || 0) / 1.18 : (i.amount_received || 0)), 0)
   const totalPending = totalBilled - totalReceived
   const overdueCount = inv.filter(i => i.status === 'overdue').length
 
@@ -200,7 +200,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
             <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
-                  {['Invoice #', 'Project', 'Client', 'Billed', 'Received', 'Pending', 'Due Date', 'Status'].map(h => (
+                  {['Invoice #', 'Project', 'Client', 'Billed', 'Received', 'GST (18%)', 'Net Revenue', 'Pending', 'Due Date', 'Status'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -209,11 +209,30 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
                 {paginated.map((inv) => (
                   <tr key={inv.id} onClick={() => { setEditingInvoice(inv); setModalOpen(true) }}
                     className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer">
-                    <td className="px-4 py-3 font-medium text-text">{inv.invoice_number}</td>
+                    <td className="px-4 py-3 font-medium text-text">
+                      <div className="flex items-center gap-1.5">
+                        <span>{inv.invoice_number}</span>
+                        {inv.gst_applied && (
+                          <Badge variant="info" className="text-[9px] px-1 py-0 scale-90 uppercase">
+                            GST
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-text-secondary">{inv.project?.name ?? '—'}</td>
                     <td className="px-4 py-3 text-text-secondary">{inv.client?.name ?? '—'}</td>
                     <td className="px-4 py-3 font-medium text-text">{formatCurrency(inv.final_billing)}</td>
                     <td className="px-4 py-3 text-success">{formatCurrency(inv.amount_received)}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      {inv.gst_applied ? (
+                        <span className="text-danger font-medium">-{formatCurrency(inv.amount_received - (inv.amount_received / 1.18))}</span>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-primary font-semibold">
+                      {formatCurrency(inv.gst_applied ? inv.amount_received / 1.18 : inv.amount_received)}
+                    </td>
                     <td className="px-4 py-3 text-warning">{formatCurrency(inv.final_billing - inv.amount_received)}</td>
                     <td className="px-4 py-3 text-text-secondary">{formatDate(inv.due_date)}</td>
                     <td className="px-4 py-3">

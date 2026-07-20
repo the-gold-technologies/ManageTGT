@@ -25,6 +25,7 @@ const schema = z.object({
   payment_mode: z.string().optional(),
   status: z.enum(['paid', 'partially_paid', 'pending', 'overdue']),
   notes: z.string().optional(),
+  gst_applied: z.boolean().default(false),
 })
 
 type FormInput = z.input<typeof schema>
@@ -74,6 +75,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       toast.success('Payment recorded')
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['profitability'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       setShowPaymentForm(false)
       setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
       // Update the form's amount_received so the smart status picks it up
@@ -161,6 +163,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         payment_mode: invoice.payment_mode ?? '',
         status: invoice.status,
         notes: invoice.notes ?? '',
+        gst_applied: invoice.gst_applied ?? false,
       } : {
         invoice_number: '',
         project_id: '',
@@ -173,7 +176,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         payment_date: '',
         payment_mode: '',
         status: 'pending',
-        notes: ''
+        notes: '',
+        gst_applied: false,
       })
       setConfirmDelete(false)
       setShowFullForm(!invoice)
@@ -225,6 +229,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       formData.append('quoted_value', data.quoted_value.toString())
       formData.append('final_billing', data.final_billing.toString())
       formData.append('amount_received', data.amount_received.toString())
+      formData.append('gst_applied', String(data.gst_applied))
 
       const invDate = data.invoice_date ? new Date(data.invoice_date).toISOString() : new Date().toISOString()
       formData.append('invoice_date', invDate)
@@ -314,6 +319,18 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                         <input {...register(name as keyof FormData)} type="number" min="0" placeholder="0" className={inputClass} readOnly={isEdit && name === 'amount_received'} disabled={isEdit && name === 'amount_received'} />
                       </div>
                     ))}
+                  </div>
+
+                  <div className="flex items-center gap-2.5 py-2 pl-1">
+                    <input
+                      type="checkbox"
+                      id="gst_applied"
+                      {...register('gst_applied')}
+                      className="w-4 h-4 rounded border-border text-primary accent-primary focus:ring-primary/20 bg-bg transition-all cursor-pointer"
+                    />
+                    <label htmlFor="gst_applied" className="text-[11px] font-normal text-text-secondary cursor-pointer select-none">
+                      GST Invoice (Subtracts 18% GST from profitability revenue calculations)
+                    </label>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
