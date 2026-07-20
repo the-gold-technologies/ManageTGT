@@ -29,6 +29,7 @@ export interface Client {
   pan_number?: string
   notes?: string
   created_by?: string
+  document_urls?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -233,6 +234,9 @@ export interface Prospect {
   proposal_submitted: boolean
   proposal_submission_date?: string | null
   client_converted: boolean
+  services?: string[]
+  comments?: string | null
+  document_urls?: string[]
   createdAt: string
   updatedAt: string
 }

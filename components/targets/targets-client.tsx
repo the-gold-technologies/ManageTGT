@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Target, CheckCircle2, XCircle, Calendar, CalendarCheck, CalendarX, Plus, X, Trash2 } from 'lucide-react'
+import { Target, CheckCircle2, XCircle, Calendar, CalendarCheck, CalendarX, Plus, X, Trash2, TrendingUp } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { useForm } from 'react-hook-form'
@@ -146,6 +146,13 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
   const totalMissedTarget = Math.max(0, totalSetTarget - totalTargetAchieved)
   const monthlyMissedTarget = Math.max(0, monthlySetTarget - monthlyTargetAchieved)
 
+  // Revenue calculations
+  const totalTargetRevenue = targetsList.reduce((acc, t) => acc + (t.target_count * (t.average_cost || 0)), 0)
+  const monthlyTargetRevenue = targetsList.filter(t => t.month === selectedMonth).reduce((acc, t) => acc + (t.target_count * (t.average_cost || 0)), 0)
+
+  const totalAchievedRevenue = targetsList.reduce((acc, t) => acc + (closuresStats[t.id]?.revenue || 0), 0)
+  const monthlyAchievedRevenue = targetsList.filter(t => t.month === selectedMonth).reduce((acc, t) => acc + (closuresStats[t.id]?.revenue || 0), 0)
+
   const displayedTargets = selectedMonth === 0 ? targetsList : targetsList.filter(t => t.month === selectedMonth)
 
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
@@ -170,18 +177,128 @@ export default function TargetsClient({ initialTargets, initialClosures, profile
       </div>
 
       {/* Analytics Stats */}
+      {/* Analytics Stats */}
       {targetsLoading || closuresLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 animate-pulse">
-          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-24 bg-bg-secondary border border-border rounded-xl"></div>)}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-bg-secondary border border-border rounded-xl"></div>)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          <StatCard title="Total Target" value={String(totalSetTarget)} icon={Target} iconColor="bg-primary/10 text-primary" />
-          <StatCard title="Monthly Target" value={String(monthlySetTarget)} icon={Calendar} iconColor="bg-info/10 text-info" />
-          <StatCard title="Total Achieved" value={String(totalTargetAchieved)} icon={CheckCircle2} iconColor="bg-success/10 text-success" />
-          <StatCard title="Monthly Achieved" value={String(monthlyTargetAchieved)} icon={CalendarCheck} iconColor="bg-success/10 text-success" />
-          <StatCard title="Total Missed" value={String(totalMissedTarget)} icon={XCircle} iconColor="bg-danger/10 text-danger" />
-          <StatCard title="Monthly Missed" value={String(monthlyMissedTarget)} icon={CalendarX} iconColor="bg-danger/10 text-danger" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Goal / Targets */}
+          <div className="bg-bg-secondary border border-border rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-text-secondary">Sales Goal (Targets)</span>
+                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Target size={14} />
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-text">₹{totalTargetRevenue.toLocaleString('en-IN')}</p>
+                <p className="text-[11px] text-text-muted mt-0.5">{totalSetTarget} Target Deals (Total)</p>
+              </div>
+            </div>
+            {selectedMonth > 0 && (
+              <div className="border-t border-border mt-3 pt-2.5 flex justify-between text-[11px] text-text-secondary">
+                <div>
+                  <p className="text-text-muted">Monthly Target</p>
+                  <p className="font-semibold text-text mt-0.5">₹{monthlyTargetRevenue.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-text-muted">Monthly Deals</p>
+                  <p className="font-semibold text-text mt-0.5">{monthlySetTarget} Deals</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Revenue Achieved */}
+          <div className="bg-bg-secondary border border-border rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-text-secondary">Revenue Achieved</span>
+                <div className="w-7 h-7 rounded-lg bg-success/10 text-success flex items-center justify-center">
+                  <CheckCircle2 size={14} />
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-success">₹{totalAchievedRevenue.toLocaleString('en-IN')}</p>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  {totalTargetAchieved} Deals closed (Total)
+                </p>
+              </div>
+            </div>
+            {selectedMonth > 0 && (
+              <div className="border-t border-border mt-3 pt-2.5 flex justify-between text-[11px] text-text-secondary">
+                <div>
+                  <p className="text-text-muted">Monthly Achieved</p>
+                  <p className="font-semibold text-success mt-0.5">₹{monthlyAchievedRevenue.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-text-muted">Monthly Deals</p>
+                  <p className="font-semibold text-text mt-0.5">{monthlyTargetAchieved} Deals</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Missed / Remaining */}
+          <div className="bg-bg-secondary border border-border rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-text-secondary">Missed / Remaining</span>
+                <div className="w-7 h-7 rounded-lg bg-danger/10 text-danger flex items-center justify-center">
+                  <XCircle size={14} />
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-danger">₹{Math.max(0, totalTargetRevenue - totalAchievedRevenue).toLocaleString('en-IN')}</p>
+                <p className="text-[11px] text-text-muted mt-0.5">{totalMissedTarget} Deals missed/remaining</p>
+              </div>
+            </div>
+            {selectedMonth > 0 && (
+              <div className="border-t border-border mt-3 pt-2.5 flex justify-between text-[11px] text-text-secondary">
+                <div>
+                  <p className="text-text-muted">Monthly Missed</p>
+                  <p className="font-semibold text-danger mt-0.5">₹{Math.max(0, monthlyTargetRevenue - monthlyAchievedRevenue).toLocaleString('en-IN')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-text-muted">Monthly Deals</p>
+                  <p className="font-semibold text-text mt-0.5">{monthlyMissedTarget} Deals</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card 4: Sales Performance (Win Rate) */}
+          <div className="bg-bg-secondary border border-border rounded-xl p-4 relative overflow-hidden flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-text-secondary">Sales Performance</span>
+                <div className="w-7 h-7 rounded-lg bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
+                  <TrendingUp size={14} />
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-text">{totalSetTarget > 0 ? Math.round((totalTargetAchieved / totalSetTarget) * 100) : 0}%</p>
+                <p className="text-[11px] text-text-muted mt-0.5">{totalTargetAchieved} / {totalSetTarget} Deals Closed (Total)</p>
+              </div>
+            </div>
+            {selectedMonth > 0 && (
+              <div className="border-t border-border mt-3 pt-2.5 flex justify-between text-[11px] text-text-secondary">
+                <div>
+                  <p className="text-text-muted">Monthly Rate</p>
+                  <p className="font-semibold text-text mt-0.5">
+                    {monthlySetTarget > 0 ? Math.round((monthlyTargetAchieved / monthlySetTarget) * 100) : 0}%
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-text-muted">Monthly Closed</p>
+                  <p className="font-semibold text-text mt-0.5">{monthlyTargetAchieved} / {monthlySetTarget} Deals</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

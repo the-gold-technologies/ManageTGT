@@ -118,6 +118,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
     },
   })
 
@@ -592,6 +593,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                             qc.invalidateQueries({ queryKey: ['projects'] })
                             qc.invalidateQueries({ queryKey: ['dashboard'] })
                             qc.invalidateQueries({ queryKey: ['invoices'] })
+                            qc.invalidateQueries({ queryKey: ['profitability'] })
                             setPaymentProject(null)
                           } else {
                             toast.error(res.error || 'Failed to generate invoice')

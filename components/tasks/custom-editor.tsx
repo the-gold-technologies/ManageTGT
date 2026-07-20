@@ -34,7 +34,7 @@ export default function CustomEditor({ value, onChange, disabled }: { value: str
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-strong:text-text focus:outline-none min-h-[150px] p-3 bg-bg-secondary text-text',
+        class: 'prose prose-sm dark:prose-invert prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-strong:text-text focus:outline-none min-h-[150px] p-3 bg-bg text-text',
       },
     },
   })
@@ -74,7 +74,7 @@ export default function CustomEditor({ value, onChange, disabled }: { value: str
   }
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden flex flex-col bg-bg-secondary">
+    <div className="border border-border rounded-lg overflow-hidden flex flex-col bg-bg">
       <div className="flex items-center gap-1 p-2 border-b border-border bg-bg-tertiary flex-wrap min-h-[44px]">
         {isSettingLink ? (
           <div className="flex items-center gap-2 w-full animate-in fade-in zoom-in-95 duration-200">

@@ -13,7 +13,7 @@ const ALLOWED_TYPES = [
   'image/webp',
   'image/gif',
 ]
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
 export async function uploadFileAction(formData: FormData) {
   const file = formData.get('file') as File | null
@@ -25,7 +25,7 @@ export async function uploadFileAction(formData: FormData) {
 
   // Server-side validation
   if (file.size > MAX_FILE_SIZE) {
-    return { success: false, error: 'File too large. Maximum size is 10MB.' }
+    return { success: false, error: 'File too large. Maximum size is 50MB.' }
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
     return { success: false, error: 'File type not allowed. Use PDF, Word, Excel, or image files.' }
@@ -81,7 +81,7 @@ export async function uploadMultipleFilesAction(formData: FormData) {
 
       // Server-side validation per file
       if (file.size > MAX_FILE_SIZE) {
-        errors.push(`${file.name}: too large (max 10MB)`)
+        errors.push(`${file.name}: too large (max 50MB)`)
         continue
       }
       if (!ALLOWED_TYPES.includes(file.type)) {

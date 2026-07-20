@@ -73,6 +73,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
     if (res.success) {
       toast.success('Payment recorded')
       qc.invalidateQueries({ queryKey: ['invoices'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       setShowPaymentForm(false)
       setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
       // Update the form's amount_received so the smart status picks it up
@@ -198,6 +199,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       onClose()
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred.')
@@ -248,6 +250,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       onClose()
     } catch (err: any) {
       toast.error(isEdit ? 'Failed to update invoice' : 'Failed to create invoice')

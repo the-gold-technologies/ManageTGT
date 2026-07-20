@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Trash2, Loader2, Users, FileText, CheckCircle2, TrendingUp, X } from 'lucide-react'
+import { Plus, Search, Trash2, Loader2, Users, FileText, CheckCircle2, TrendingUp, X, ChevronDown, Check, UploadCloud, Paperclip } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +15,8 @@ import { formatDate } from '@/lib/utils'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { getProspects, createProspect, updateProspect, deleteProspect } from '@/app/actions/prospects'
 import { createClient, checkClientExists } from '@/app/actions/clients'
+import { getServices } from '@/app/actions/services'
+import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import type { Prospect } from '@/types'
 
 interface ProspectsClientProps {
@@ -31,6 +33,7 @@ const schema = z.object({
   proposal_submission_date: z.string().optional(),
   quote_submitted: z.coerce.number().optional(),
   client_converted: z.boolean().default(false),
+  comments: z.string().optional(),
 })
 
 type FormInput = z.input<typeof schema>
@@ -47,6 +50,17 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
+
+  const [files, setFiles] = useState<File[]>([])
+  const [existingUrls, setExistingUrls] = useState<string[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [selectedServices, setSelectedServices] = useState<string[]>([])
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+
+  const { data: services = [] } = useQuery({
+    queryKey: ['services'],
+    queryFn: getServices
+  })
 
   const { data: prospectsData, isLoading } = useQuery({
     queryKey: ['prospects'],
@@ -98,6 +112,9 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
 
   useEffect(() => {
     if (modalOpen) {
+      setFiles([])
+      setExistingUrls(editingProspect?.document_urls || [])
+      setSelectedServices(editingProspect?.services || [])
       reset(editingProspect ? {
         name: editingProspect.name,
         email: editingProspect.email,
@@ -107,26 +124,47 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
         proposal_submission_date: editingProspect.proposal_submission_date ? new Date(editingProspect.proposal_submission_date).toISOString().split('T')[0] : '',
         quote_submitted: (editingProspect as any).quote_submitted ?? undefined,
         client_converted: editingProspect.client_converted,
-      } : { name: '', email: '', mobile: '', company_name: '', proposal_submitted: false, proposal_submission_date: '', client_converted: false, quote_submitted: undefined })
+        comments: editingProspect.comments ?? '',
+      } : { name: '', email: '', mobile: '', company_name: '', proposal_submitted: false, proposal_submission_date: '', client_converted: false, quote_submitted: undefined, comments: '' })
       setConfirmDelete(false)
     }
   }, [modalOpen, editingProspect, reset])
 
   const onSubmit = async (data: FormData) => {
-    const payload = {
-      ...data,
-      mobile: data.mobile || null,
-      company_name: data.company_name || null,
-      proposal_submission_date: data.proposal_submitted && data.proposal_submission_date ? new Date(data.proposal_submission_date).toISOString() : null,
-      quote_submitted: data.proposal_submitted && data.quote_submitted ? Number(data.quote_submitted) : null,
-    }
-
-    // Detect if conversion just happened (was false, now true)
-    const wasConverted = editingProspect?.client_converted ?? false
-    const isNowConverted = data.client_converted
-    const justConverted = !wasConverted && isNowConverted
-
+    setIsUploading(true)
     try {
+      let uploadedUrls: string[] = []
+
+      if (files.length > 0) {
+        const formData = new window.FormData()
+        files.forEach(f => formData.append('files', f))
+        formData.append('folder', 'prospects')
+
+        const uploadResult = await uploadMultipleFilesAction(formData)
+        if (!uploadResult.success) {
+          toast.error('Failed to upload prospect documents')
+          console.error(uploadResult.error)
+        } else {
+          uploadedUrls = uploadResult.urls || []
+        }
+      }
+
+      const payload = {
+        ...data,
+        mobile: data.mobile || null,
+        company_name: data.company_name || null,
+        proposal_submission_date: data.proposal_submitted && data.proposal_submission_date ? new Date(data.proposal_submission_date).toISOString() : null,
+        quote_submitted: data.proposal_submitted && data.quote_submitted ? Number(data.quote_submitted) : null,
+        services: selectedServices,
+        comments: data.comments || null,
+        document_urls: [...existingUrls, ...uploadedUrls]
+      }
+
+      // Detect if conversion just happened (was false, now true)
+      const wasConverted = editingProspect?.client_converted ?? false
+      const isNowConverted = data.client_converted
+      const justConverted = !wasConverted && isNowConverted
+
       if (editingProspect) {
         await updateProspect(editingProspect.id, payload)
         toast.success('Prospect updated')
@@ -168,6 +206,8 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
     } catch (err: any) {
       toast.error('An error occurred. Please try again.')
       console.error(err)
+    } finally {
+      setIsUploading(false)
     }
   }
 
@@ -267,7 +307,7 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
             <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
-                  {['Name', 'Email / Phone', 'Company Name', 'Proposal Status', 'Proposal Date', 'Conversion Status'].map(h => (
+                  {['Name', 'Email / Phone', 'Company Name', 'Services', 'Proposal Status', 'Proposal Date', 'Comments', 'Conversion Status'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -286,6 +326,19 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                       </div>
                     </td>
                     <td className="px-4 py-3 text-text-secondary">{p.company_name || '—'}</td>
+                    <td className="px-4 py-3 text-text-secondary">
+                      <div className="flex flex-wrap gap-1 max-w-[180px]">
+                        {p.services && p.services.length > 0 ? (
+                          p.services.map((s, idx) => (
+                            <Badge key={idx} variant="muted" className="text-[10px] px-1 py-0.5 whitespace-nowrap">
+                              {s}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-text-muted">—</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant={p.proposal_submitted ? 'info' : 'muted'}>
                         {p.proposal_submitted ? 'Submitted' : 'Pending'}
@@ -293,6 +346,9 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
                       {p.proposal_submission_date ? formatDate(p.proposal_submission_date) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary max-w-[200px] truncate" title={p.comments || ''}>
+                      {p.comments || <span className="text-text-muted">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={p.client_converted ? 'success' : 'danger'}>
@@ -351,6 +407,72 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Company Name</label>
                   <input {...register('company_name')} placeholder="Acme Corp" className={inputClass} />
                 </div>
+
+                {/* Services Dropdown (Multi Select) */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Services</label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setServiceDropdownOpen(!serviceDropdownOpen)}
+                      className="w-full flex items-center justify-between px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 transition-all text-left"
+                    >
+                      <span className="truncate">
+                        {selectedServices.length === 0 ? (
+                          <span className="text-text-muted">Select services...</span>
+                        ) : (
+                          selectedServices.join(', ')
+                        )}
+                      </span>
+                      <ChevronDown size={14} className={`text-text-muted transition-transform shrink-0 ${serviceDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {serviceDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setServiceDropdownOpen(false)} />
+                        <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-20 p-1.5 space-y-0.5">
+                          {services.length > 0 ? (
+                            services.map(s => {
+                              const isChecked = selectedServices.includes(s.name)
+                              return (
+                                <div
+                                  key={s.id}
+                                  onClick={() => {
+                                    if (isChecked) {
+                                      setSelectedServices(selectedServices.filter(item => item !== s.name))
+                                    } else {
+                                      setSelectedServices([...selectedServices, s.name])
+                                    }
+                                  }}
+                                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-bg-tertiary cursor-pointer transition-colors text-xs text-text-secondary"
+                                >
+                                  <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-white' : 'border-border'} shrink-0`}>
+                                    {isChecked && <Check size={10} className="stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{s.name}</span>
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <p className="text-xs text-text-muted p-2 text-center">No services found</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comments / Remarks */}
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Comments / Remarks</label>
+                  <textarea
+                    {...register('comments')}
+                    placeholder="Enter any comments or remarks..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                  />
+                </div>
+
                 <div className="flex items-center justify-between p-3 bg-bg border border-border rounded-lg">
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-text">Proposal Submitted</span>
@@ -379,6 +501,96 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                   </div>
                   <input {...register('client_converted')} type="checkbox" className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20" />
                 </div>
+
+                {/* Document Upload Area */}
+                <div className="pt-2 border-t border-border mt-2">
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                    Documents (Optional)
+                  </label>
+
+                  {existingUrls.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {existingUrls.map((url, idx) => {
+                        const urlParts = url.split('/')
+                        const lastPart = urlParts[urlParts.length - 1]
+                        const nameParts = lastPart.split('_')
+                        const displayName = nameParts.length >= 3 ? nameParts.slice(2).join('_') : lastPart
+                        return (
+                          <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <FileText size={16} className="text-primary shrink-0" />
+                              <span className="text-sm text-text truncate" title={displayName}>{displayName}</span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View</a>
+                              <button
+                                type="button"
+                                onClick={() => setExistingUrls(existingUrls.filter(u => u !== url))}
+                                className="text-text-muted hover:text-danger"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {files.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {files.map((f, idx) => (
+                        <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <FileText size={16} className="text-text-secondary shrink-0" />
+                            <span className="text-sm text-text truncate">{f.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                            className="text-text-muted hover:text-danger"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(existingUrls.length > 0 || files.length > 0) ? (
+                    <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
+                      <input
+                        type="file"
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                          }
+                        }}
+                      />
+                      <Plus size={16} className="text-text-muted" /> Add more files
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                      <input
+                        type="file"
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                          }
+                        }}
+                      />
+                      <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
+                        <UploadCloud size={18} />
+                      </div>
+                      <p className="text-sm font-medium text-text">Click or drag files to upload</p>
+                      <p className="text-[11px] text-text-muted mt-0.5">Upload pitch decks, proposal documents, etc.</p>
+                    </div>
+                  )}
+                </div>
               </form>
               <div className="flex items-center justify-between px-6 py-4 border-t border-border">
                 <div>
@@ -396,9 +608,9 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isDeleting} className="text-xs h-8 px-3">Cancel</Button>
-                  <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isDeleting} className="text-xs h-8 px-3">
-                    {isSubmitting ? 'Saving...' : (editingProspect ? 'Save Changes' : 'Add Prospect')}
+                  <Button variant="secondary" onClick={handleClose} disabled={isSubmitting || isDeleting || isUploading} className="text-xs h-8 px-3">Cancel</Button>
+                  <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading} disabled={isDeleting} className="text-xs h-8 px-3">
+                    {isSubmitting || isUploading ? 'Saving...' : (editingProspect ? 'Save Changes' : 'Add Prospect')}
                   </Button>
                 </div>
               </div>

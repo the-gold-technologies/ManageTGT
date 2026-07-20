@@ -1,16 +1,17 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Trash2 } from 'lucide-react'
+import { X, Trash2, UploadCloud, FileText, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient as createClientAction, updateClient as updateClientAction } from '@/app/actions/clients'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Client } from '@/types'
+import { uploadMultipleFilesAction } from '@/app/actions/upload'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -49,6 +50,10 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
   const qc = useQueryClient()
   const isEdit = !!client
 
+  const [files, setFiles] = useState<File[]>([])
+  const [existingUrls, setExistingUrls] = useState<string[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
@@ -76,24 +81,53 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
         pan_number: '',
         notes: '',
       })
+      setExistingUrls(client?.document_urls ?? [])
+      setFiles([])
     }
   }, [open, client, reset])
 
   const onSubmit = async (data: FormData) => {
-    const payload = { ...data }
+    setIsUploading(true)
+    try {
+      let uploadedUrls: string[] = []
 
-    if (isEdit && client) {
-      const result = await updateClientAction(client.id, payload)
-      if (!result.success) { toast.error(result.error); return }
-      toast.success('Client updated')
-    } else {
-      const result = await createClientAction(payload)
-      if (!result.success) { toast.error(result.error); return }
-      toast.success('Client created')
+      if (files.length > 0) {
+        const formData = new window.FormData()
+        files.forEach(f => formData.append('files', f))
+        formData.append('folder', 'clients')
+
+        const uploadResult = await uploadMultipleFilesAction(formData)
+        if (!uploadResult.success) {
+          toast.error('Failed to upload documents')
+          console.error(uploadResult.error)
+        } else {
+          uploadedUrls = uploadResult.urls || []
+        }
+      }
+
+      const payload = {
+        ...data,
+        document_urls: [...existingUrls, ...uploadedUrls]
+      }
+
+      if (isEdit && client) {
+        const result = await updateClientAction(client.id, payload)
+        if (!result.success) { toast.error(result.error); return }
+        toast.success('Client updated')
+      } else {
+        const result = await createClientAction(payload)
+        if (!result.success) { toast.error(result.error); return }
+        toast.success('Client created')
+      }
+
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      onClose()
+    } catch (err: any) {
+      toast.error('An error occurred during submission')
+      console.error(err)
+    } finally {
+      setIsUploading(false)
     }
-
-    qc.invalidateQueries({ queryKey: ['clients'] })
-    onClose()
   }
 
   return (
@@ -156,6 +190,96 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                   </div>
                 ))}
               </div>
+
+              {/* Document Upload Area */}
+              <div className="pt-4">
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                  Client Documents (Optional)
+                </label>
+
+                {existingUrls.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {existingUrls.map((url, idx) => {
+                      const urlParts = url.split('/')
+                      const lastPart = urlParts[urlParts.length - 1]
+                      const nameParts = lastPart.split('_')
+                      const displayName = nameParts.length >= 3 ? nameParts.slice(2).join('_') : lastPart
+                      return (
+                        <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                          <div className="flex items-center gap-2 overflow-hidden">
+                            <FileText size={16} className="text-primary shrink-0" />
+                            <span className="text-sm text-text truncate" title={displayName}>{displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View</a>
+                            <button
+                              type="button"
+                              onClick={() => setExistingUrls(existingUrls.filter(u => u !== url))}
+                              className="text-text-muted hover:text-danger"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {files.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {files.map((f, idx) => (
+                      <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText size={16} className="text-text-secondary shrink-0" />
+                          <span className="text-sm text-text truncate">{f.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                          className="text-text-muted hover:text-danger"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(existingUrls.length > 0 || files.length > 0) ? (
+                  <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
+                    <input
+                      type="file"
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                        }
+                      }}
+                    />
+                    <Plus size={16} className="text-text-muted" /> Add more files
+                  </div>
+                ) : (
+                  <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
+                    <input
+                      type="file"
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
+                        }
+                      }}
+                    />
+                    <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
+                      <UploadCloud size={18} />
+                    </div>
+                    <p className="text-sm font-medium text-text">Click or drag files to upload</p>
+                    <p className="text-[11px] text-text-muted mt-0.5">Upload client contract, project briefs, etc.</p>
+                  </div>
+                )}
+              </div>
             </form>
 
             {/* Footer */}
@@ -166,7 +290,7 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                     type="button"
                     variant="ghost"
                     onClick={() => onDelete(client)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isUploading}
                     className="text-danger hover:text-danger hover:bg-danger/10 flex items-center gap-1.5 px-3 py-1.5 h-auto text-xs font-semibold"
                   >
                     <Trash2 size={14} />
@@ -175,9 +299,9 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <Button variant="secondary" onClick={onClose} disabled={isSubmitting} className="text-xs h-8 px-3">Cancel</Button>
-                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting} className="text-xs h-8 px-3">
-                  {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Client')}
+                <Button variant="secondary" onClick={onClose} disabled={isSubmitting || isUploading} className="text-xs h-8 px-3">Cancel</Button>
+                <Button onClick={handleSubmit(onSubmit)} loading={isSubmitting || isUploading} className="text-xs h-8 px-3">
+                  {isSubmitting || isUploading ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Client')}
                 </Button>
               </div>
             </div>

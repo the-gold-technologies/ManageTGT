@@ -162,6 +162,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
       }
       toast.success('Expense deleted successfully')
       qc.invalidateQueries({ queryKey: ['expenses'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       setModalOpen(false)
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred.')
@@ -201,6 +202,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
       }
 
       qc.invalidateQueries({ queryKey: ['expenses'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       setModalOpen(false)
       reset()
       setFiles([])
@@ -364,7 +366,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Project (optional)</label>
                   <select {...register('project_id')} className={inputClass}>
                     <option value="">No project</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>)}
+                    {activeProjects.map(p => <option key={p.id} value={p.id}>{p.project_code} — {p.name}</option>)}
                   </select>
                 </div>
                 <div>

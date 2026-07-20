@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -51,6 +51,17 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
+  const assigneeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assigneeRef.current && !assigneeRef.current.contains(event.target as Node)) {
+        setIsAssigneeOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const { register, handleSubmit, reset, watch, control, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
@@ -242,7 +253,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                     {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.name}</option>)}
                   </select>
                 </div>
-                <div className="relative">
+                <div className="relative" ref={assigneeRef}>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Assign To</label>
                   <button 
                     type="button" 

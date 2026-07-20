@@ -186,6 +186,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
 
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['profitability'] })
       onClose()
     } catch (err: any) {
       toast.error(err.message || 'An unexpected error occurred. Please try again.')
