@@ -30,6 +30,7 @@ CREATE TABLE "FileRecord" (
     CONSTRAINT "FileRecord_pkey" PRIMARY KEY ("id")
 );
 
+
 -- CreateIndex
 CREATE INDEX "FileRecord_client_id_idx" ON "FileRecord"("client_id");
 
