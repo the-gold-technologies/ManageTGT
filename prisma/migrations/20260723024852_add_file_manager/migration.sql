@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "FileCategory" AS ENUM ('brand_assets', 'reference', 'deliverable', 'contract', 'invoice_docs', 'content', 'bill_receipt', 'general');
 
 -- CreateTable

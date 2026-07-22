@@ -163,7 +163,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
         toast.success('Project updated')
       } else {
         const result = await createProjectAction(payload)
-        if (!result.success) { toast.error('Failed to create project'); return }
+        if (!result.success || !result.project) { toast.error('Failed to create project'); return }
         finalProjectId = result.project.id
         toast.success('Project created')
       }
