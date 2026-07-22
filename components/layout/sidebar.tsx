@@ -138,14 +138,11 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
           layout
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "group/toggle relative rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-bg-tertiary transition-colors shrink-0",
+            "rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-bg-tertiary transition-colors shrink-0",
             collapsed ? "w-11 h-11" : "w-10 h-10"
           )}
         >
           {collapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={18} />}
-          <div className="absolute top-1/2 -translate-y-1/2 left-[calc(100%+8px)] px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover/toggle:opacity-100 pointer-events-none transition-opacity z-[100]">
-            {collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          </div>
         </motion.button>
       </div>
 
