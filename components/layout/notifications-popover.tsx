@@ -164,7 +164,7 @@ function NotificationContent({ notif }: { notif: any }) {
             {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true })}
           </p>
         </div>
-        <p className={`text-xs mt-0.5 line-clamp-2 ${!notif.is_read ? 'text-text-secondary' : 'text-text-muted'}`}>
+        <p className={`text-xs mt-0.5 ${!notif.is_read ? 'text-text-secondary' : 'text-text-muted'}`}>
           {notif.message}
         </p>
       </div>

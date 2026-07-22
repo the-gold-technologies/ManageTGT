@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
+import { createNotification } from './notifications'
 import type { FileCategory } from '@prisma/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -284,6 +285,21 @@ export async function shareFileWithUsers(fileId: string, userIds: string[]) {
       where: { id: fileId },
       data: { shared_with: merged },
     })
+
+    const session = await auth()
+    const sharerName = session?.user?.name || 'Someone'
+
+    for (const userId of userIds) {
+      if (!(existing.shared_with ?? []).includes(userId)) {
+        await createNotification({
+          user_id: userId,
+          type: 'file_share',
+          title: 'File Shared with You',
+          message: `${sharerName} shared the file "${existing.name}" with you.`,
+          link: '/files'
+        })
+      }
+    }
 
     revalidatePath('/files')
     return { success: true, record }
