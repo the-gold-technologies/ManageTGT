@@ -27,6 +27,25 @@ export async function createClient(data: any) {
       }
     })
 
+    // Sync uploaded document_urls to FileRecord
+    const urls: string[] = data.document_urls ?? []
+    if (urls.length > 0) {
+      const syncData = urls.map((url: string) => ({
+        name: url.split('/').pop() || 'document',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'general' as const,
+        client_id: client.id,
+        uploaded_by: session?.user?.id ?? null,
+        uploader_name: session?.user?.name ?? null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for client create:', e)
+      }
+    }
+
     revalidatePath('/clients')
     return { success: true, data: client }
   } catch (error: any) {
@@ -49,10 +68,31 @@ export async function checkClientExists(email: string) {
 
 export async function updateClient(id: string, data: any) {
   try {
+    const existing = await prisma.client.findUnique({ where: { id }, select: { document_urls: true } })
     const client = await prisma.client.update({
       where: { id },
       data
     })
+
+    // Sync newly added document_urls to FileRecord
+    const prevUrls = (existing?.document_urls ?? []) as string[]
+    const newUrls = (data.document_urls ?? []).filter((u: string) => !prevUrls.includes(u))
+    if (newUrls.length > 0) {
+      const syncData = newUrls.map((url: string) => ({
+        name: url.split('/').pop() || 'document',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'general' as const,
+        client_id: id,
+        uploaded_by: null as string | null,
+        uploader_name: null as string | null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for client update:', e)
+      }
+    }
 
     revalidatePath('/clients')
     return { success: true, data: client }

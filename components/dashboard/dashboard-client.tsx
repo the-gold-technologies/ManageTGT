@@ -263,6 +263,42 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
     </Card>
   )
 
+  // Extract sharedFilesCard into a variable to reuse
+  const sharedFilesCard = data.sharedFiles && data.sharedFiles.length > 0 && (
+    <Card title="Files Shared With Me" className="w-full" padding={true}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead>
+            <tr className="bg-bg-tertiary border-b border-border text-xs font-semibold text-text-secondary uppercase">
+              <th className="px-5 py-3">File Name</th>
+              <th className="px-5 py-3">Context</th>
+              <th className="px-5 py-3">Date Shared</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.sharedFiles.map((file: any) => (
+              <tr 
+                key={file.id} 
+                onClick={() => window.open(file.url, '_blank')}
+                className="border-b border-border last:border-0 hover:bg-bg-tertiary/50 transition-colors cursor-pointer text-xs"
+              >
+                <td className="px-5 py-3 font-medium text-text flex items-center gap-2">
+                  <span className="truncate">{file.name}</span>
+                </td>
+                <td className="px-5 py-3 text-text-secondary">
+                  {file.project?.name || file.client?.name || 'General'}
+                </td>
+                <td className="px-5 py-3 text-text-secondary">
+                  {new Date(file.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+
   return (
     <motion.div
       variants={containerVariants}
@@ -414,10 +450,13 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
       {/* Row: Project Status + Pending Tasks (For Non-Admins) or Revenue + Project Status (For Admins) */}
       {!isFinanceVisible ? (
         // Non-Admin: Project Status and Pending Tasks side-by-side
-        (isProjectsVisible || (data.pendingTasks && data.pendingTasks.length > 0)) && (
+        (isProjectsVisible || (data.pendingTasks && data.pendingTasks.length > 0) || (data.sharedFiles && data.sharedFiles.length > 0)) && (
           <motion.div variants={itemVariants} className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {projectStatusCard}
-            {pendingTasksCard}
+            <div className="flex flex-col gap-4">
+              {pendingTasksCard}
+              {sharedFilesCard}
+            </div>
           </motion.div>
         )
       ) : (

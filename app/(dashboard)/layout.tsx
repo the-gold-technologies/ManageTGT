@@ -44,7 +44,7 @@ export default async function DashboardLayout({
   }
   // Admin always has all access
   if (roleName === 'admin') {
-    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings', 'calendar']
+    allowedModules = ['dashboard', 'clients', 'projects', 'tasks', 'revenue', 'expenses', 'profitability', 'prospects', 'targets', 'analytics', 'team', 'activity', 'settings', 'calendar', 'files']
   }
 
   return (

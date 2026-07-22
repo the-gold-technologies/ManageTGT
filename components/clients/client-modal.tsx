@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Client } from '@/types'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
+import ContextFilePanel from '@/components/files/context-file-panel'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -280,6 +281,16 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                   </div>
                 )}
               </div>
+
+              {/* File Manager Panel — only shown when editing an existing client */}
+              {isEdit && client?.id && (
+                <div className="pt-4 border-t border-border mt-4">
+                  <ContextFilePanel
+                    contextId={client.id}
+                    contextType="client"
+                  />
+                </div>
+              )}
             </form>
 
             {/* Footer */}

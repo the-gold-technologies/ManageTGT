@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import type { Task, Project, Profile, TaskFile } from '@/types'
 import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile, createSubtask, toggleSubtask, deleteSubtask, addTaskComment } from '@/app/actions/tasks'
 import { uploadFileAction } from '@/app/actions/upload'
+import ContextFilePanel from '@/components/files/context-file-panel'
 import dynamic from 'next/dynamic'
 import '@uiw/react-md-editor/markdown-editor.css'
 import { format as formatDate } from 'date-fns'
@@ -462,7 +463,16 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                 )}
               </div>
 
-              {/* Removed Subtasks and Activity Logs */}
+              {/* File Manager Panel — shown when editing an existing task */}
+              {isEdit && task?.id && (
+                <div className="pt-4 border-t border-border mt-4">
+                  <ContextFilePanel
+                    contextId={task.id}
+                    contextType="task"
+                    defaultCategory="deliverable"
+                  />
+                </div>
+              )}
             </form>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border">

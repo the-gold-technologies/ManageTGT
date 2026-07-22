@@ -115,6 +115,37 @@ export async function createInvoice(formData: FormData) {
       }
     })
 
+    // Sync newly uploaded files to FileRecord
+    if (files && files.length > 0) {
+      const syncData = []
+      for (const file of files) {
+        if (file.size === 0) continue
+        const fileExt = file.name.split('.').pop()
+        const matchingUrl = file_urls.find(u => u.includes(fileExt!))
+        if (matchingUrl) {
+          const storagePath = matchingUrl.split('/agencyos_files/')[1] || matchingUrl
+          syncData.push({
+            name: file.name,
+            url: matchingUrl,
+            storage_path: storagePath,
+            size: file.size,
+            mime_type: file.type,
+            category: 'invoice_docs' as const,
+            invoice_id: invoice.id,
+            uploaded_by: session?.user?.id ?? null,
+            uploader_name: session?.user?.name ?? null,
+          })
+        }
+      }
+      if (syncData.length > 0) {
+        try {
+          await prisma.fileRecord.createMany({ data: syncData })
+        } catch (e) {
+          console.warn('FileRecord sync failed for invoice:', e)
+        }
+      }
+    }
+
     revalidatePath('/finance/revenue')
     return { success: true, invoice }
   } catch (error) {
@@ -195,6 +226,25 @@ export async function updateInvoice(id: string, formData: FormData) {
       }
     })
 
+    // Sync newly uploaded files to FileRecord
+    const newlyUploaded = file_urls.filter((u: string) => !(existing?.file_urls ?? []).includes(u))
+    if (newlyUploaded.length > 0) {
+      const syncData = newlyUploaded.map((url: string) => ({
+        name: url.split('/').pop() || 'file',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'invoice_docs' as const,
+        invoice_id: id,
+        uploaded_by: null as string | null,
+        uploader_name: null as string | null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for invoice update:', e)
+      }
+    }
+
     revalidatePath('/finance/revenue')
     return { success: true, invoice }
   } catch (error) {
@@ -254,6 +304,24 @@ export async function addExpense(formData: FormData) {
       bill_urls,
     }
   })
+
+  // Sync bill files to FileRecord
+  if (bill_urls.length > 0) {
+    const syncData = bill_urls.map((url: string) => ({
+      name: url.split('/').pop() || 'receipt',
+      url,
+      storage_path: url.split('/agencyos_files/')[1] || url,
+      category: 'bill_receipt' as const,
+      expense_id: expense.id,
+      uploaded_by: created_by || null,
+      uploader_name: null as string | null,
+    }))
+    try {
+      await prisma.fileRecord.createMany({ data: syncData })
+    } catch (e) {
+      console.warn('FileRecord sync failed for expense:', e)
+    }
+  }
 
   return expense
 }
@@ -326,6 +394,26 @@ export async function updateExpense(id: string, formData: FormData) {
         bill_urls,
       }
     })
+
+    // Sync newly added bill files to FileRecord
+    const prevUrls = (existing?.bill_urls ?? []) as string[]
+    const newUrls = bill_urls.filter((u: string) => !prevUrls.includes(u))
+    if (newUrls.length > 0) {
+      const syncData = newUrls.map((url: string) => ({
+        name: url.split('/').pop() || 'receipt',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'bill_receipt' as const,
+        expense_id: id,
+        uploaded_by: null as string | null,
+        uploader_name: null as string | null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for expense update:', e)
+      }
+    }
 
     revalidatePath('/finance/expenses')
     return { success: true, expense }

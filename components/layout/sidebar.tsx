@@ -25,6 +25,7 @@ import {
   Clock,
   KanbanSquare,
   CalendarDays,
+  FolderOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/projects', icon: FolderKanban, label: 'Projects', moduleKey: 'projects' },
       { href: '/boards', icon: KanbanSquare, label: 'Boards', moduleKey: 'tasks' },
       { href: '/my-tasks', icon: CheckSquare, label: 'My Tasks', moduleKey: 'tasks' },
+      { href: '/files', icon: FolderOpen, label: 'Files', moduleKey: 'files' },
     ]
   },
   {
@@ -114,30 +116,37 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
         <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full opacity-10 group-hover/sidebar:opacity-25 bg-orange-500/20 transition-opacity duration-500 blur-3xl pointer-events-none" />
       </div>
       {/* Header */}
-      <div className={cn("flex items-center h-16 shrink-0 pl-3 overflow-hidden transition-all duration-200", collapsed ? "justify-center" : "justify-between")}>
-        {!collapsed && (
-          <motion.div 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.15 }}
-            className="flex items-center gap-2.5 shrink-0"
-          >
-            <img src="/logo.jpg" alt="TGT" className="w-10 h-10 rounded-full object-cover" />
-            <span className="text-md font-bold tracking-tight text-text whitespace-nowrap ml-2">
-              TGT
-            </span>
-          </motion.div>
-        )}
-        <button
+      <div className={cn("flex items-center h-16 shrink-0 overflow-hidden transition-all duration-300 relative", collapsed ? "justify-center px-0" : "justify-between px-3")}>
+        <AnimatePresence mode="wait">
+          {!collapsed && (
+            <motion.div 
+              key="logo"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2.5 shrink-0"
+            >
+              <img src="/logo.jpg" alt="TGT" className="w-10 h-10 rounded-full object-cover" />
+              <span className="text-md font-bold tracking-tight text-text whitespace-nowrap ml-2">
+                TGT
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <motion.button
+          layout
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-bg-tertiary transition-colors shrink-0",
+            "group/toggle relative rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-bg-tertiary transition-colors shrink-0",
             collapsed ? "w-11 h-11" : "w-10 h-10"
           )}
         >
           {collapsed ? <PanelLeft size={20} /> : <PanelLeftClose size={18} />}
-        </button>
+          <div className="absolute top-1/2 -translate-y-1/2 left-[calc(100%+8px)] px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover/toggle:opacity-100 pointer-events-none transition-opacity z-[100]">
+            {collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          </div>
+        </motion.button>
       </div>
 
       {/* Nav */}
@@ -155,25 +164,26 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                 <div 
                   onClick={() => !collapsed && toggleSection(section.label!)}
                   className={cn(
-                    "flex items-center h-10 rounded-lg transition-all duration-200 cursor-pointer text-text-secondary hover:text-text",
-                    collapsed ? 'w-10 mx-auto justify-center hover:bg-bg-tertiary mb-1' : 'justify-between px-3 mx-3 mb-1 hover:bg-bg-tertiary'
+                    "flex items-center h-10 rounded-lg transition-all duration-300 cursor-pointer text-text-secondary hover:text-text",
+                    "mx-3 px-3 mb-1 hover:bg-bg-tertiary overflow-hidden",
+                    !collapsed && "justify-between"
                   )}
                 >
                   {collapsed ? (
                     section.icon ? (
                       <section.icon size={20} className="shrink-0" />
                     ) : (
-                      <div className="h-px bg-border mx-auto w-6" />
+                      <div className="h-px bg-border w-5 shrink-0" />
                     )
                   ) : (
                     <>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         {section.icon && <section.icon size={20} className="shrink-0 relative z-10" />}
                         <span className="text-sm font-medium relative z-10">
                           {section.label}
                         </span>
                       </div>
-                      <ChevronDown size={14} className={cn("transition-transform", !isSectionOpen && "-rotate-90")} />
+                      <ChevronDown size={14} className={cn("transition-transform shrink-0", !isSectionOpen && "-rotate-90")} />
                     </>
                   )}
                 </div>
@@ -227,51 +237,52 @@ export default function Sidebar({ allowedModules = [] }: SidebarProps) {
                       const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
 
                       return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          prefetch={true}
-                          className={cn(
-                            'group relative flex items-center h-10 rounded-lg transition-all duration-200 shrink-0 mb-1',
-                            collapsed ? 'w-10 mx-auto justify-center px-0 overflow-visible' : 'mx-3 px-3 gap-3 overflow-hidden',
-                            !collapsed && section.label && 'ml-9 px-3', // indent if in a section
-                            'hover:bg-bg-tertiary',
-                            isActive
-                              ? 'bg-primary text-primary-foreground shadow-glow-sm'
-                              : (!collapsed && section.label) ? 'text-text-muted hover:text-text-secondary' : 'text-text-secondary hover:text-text'
-                          )}
-                        >
-                          {isActive && (
-                            <motion.div
-                              layoutId="sidebar-active"
-                              className="absolute inset-0 rounded-lg bg-primary shadow-glow-sm"
-                              transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
-                            />
-                          )}
-                          <item.icon
-                            size={!collapsed && section.label ? 16 : 20}
-                            className={cn('shrink-0 relative z-10', isActive ? 'text-primary-foreground' : '')}
-                          />
-                          <AnimatePresence>
-                            {!collapsed && (
-                              <motion.span
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.1 }}
-                                className="text-sm font-medium whitespace-nowrap relative z-10"
-                              >
-                                {item.label}
-                              </motion.span>
+                        <div key={item.href} className="relative group mb-1">
+                          <Link
+                            href={item.href}
+                            prefetch={true}
+                            className={cn(
+                              'relative flex items-center h-10 rounded-lg transition-all duration-300 shrink-0',
+                              'px-3 gap-3 overflow-hidden',
+                              collapsed ? 'mx-3' : (section.label ? 'ml-9 mr-3' : 'mx-3'),
+                              'hover:bg-bg-tertiary',
+                              isActive
+                                ? 'bg-primary text-primary-foreground shadow-glow-sm'
+                                : (!collapsed && section.label) ? 'text-text-muted hover:text-text-secondary' : 'text-text-secondary hover:text-text'
                             )}
-                          </AnimatePresence>
+                          >
+                            {isActive && (
+                              <motion.div
+                                layoutId="sidebar-active"
+                                className="absolute inset-0 rounded-lg bg-primary shadow-glow-sm"
+                                transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+                              />
+                            )}
+                            <item.icon
+                              size={!collapsed && section.label ? 16 : 20}
+                              className={cn('shrink-0 relative z-10', isActive ? 'text-primary-foreground' : '')}
+                            />
+                            <AnimatePresence>
+                              {!collapsed && (
+                                <motion.span
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.1 }}
+                                  className="text-sm font-medium whitespace-nowrap relative z-10"
+                                >
+                                  {item.label}
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                          </Link>
                           {/* Tooltip when collapsed for root items */}
                           {collapsed && !section.label && (
-                            <div className="absolute left-full px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[100]">
+                            <div className="absolute top-1/2 -translate-y-1/2 left-[calc(100%-8px)] px-2.5 py-1.5 bg-black dark:bg-white text-white dark:text-black text-xs font-semibold rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[100]">
                               {item.label}
                             </div>
                           )}
-                        </Link>
+                        </div>
                       )
                     })}
                   </motion.div>

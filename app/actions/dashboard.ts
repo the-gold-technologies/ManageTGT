@@ -36,6 +36,7 @@ export async function getDashboardData() {
     targets,
     closures,
     userTasks,
+    sharedFiles,
   ] = await Promise.all([
     allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true, billing_cycle: true, quoted_price: true } }) : Promise.resolve([]),
     allowedModules.includes('revenue') ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true, gst_applied: true } }) : Promise.resolve([]),
@@ -46,6 +47,11 @@ export async function getDashboardData() {
       where: { assigned_member_ids: { has: session?.user?.id || '' } },
       include: { project: { select: { name: true } } },
       orderBy: { deadline: 'asc' }
+    }) : Promise.resolve([]),
+    userRole !== 'admin' ? prisma.fileRecord.findMany({
+      where: { shared_with: { has: session?.user?.id || '' }, is_archived: false },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     }) : Promise.resolve([]),
   ])
 
@@ -215,5 +221,6 @@ export async function getDashboardData() {
     completedProjectsTrend,
     taskStats,
     pendingTasks,
+    sharedFiles,
   }
 }

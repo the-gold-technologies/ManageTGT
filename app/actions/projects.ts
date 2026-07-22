@@ -147,9 +147,28 @@ export async function createProject(data: any) {
       }
     }
 
+    // Sync deliverable_urls to FileRecord
+    const urls: string[] = deliverable_urls ?? []
+    if (urls.length > 0) {
+      const syncData = urls.map((url: string) => ({
+        name: url.split('/').pop() || 'deliverable',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'deliverable' as const,
+        project_id: project.id,
+        uploaded_by: session?.user?.id ?? null,
+        uploader_name: session?.user?.name ?? null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for project create:', e)
+      }
+    }
+
     revalidatePath('/projects')
-    revalidatePath('/targets') // Revalidate targets page as well
-    revalidatePath('/') // Dashboard might also show targets
+    revalidatePath('/targets')
+    revalidatePath('/')
     return { success: true, project }
   } catch (error) {
     console.error('Error creating project:', error)
@@ -174,6 +193,26 @@ export async function updateProject(id: string, data: any) {
         ...(team_lead_id !== undefined ? { teamLead: team_lead_id ? { connect: { id: team_lead_id } } : { disconnect: true } } : {})
       }
     })
+
+    // Sync newly added deliverable_urls to FileRecord
+    const prevUrls = (oldProject?.deliverable_urls ?? []) as string[]
+    const newUrls = (deliverable_urls ?? []).filter((u: string) => !prevUrls.includes(u))
+    if (newUrls.length > 0) {
+      const syncData = newUrls.map((url: string) => ({
+        name: url.split('/').pop() || 'deliverable',
+        url,
+        storage_path: url.split('/agencyos_files/')[1] || url,
+        category: 'deliverable' as const,
+        project_id: id,
+        uploaded_by: session?.user?.id ?? null,
+        uploader_name: session?.user?.name ?? null,
+      }))
+      try {
+        await prisma.fileRecord.createMany({ data: syncData })
+      } catch (e) {
+        console.warn('FileRecord sync failed for project update:', e)
+      }
+    }
 
     if (oldProject) {
       // Notify new team lead

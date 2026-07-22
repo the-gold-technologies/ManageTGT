@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
 import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment } from '@/app/actions/finance'
+import ContextFilePanel from '@/components/files/context-file-panel'
 
 const schema = z.object({
   invoice_number: z.string().min(1, 'Invoice number is required'),
@@ -552,6 +553,16 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                       </Button>
                     </div>
                   )}
+                </div>
+              )}
+              {/* File Manager Panel — shown when editing an existing invoice */}
+              {isEdit && invoice?.id && (
+                <div className="pt-4 border-t border-border mt-6">
+                  <ContextFilePanel
+                    contextId={invoice.id}
+                    contextType="invoice"
+                    defaultCategory="invoice_docs"
+                  />
                 </div>
               )}
            

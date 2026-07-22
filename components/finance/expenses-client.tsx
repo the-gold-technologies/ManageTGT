@@ -23,6 +23,8 @@ import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 import { TablePagination } from '@/components/ui/table-pagination'
+import ContextFilePanel from '@/components/files/context-file-panel'
+
 
 const EXPENSE_TYPES = ['freelancer', 'designer', 'developer', 'advertising', 'travel', 'software', 'hosting', 'miscellaneous']
 const EXPENSE_LABELS: Record<string, string> = {
@@ -432,6 +434,17 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                     </div>
                   )}
                 </div>
+
+                {/* File Manager Panel — shown when editing an existing expense */}
+                {editingExpense && (
+                  <div className="pt-4 border-t border-border mt-4">
+                    <ContextFilePanel
+                      contextId={editingExpense.id}
+                      contextType="expense"
+                      defaultCategory="bill_receipt"
+                    />
+                  </div>
+                )}
               </form>
               <div className="flex items-center justify-between px-6 py-4 border-t border-border">
                 <div>

@@ -9,7 +9,8 @@ import {
   Loader2, Plus, Edit2, Trash2,
   LayoutDashboard, Users, FolderKanban, CheckSquare, 
   Receipt, Wallet, TrendingUp, Target, BarChart3, 
-  UserCog, Clock, Settings, User, Shield, Settings2, AppWindow
+  UserCog, Clock, Settings, User, Shield, Settings2, AppWindow,
+  FolderOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,6 +22,7 @@ const MODULE_GROUPS = [
       { key: 'clients', label: 'Clients', icon: Users },
       { key: 'projects', label: 'Projects', icon: FolderKanban },
       { key: 'tasks', label: 'Tasks', icon: CheckSquare },
+      { key: 'files', label: 'Files', icon: FolderOpen },
     ]
   },
   {
@@ -232,7 +234,7 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
                           </div>
                         </td>
                         {roles.map(r => {
-                          const isDefaultModule = ['dashboard', 'settings', 'settings-profile'].includes(m.key);
+                          const isDefaultModule = ['dashboard', 'settings', 'settings-profile', 'files'].includes(m.key);
                           const hasAccess = r.name === 'admin' || isDefaultModule || access.find(a => a.roleId === r.id && a.moduleKey === m.key)?.hasAccess || false;
                           return (
                             <td key={r.id} className="p-3 text-center">

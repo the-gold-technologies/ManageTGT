@@ -17,6 +17,7 @@ import { formatDate, formatCurrency, PROJECT_STATUS_CONFIG, isOverdue } from '@/
 import ProjectModal from './project-modal'
 import { Glow } from '@/components/ui/glow'
 import { cn } from '@/lib/utils'
+import { useSearchParams } from 'next/navigation'
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
@@ -60,6 +61,19 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       return data as unknown as Project[]
     }
   })
+
+  const searchParams = useSearchParams()
+  const projectIdParam = searchParams.get('projectId')
+
+  useEffect(() => {
+    if (projectIdParam && projectsData) {
+      const p = projectsData.find(p => p.id === projectIdParam)
+      if (p) {
+        setEditingProject(p)
+        setModalOpen(true)
+      }
+    }
+  }, [projectIdParam, projectsData])
 
   const { data: clientsData, isLoading: isClientsLoading } = useQuery({
     queryKey: ['clients'],

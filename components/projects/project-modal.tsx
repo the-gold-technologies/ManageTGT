@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +15,7 @@ import { PROJECT_STATUS_CONFIG } from '@/lib/utils'
 import { getServices } from '@/app/actions/services'
 import { createProject as createProjectAction, updateProject as updateProjectAction } from '@/app/actions/projects'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
+import ContextFilePanel, { ContextFilePanelRef } from '@/components/files/context-file-panel'
 
 const schema = z.object({
   name: z.string().min(1, 'Required'),
@@ -53,13 +54,12 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const supabase = createClient()
   const qc = useQueryClient()
   const isEdit = !!project
+  const filePanelRef = useRef<ContextFilePanelRef>(null)
 
   const isAdmin = userRole === 'admin'
   const isTeamLead = userRole === 'team_lead'
   const canAssignTeam = isAdmin || isTeamLead
 
-  const [files, setFiles] = useState<File[]>([])
-  const [existingUrls, setExistingUrls] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
@@ -86,8 +86,6 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
 
   useEffect(() => {
     if (open) {
-      setFiles([])
-      setExistingUrls(project?.deliverable_urls || [])
       const initialServices = project?.service_type
         ? project.service_type.split(',').map(s => s.trim()).filter(Boolean)
         : []
@@ -152,24 +150,9 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
 
     setIsUploading(true)
     try {
-      let uploadedUrls: string[] = []
+      payload.deliverable_urls = project?.deliverable_urls || []
 
-      if (files.length > 0) {
-        const formData = new window.FormData()
-        files.forEach(f => formData.append('files', f))
-        formData.append('folder', 'deliverables')
-
-        const uploadResult = await uploadMultipleFilesAction(formData)
-
-        if (!uploadResult.success) {
-          toast.error('Failed to upload deliverable files')
-          console.error(uploadResult.error)
-        } else {
-          uploadedUrls = uploadResult.urls || []
-        }
-      }
-
-      payload.deliverable_urls = [...existingUrls, ...uploadedUrls]
+      let finalProjectId = project?.id
 
       if (isEdit && project) {
         if (data.status === 'completed' && !project?.completion_date) {
@@ -181,7 +164,12 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       } else {
         const result = await createProjectAction(payload)
         if (!result.success) { toast.error('Failed to create project'); return }
+        finalProjectId = result.project.id
         toast.success('Project created')
+      }
+
+      if (filePanelRef.current?.hasPendingFiles()) {
+        await filePanelRef.current.uploadPendingFiles(finalProjectId)
       }
 
       qc.invalidateQueries({ queryKey: ['projects'] })
@@ -476,96 +464,18 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                       className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
                     />
                   </div>
-
-                  {/* File Upload for Deliverables */}
-                  <div className="pt-2">
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Final Deliverable (Optional)</label>
-
-                    {existingUrls.length > 0 && (
-                      <div className="space-y-2 mb-3">
-                        {existingUrls.map((url, idx) => {
-                          const urlParts = url.split('/')
-                          const lastPart = urlParts[urlParts.length - 1]
-                          const nameParts = lastPart.split('_')
-                          const displayName = nameParts.length >= 3 ? nameParts.slice(2).join('_') : lastPart
-                          return (
-                            <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
-                              <div className="flex items-center gap-2 overflow-hidden">
-                                <FileText size={16} className="text-primary shrink-0" />
-                                <span className="text-sm text-text truncate" title={displayName}>{displayName}</span>
-                              </div>
-                              <div className="flex items-center gap-3 shrink-0">
-                                <a href={url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">View</a>
-                                <button
-                                  type="button"
-                                  onClick={() => setExistingUrls(existingUrls.filter(u => u !== url))}
-                                  className="text-text-muted hover:text-danger"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {files.length > 0 && (
-                      <div className="space-y-2 mb-3">
-                        {files.map((f, idx) => (
-                          <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
-                            <div className="flex items-center gap-2 overflow-hidden">
-                              <FileText size={16} className="text-text-secondary shrink-0" />
-                              <span className="text-sm text-text truncate">{f.name}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setFiles(files.filter((_, i) => i !== idx))}
-                              className="text-text-muted hover:text-danger"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {(existingUrls.length > 0 || files.length > 0) ? (
-                      <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
-                        <input
-                          type="file"
-                          multiple
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
-                            }
-                          }}
-                        />
-                        <Plus size={16} className="text-text-muted" /> Add more files
-                      </div>
-                    ) : (
-                      <div className="relative border border-dashed border-[#A3A3A3] dark:border-[#333333] rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-primary/50 transition-colors bg-bg/50">
-                        <input
-                          type="file"
-                          multiple
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              setFiles(prev => [...prev, ...Array.from(e.target.files || [])])
-                            }
-                          }}
-                        />
-                        <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center mb-2 shadow-sm group-hover:scale-105 transition-transform text-text-muted">
-                          <UploadCloud size={18} />
-                        </div>
-                        <p className="text-sm font-medium text-text">Click or drag files to upload</p>
-                        <p className="text-[11px] text-text-muted mt-0.5">Upload final project files/zip</p>
-                      </div>
-                    )}
-                  </div>
                 </>
               )}
+
+              <div className="pt-4 border-t border-border mt-2">
+                <ContextFilePanel
+                  ref={filePanelRef}
+                  contextId={project?.id || ''}
+                  contextType="project"
+                  defaultCategory="deliverable"
+                  deferUpload={true}
+                />
+              </div>
             </form>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border">

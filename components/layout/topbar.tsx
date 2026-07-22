@@ -56,6 +56,7 @@ export default function TopBar({ user }: TopBarProps) {
     if (path.startsWith('/team')) return ['System', 'Team']
     if (path.startsWith('/settings')) return ['System', 'Settings']
     if (path.startsWith('/activity')) return ['System', 'Activity Logs']
+    if (path.startsWith('/files')) return ['Dashboard', 'Files']
     return ['Dashboard']
   }
 
@@ -106,19 +107,8 @@ export default function TopBar({ user }: TopBarProps) {
         )}
       </div>
 
-      {/* Right: search + bells + avatar */}
+      {/* Right: theme + bells + avatar */}
       <div className="flex items-center gap-3">
-        {/* Search */}
-        {!(pathname.startsWith('/boards') || pathname.startsWith('/my-tasks')) && (
-          <div className="relative hidden md:flex items-center">
-            <Search size={14} className="absolute left-3 text-text-muted pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="pl-8 pr-4 py-2 text-sm bg-bg-secondary border border-border rounded-lg text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 w-48 transition-all focus:w-64"
-            />
-          </div>
-        )}
 
         {/* Theme Toggle */}
         {mounted && (

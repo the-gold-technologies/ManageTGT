@@ -13,7 +13,7 @@ const ALLOWED_TYPES = [
   'image/webp',
   'image/gif',
 ]
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export async function uploadFileAction(formData: FormData) {
   const file = formData.get('file') as File | null

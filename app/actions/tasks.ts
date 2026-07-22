@@ -208,6 +208,26 @@ export async function addTaskFile(data: any) {
         file_size: data.file_size
       }
     })
+
+    // Sync to FileRecord for File Manager visibility
+    try {
+      const storagePath = data.file_url?.split('/agencyos_files/')[1] || data.file_url
+      await prisma.fileRecord.create({
+        data: {
+          name: data.file_name,
+          url: data.file_url,
+          storage_path: storagePath,
+          size: data.file_size ?? null,
+          category: 'deliverable',
+          task_id: data.task_id,
+          uploaded_by: data.uploaded_by ?? null,
+          uploader_name: data.uploader_name ?? null,
+        }
+      })
+    } catch (syncErr) {
+      console.warn('FileRecord sync failed for task file:', syncErr)
+    }
+
     revalidatePath('/my-tasks')
     return { success: true, file }
   } catch (error) {

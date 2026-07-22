@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import StatCard from '@/components/ui/stat-card'
 import { formatDate } from '@/lib/utils'
 import { TablePagination } from '@/components/ui/table-pagination'
+import ContextFilePanel from '@/components/files/context-file-panel'
 import { getProspects, createProspect, updateProspect, deleteProspect } from '@/app/actions/prospects'
 import { createClient, checkClientExists } from '@/app/actions/clients'
 import { getServices } from '@/app/actions/services'
@@ -591,6 +592,17 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                     </div>
                   )}
                 </div>
+
+                {/* File Manager Panel — shown when editing an existing prospect */}
+                {editingProspect && (
+                  <div className="pt-4 border-t border-border mt-4">
+                    <ContextFilePanel
+                      contextId={editingProspect.id}
+                      contextType="prospect"
+                      defaultCategory="reference"
+                    />
+                  </div>
+                )}
               </form>
               <div className="flex items-center justify-between px-6 py-4 border-t border-border">
                 <div>
