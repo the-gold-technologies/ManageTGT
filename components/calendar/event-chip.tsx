@@ -61,21 +61,30 @@ interface EventChipProps {
 
 export function EventChip({ event, onClick, compact = false }: EventChipProps) {
   const colorClass = COLOR_STYLES[event.color] ?? COLOR_STYLES.gray
+  const dotClass  = DOT_STYLES[event.color]  ?? DOT_STYLES.gray
   const IconComponent = TYPE_ICONS[event.type] ?? Calendar
 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick?.(event) }}
       className={cn(
-        'w-full text-left truncate rounded border px-1.5 transition-opacity hover:opacity-80 cursor-pointer',
-        compact ? 'py-0 text-[10px] leading-5' : 'py-0.5 text-xs',
+        'w-full shrink-0 text-left truncate rounded-md transition-all duration-200 cursor-pointer shadow-sm hover:shadow hover:brightness-110 group/chip',
+        compact ? 'px-1.5 py-0 h-[20px]' : 'px-2 py-1 min-h-[28px]',
         colorClass
       )}
       title={event.title}
     >
-      <span className="flex items-center gap-1.5 min-w-0">
-        <IconComponent className={cn('shrink-0 opacity-80', compact ? 'w-3 h-3' : 'w-3.5 h-3.5')} />
-        <span className="truncate font-medium">{event.title}</span>
+      <span className="flex items-center gap-1.5 min-w-0 h-full">
+        <IconComponent className={cn(
+          'shrink-0 transition-opacity group-hover/chip:opacity-100',
+          compact ? 'w-[11px] h-[11px] opacity-70' : 'w-3.5 h-3.5 opacity-80'
+        )} />
+        <span className={cn(
+          'truncate font-medium tracking-tight',
+          compact ? 'text-[10px]' : 'text-xs'
+        )}>
+          {event.title}
+        </span>
       </span>
     </button>
   )
@@ -84,6 +93,6 @@ export function EventChip({ event, onClick, compact = false }: EventChipProps) {
 /** A colored dot used in mini calendar / week header */
 export function EventDot({ color }: { color: CalendarEventColor }) {
   return (
-    <span className={cn('inline-block w-1.5 h-1.5 rounded-full', DOT_STYLES[color])} />
+    <span className={cn('inline-block w-1.5 h-1.5 rounded-full shrink-0', DOT_STYLES[color])} />
   )
 }

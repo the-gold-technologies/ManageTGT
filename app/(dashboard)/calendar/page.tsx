@@ -5,6 +5,7 @@ import {
   startOfMonth, endOfMonth, addMonths,
 } from 'date-fns'
 import { getCalendarEvents } from '@/app/actions/calendar'
+import { getGoogleConnectionStatus } from '@/app/actions/google-oauth'
 import CalendarClient from '@/components/calendar/calendar-client'
 
 export const metadata: Metadata = {
@@ -21,7 +22,10 @@ export default async function CalendarPage() {
   const from = startOfMonth(now)
   const to = endOfMonth(addMonths(now, 2))
 
-  const events = await getCalendarEvents(from, to)
+  const [events, googleConnected] = await Promise.all([
+    getCalendarEvents(from, to),
+    getGoogleConnectionStatus(session.user.id),
+  ])
 
   // Serialize dates to strings (Next.js server → client boundary)
   const serializedEvents = events.map((e) => ({
@@ -38,6 +42,7 @@ export default async function CalendarPage() {
         initialFrom={from.toISOString()}
         initialTo={to.toISOString()}
         eventCount={serializedEvents.length}
+        googleConnected={googleConnected}
       />
     </div>
   )

@@ -439,6 +439,13 @@ model CalendarEvent {
   attendee_ids String[]          @default([])
   created_by   String?
   is_cancelled Boolean           @default(false)
+  
+  // Meeting Integration
+  attendee_emails  String[]      @default([])
+  meeting_platform String?       // 'google_meet' | 'zoom' | null
+  meeting_url      String?       @db.Text
+  meeting_id       String?
+
   // Optional link back to a source entity
   source_type  String?           // 'task' | 'project' | 'invoice' | 'prospect'
   source_id    String?

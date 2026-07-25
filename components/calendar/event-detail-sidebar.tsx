@@ -1,7 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
-import { X, ExternalLink, Calendar, Clock, Tag, Users, AlignLeft } from 'lucide-react'
+import { X, ExternalLink, Calendar, Clock, Tag, Users, AlignLeft, Video } from 'lucide-react'
 import type { UnifiedCalendarEvent, CalendarEventColor } from '@/app/actions/calendar'
 import { cn } from '@/lib/utils'
 
@@ -119,6 +119,21 @@ export default function EventDetailSidebar({ event, onClose, onEdit, onDelete }:
           <div className="flex gap-2 text-sm text-text-secondary">
             <AlignLeft size={14} className="shrink-0 text-text-muted mt-0.5" />
             <p className="leading-relaxed">{event.description}</p>
+          </div>
+        )}
+
+        {/* Meeting URL */}
+        {event.meeting_url && (
+          <div className="flex gap-2 text-sm text-text-secondary">
+            <Video size={14} className="shrink-0 text-text-muted mt-0.5" />
+            <a 
+              href={event.meeting_url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-primary hover:underline font-medium break-all"
+            >
+              Join Meeting
+            </a>
           </div>
         )}
 

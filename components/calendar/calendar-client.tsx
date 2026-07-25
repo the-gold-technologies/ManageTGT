@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
+import { useState, useCallback, useTransition, useEffect, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays,
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
@@ -121,8 +122,8 @@ function MiniCalendar({
                 {format(day, 'd')}
               </span>
               {/* Event dots row — fixed height so cells with/without dots stay same size */}
-              <div className="flex gap-0.5 h-1.5 items-center">
-                {dayEvts.length > 0 && !sel && dayEvts.slice(0, 3).map(e => (
+              <div className="flex gap-[2px] h-1.5 items-center justify-center w-full overflow-hidden px-0.5">
+                {dayEvts.length > 0 && !sel && dayEvts.slice(0, 5).map(e => (
                   <EventDot key={e.id} color={e.color} />
                 ))}
               </div>
@@ -143,6 +144,7 @@ interface CalendarClientProps {
   initialFrom: string
   initialTo: string
   eventCount: number
+  googleConnected: boolean
 }
 
 // Rehydrate serialized events (dates come as ISO strings across the server/client boundary)
@@ -161,6 +163,7 @@ export default function CalendarClient({
   initialFrom,
   initialTo,
   eventCount,
+  googleConnected,
 }: CalendarClientProps) {
   const [view, setView] = useState<View>('month')
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -173,6 +176,27 @@ export default function CalendarClient({
   const [showFilters, setShowFilters] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [refreshKey, setRefreshKey] = useState(0)
+
+  // ── Handle Google OAuth callback result ─────────────────────
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const googleConnectHandled = useRef(false)
+  useEffect(() => {
+    const connectResult = searchParams.get('google_connect')
+    if (!connectResult || googleConnectHandled.current) return
+    googleConnectHandled.current = true
+    if (connectResult === 'success') {
+      toast.success('Google Calendar connected! You are now the host of your meetings.', { duration: 5000 })
+    } else if (connectResult === 'denied') {
+      toast.info('Google Calendar connection cancelled.')
+    } else {
+      toast.error('Failed to connect Google Calendar. Please try again.')
+    }
+    // Remove query param from URL
+    const url = new URL(window.location.href)
+    url.searchParams.delete('google_connect')
+    router.replace(url.pathname, { scroll: false })
+  }, [searchParams, router])
 
   // ── Navigation ──────────────────────────────────────────────
   function navigate(dir: 1 | -1) {
@@ -441,13 +465,14 @@ export default function CalendarClient({
 
         {/* Calendar view */}
         <div className="flex-1 overflow-hidden flex">
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden h-full">
             {view === 'month' && (
               <CalendarMonthView
                 key={`month-${refreshKey}`}
                 currentDate={currentDate}
                 events={filteredEvents}
                 onDayClick={(d) => { setCurrentDate(d) }}
+                onViewDay={(d) => { setCurrentDate(d); setView('day') }}
                 onEventClick={setSelectedEvent}
               />
             )}
@@ -506,6 +531,7 @@ export default function CalendarClient({
         onSuccess={refreshEvents}
         editEvent={editEvent}
         defaultDate={defaultModalDate}
+        googleConnected={googleConnected}
       />
     </div>
   )

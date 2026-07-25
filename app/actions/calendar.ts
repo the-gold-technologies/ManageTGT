@@ -56,6 +56,9 @@ export type UnifiedCalendarEvent = {
   color: CalendarEventColor
   sourceType?: string | null
   sourceId?: string | null
+  attendee_emails?: string[]
+  meeting_platform?: string | null
+  meeting_url?: string | null
   // Extra meta for the detail sidebar
   meta?: Record<string, any>
 }
@@ -303,6 +306,9 @@ export async function getCalendarEvents(from: Date, to: Date): Promise<UnifiedCa
       color: (evt.color as CalendarEventColor) ?? colorMap[evt.type] ?? 'gray',
       sourceType: evt.source_type,
       sourceId: evt.source_id,
+      attendee_emails: evt.attendee_emails,
+      meeting_platform: evt.meeting_platform,
+      meeting_url: evt.meeting_url,
       meta: { attendees: evt.attendee_ids },
     })
   }
@@ -326,9 +332,40 @@ export async function createCalendarEvent(data: {
   all_day?: boolean
   color?: string
   attendee_ids?: string[]
+  attendee_emails?: string[]
+  meeting_platform?: string | null
 }) {
   try {
     const session = await auth()
+    
+    let meeting_url = null
+    let meeting_id = null
+
+    // Generate meeting links if requested
+    if (data.type === 'meeting' && data.meeting_platform) {
+      if (data.meeting_platform === 'zoom') {
+        const { createZoomMeeting } = await import('./meet-api')
+        const zoom = await createZoomMeeting(data.title, data.start_date, 60)
+        meeting_url = zoom.join_url
+        meeting_id = zoom.id
+      } else if (data.meeting_platform === 'google_meet') {
+        const { createGoogleMeet } = await import('./meet-api')
+        const meet = await createGoogleMeet(
+          data.title, 
+          data.start_date, 
+          data.end_date || data.start_date,
+          data.attendee_emails,
+          session?.user?.id
+        )
+        if (!meet) {
+          // User hasn't connected Google — return a specific error code
+          return { success: false, error: 'google_not_connected' }
+        }
+        meeting_url = meet.join_url
+        meeting_id = meet.id
+      }
+    }
+
     const event = await prisma.calendarEvent.create({
       data: {
         type: data.type as any,
@@ -339,9 +376,26 @@ export async function createCalendarEvent(data: {
         all_day: data.all_day ?? false,
         color: data.color,
         attendee_ids: data.attendee_ids ?? [],
+        attendee_emails: data.attendee_emails ?? [],
+        meeting_platform: data.meeting_platform,
+        meeting_url,
+        meeting_id,
         created_by: session?.user?.id,
       },
     })
+
+    // Send emails if attendees are present
+    if (event.attendee_emails.length > 0 && meeting_url && data.meeting_platform) {
+      const { sendMeetingInvite } = await import('@/lib/email')
+      await sendMeetingInvite(event.attendee_emails, {
+        title: event.title,
+        description: event.description ?? undefined,
+        startDate: event.start_date,
+        meetingUrl: meeting_url,
+        platform: data.meeting_platform as 'google_meet' | 'zoom'
+      })
+    }
+
     revalidatePath('/calendar')
     return { success: true, event }
   } catch (error) {
@@ -361,9 +415,15 @@ export async function updateCalendarEvent(
     all_day?: boolean
     color?: string
     attendee_ids?: string[]
+    attendee_emails?: string[]
+    meeting_platform?: string | null
   }
 ) {
   try {
+    // Note: If you want to update/regenerate meeting links when changing platform, 
+    // you would add that logic here similarly to createCalendarEvent.
+    // For simplicity, we are just updating the data fields here.
+
     const event = await prisma.calendarEvent.update({
       where: { id },
       data: {
@@ -375,6 +435,8 @@ export async function updateCalendarEvent(
         ...(data.all_day !== undefined && { all_day: data.all_day }),
         ...(data.color !== undefined && { color: data.color }),
         ...(data.attendee_ids !== undefined && { attendee_ids: data.attendee_ids }),
+        ...(data.attendee_emails !== undefined && { attendee_emails: data.attendee_emails }),
+        ...(data.meeting_platform !== undefined && { meeting_platform: data.meeting_platform }),
       },
     })
     revalidatePath('/calendar')
