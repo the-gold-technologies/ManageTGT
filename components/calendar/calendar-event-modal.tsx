@@ -175,11 +175,11 @@ export default function CalendarEventModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-[500px] bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden animate-[slideUp_0.2s_ease-out]">
+      <div className="relative w-full max-w-[500px] max-h-[96vh] flex flex-col bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden animate-[slideUp_0.2s_ease-out]">
         
-        <form onSubmit={handleSubmit} className="flex flex-col">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           {/* Header area - Type & Color */}
-          <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+          <div className="px-5 pt-5 pb-3 flex items-center justify-between shrink-0 z-10 relative">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button 
@@ -232,7 +232,7 @@ export default function CalendarEventModal({
             </button>
           </div>
 
-          <div className="px-6 space-y-5 mt-2">
+          <div className="px-6 space-y-5 mt-2 flex-1 overflow-y-auto pb-4">
             {/* Title */}
             <div>
               <input
@@ -417,7 +417,7 @@ export default function CalendarEventModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border mt-6 bg-bg-tertiary/20">
+          <div className="px-6 py-4 flex items-center justify-end gap-3 border-t border-border shrink-0 bg-bg-tertiary/20">
             <button 
               type="button" 
               onClick={onClose} 
