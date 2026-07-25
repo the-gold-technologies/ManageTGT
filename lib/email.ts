@@ -10,6 +10,7 @@ export const transporter = nodemailer.createTransport({
   },
 })
 
+
 export async function sendMeetingInvite(
   toEmails: string[],
   eventDetails: {
