@@ -1,17 +1,17 @@
--- DropIndex
-DROP INDEX "Invoice_invoice_number_key";
+-- Drop previous global unique constraints
+DROP INDEX IF EXISTS "Invoice_invoice_number_key";
 
--- DropIndex
-DROP INDEX "Project_project_code_key";
+-- Drop previous global unique constraints
+DROP INDEX IF EXISTS "Project_project_code_key";
 
--- DropIndex
-DROP INDEX "Role_name_key";
+-- Drop previous global unique constraints
+DROP INDEX IF EXISTS "Role_name_key";
 
--- DropIndex
-DROP INDEX "SalesTarget_service_type_month_year_key";
+-- Drop previous global unique constraints
+DROP INDEX IF EXISTS "SalesTarget_service_type_month_year_key";
 
--- DropIndex
-DROP INDEX "ServiceType_name_key";
+-- Drop previous global unique constraints
+DROP INDEX IF EXISTS "ServiceType_name_key";
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Invoice_invoice_number_orgId_key" ON "Invoice"("invoice_number", "orgId");
