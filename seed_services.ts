@@ -17,7 +17,7 @@ const SERVICE_TYPES = [
 async function main() {
   console.log('Seeding services...')
   for (const name of SERVICE_TYPES) {
-    const existing = await prisma.serviceType.findUnique({
+    const existing = await prisma.serviceType.findFirst({
       where: { name }
     })
     

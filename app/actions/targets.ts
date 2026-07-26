@@ -40,23 +40,35 @@ import { auth } from '@/auth'
 export async function upsertTarget(data: any) {
   try {
     const session = await auth()
-    const target = await prisma.salesTarget.upsert({
+    const existing = await prisma.salesTarget.findFirst({
       where: {
-        service_type_month_year: {
-          service_type: data.service_type,
-          month: data.month,
-          year: data.year
-        }
-      },
-      update: {
-        target_count: data.target_count,
-        average_cost: data.average_cost
-      },
-      create: {
-        ...data,
-        created_by: session?.user?.id
+        service_type: data.service_type,
+        month: data.month,
+        year: data.year
       }
     })
+
+    let target;
+    if (existing) {
+      target = await prisma.salesTarget.update({
+        where: { id: existing.id },
+        data: {
+          target_count: data.target_count,
+          average_cost: data.average_cost
+        }
+      })
+    } else {
+      target = await prisma.salesTarget.create({
+        data: {
+          service_type: data.service_type,
+          month: data.month,
+          year: data.year,
+          target_count: data.target_count,
+          average_cost: data.average_cost,
+          created_by: session?.user?.id
+        }
+      })
+    }
     revalidatePath('/targets')
     return { success: true, target }
   } catch (error) {

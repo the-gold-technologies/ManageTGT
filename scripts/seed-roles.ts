@@ -6,14 +6,14 @@ async function main() {
   
   for (const role of roles) {
     await prisma.role.upsert({
-      where: { name: role },
+      where: { name_orgId: { name: role, orgId: 'default_org_id' } },
       update: {},
-      create: { name: role, isSystem: role === 'admin' }
+      create: { name: role, isSystem: role === 'admin', orgId: 'default_org_id' }
     });
   }
   console.log('Roles seeded.');
 
-  const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } });
+  const adminRole = await prisma.role.findFirst({ where: { name: 'admin' } });
   
   if (!adminRole) return;
 
