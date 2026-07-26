@@ -22,7 +22,7 @@ export async function createRole(data: { name: string; description?: string }) {
     if (!session?.user) return { error: 'Unauthorized' }
 
     // Ensure the role name doesn't already exist
-    const existing = await prisma.role.findUnique({
+    const existing = await prisma.role.findFirst({
       where: { name: data.name }
     })
     if (existing) return { error: 'Role name already exists' }

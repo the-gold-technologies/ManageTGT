@@ -52,10 +52,10 @@ export async function addTeamMember(data: {
     }
 
     // Find the Role ID for the requested role name
-    let roleRecord = await prisma.role.findUnique({ where: { name: data.role } })
+    let roleRecord = await prisma.role.findFirst({ where: { name: data.role } })
     if (!roleRecord) {
       // Fallback if role doesn't exist, create it or default to team_member
-      roleRecord = await prisma.role.findUnique({ where: { name: 'team_member' } })
+      roleRecord = await prisma.role.findFirst({ where: { name: 'team_member' } })
     }
 
     const hashedPassword = await bcrypt.hash(data.password || 'Welcome@123', 10)
@@ -97,7 +97,7 @@ export async function updateMemberRole(userId: string, newRole: string) {
       return { error: 'Only admins can update roles' }
     }
 
-    const roleRecord = await prisma.role.findUnique({ where: { name: newRole } })
+    const roleRecord = await prisma.role.findFirst({ where: { name: newRole } })
 
     await prisma.user.update({
       where: { id: userId },
@@ -139,7 +139,7 @@ export async function updateTeamMember(userId: string, data: {
       return { error: 'Forbidden' }
     }
 
-    const roleRecord = await prisma.role.findUnique({ where: { name: data.role } })
+    const roleRecord = await prisma.role.findFirst({ where: { name: data.role } })
 
     const updateData: any = {
       name: data.full_name,

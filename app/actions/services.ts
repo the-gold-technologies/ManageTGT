@@ -21,7 +21,7 @@ export async function createService(data: { name: string; description?: string }
     const session = await auth()
     if (!session?.user) return { error: 'Unauthorized' }
 
-    const existing = await prisma.serviceType.findUnique({
+    const existing = await prisma.serviceType.findFirst({
       where: { name: data.name }
     })
     if (existing) return { error: 'Service name already exists' }
