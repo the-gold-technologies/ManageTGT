@@ -160,6 +160,11 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
                     {profile.role.replace('_', ' ')}
                   </Badge>
                 </div>
+                {profile.orgName && (
+                  <div className="text-text-muted">
+                    <span>Organization:</span> <span className="text-primary font-medium ml-1">{profile.orgName}</span>
+                  </div>
+                )}
                 <div className="text-text-muted">
                   <span>Joined:</span> <span className="text-text-secondary font-medium ml-1">{formatDate(profile.createdAt)}</span>
                 </div>

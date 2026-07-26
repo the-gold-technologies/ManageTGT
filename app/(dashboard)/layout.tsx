@@ -14,10 +14,14 @@ export default async function DashboardLayout({
   if (!session?.user) {
     redirect('/login')
   }
+  
+  if (session.user.isSuperAdmin) {
+    redirect('/superadmin/dashboard')
+  }
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { role: true }
+    include: { role: true, organization: true }
   })
 
   const userProfile = {
@@ -25,6 +29,7 @@ export default async function DashboardLayout({
     full_name: dbUser?.name || session.user.name || session.user.email || 'User',
     // Always use the real role from the database rather than stale JWT
     role: dbUser?.role?.name || 'team_member',
+    orgName: dbUser?.organization?.name || 'AgencyOS',
     avatar_url: dbUser?.image || session.user.image || undefined,
     createdAt: dbUser?.createdAt.toISOString() || new Date().toISOString(),
     updatedAt: dbUser?.updatedAt.toISOString() || new Date().toISOString(),

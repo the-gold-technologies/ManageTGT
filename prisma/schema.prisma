@@ -34,6 +34,9 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  isSuperAdmin Boolean @default(false)
 }
 
 model Account {
@@ -77,15 +80,19 @@ model VerificationToken {
 
 model ServiceType {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   description String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([name, orgId])
 }
 
 model Role {
   id          String  @id @default(cuid())
-  name        String  @unique
+  name        String
   description String?
   isSystem    Boolean @default(false)
 
@@ -93,6 +100,10 @@ model Role {
   permissions RoleModuleAccess[]
 
   createdAt DateTime @default(now())
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([name, orgId])
 }
 
 model RoleModuleAccess {
@@ -104,6 +115,8 @@ model RoleModuleAccess {
   hasAccess Boolean @default(false)
 
   @@unique([roleId, moduleKey])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 enum ProjectStatus {
@@ -187,6 +200,8 @@ model Client {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 enum BillingCycle {
@@ -197,7 +212,7 @@ enum BillingCycle {
 
 model Project {
   id                  String        @id @default(cuid())
-  project_code        String        @unique
+  project_code        String
   name                String
   client_id           String?
   client              Client?       @relation(fields: [client_id], references: [id], onDelete: SetNull)
@@ -229,6 +244,10 @@ model Project {
 
   @@index([status])
   @@index([client_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([project_code, orgId])
 }
 
 model Task {
@@ -255,6 +274,8 @@ model Task {
 
   @@index([status])
   @@index([project_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model Subtask {
@@ -268,6 +289,8 @@ model Subtask {
   updatedAt    DateTime @updatedAt
 
   @@index([task_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model TaskFile {
@@ -279,6 +302,8 @@ model TaskFile {
   file_size   Int?
   uploaded_by String?
   uploaded_at DateTime @default(now())
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model ActivityLog {
@@ -295,11 +320,13 @@ model ActivityLog {
 
   @@index([task_id])
   @@index([project_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model Invoice {
   id              String        @id @default(cuid())
-  invoice_number  String        @unique
+  invoice_number  String
   project_id      String?
   project         Project?      @relation(fields: [project_id], references: [id], onDelete: SetNull)
   client_id       String?
@@ -325,6 +352,10 @@ model Invoice {
   @@index([status])
   @@index([project_id])
   @@index([client_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([invoice_number, orgId])
 }
 
 model InvoicePayment {
@@ -340,6 +371,8 @@ model InvoicePayment {
   createdAt DateTime @default(now())
 
   @@index([invoice_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model Expense {
@@ -359,6 +392,8 @@ model Expense {
 
   @@index([expense_type])
   @@index([project_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model SalesTarget {
@@ -372,7 +407,10 @@ model SalesTarget {
 
   createdAt DateTime @default(now())
 
-  @@unique([service_type, month, year])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  
+  @@unique([service_type, month, year, orgId])
 }
 
 model SalesClosure {
@@ -390,6 +428,8 @@ model SalesClosure {
   @@index([target_id])
   @@index([project_id])
   @@index([client_id])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -405,6 +445,8 @@ model Notification {
 
   @@index([user_id])
   @@index([is_read])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model PasswordResetToken {
@@ -455,6 +497,8 @@ model CalendarEvent {
 
   @@index([start_date])
   @@index([created_by])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 model Prospect {
@@ -473,6 +517,8 @@ model Prospect {
   fileRecords              FileRecord[]
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 // --- File Manager ---
@@ -530,4 +576,52 @@ model FileRecord {
   @@index([expense_id])
   @@index([parent_id])
   @@index([uploaded_by])
+  orgId String @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug         String?   @unique
+  contactEmail String?
+  status       OrgStatus @default(ACTIVE)
+  planTier     PlanTier  @default(FREE)
+  maxUsers     Int       @default(2)
+  maxProjects  Int       @default(5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  serviceTypes      ServiceType[]
+  roles             Role[]
+  roleModuleAccesss RoleModuleAccess[]
+  clients           Client[]
+  projects          Project[]
+  tasks             Task[]
+  subtasks          Subtask[]
+  taskFiles         TaskFile[]
+  activityLogs      ActivityLog[]
+  invoices          Invoice[]
+  invoicePayments   InvoicePayment[]
+  expenses          Expense[]
+  salesTargets      SalesTarget[]
+  salesClosures     SalesClosure[]
+  notifications     Notification[]
+  calendarEvents    CalendarEvent[]
+  prospects         Prospect[]
+  fileRecords       FileRecord[]
 }

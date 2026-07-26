@@ -12,6 +12,8 @@ export interface Profile {
   avatar_url?: string
   role: string
   roleId?: string
+  orgName?: string
+  isSuperAdmin?: boolean
   createdAt: string
   updatedAt: string
 }

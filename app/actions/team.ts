@@ -13,7 +13,7 @@ export async function getCurrentProfile() {
 
   const profile = await prisma.user.findUnique({
     where: { id: session.user.id },
-    include: { role: true }
+    include: { role: true, organization: true }
   })
 
   if (!profile) return null
@@ -24,6 +24,7 @@ export async function getCurrentProfile() {
     email: profile.email || '',
     role: profile.role?.name || 'team_member',
     roleId: profile.roleId || undefined,
+    orgName: profile.organization?.name || 'AgencyOS',
     avatar_url: profile.image || session.user.image || null,
     createdAt: profile.createdAt.toISOString(),
   }

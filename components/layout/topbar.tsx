@@ -57,6 +57,10 @@ export default function TopBar({ user }: TopBarProps) {
     if (path.startsWith('/settings')) return ['System', 'Settings']
     if (path.startsWith('/activity')) return ['System', 'Activity Logs']
     if (path.startsWith('/files')) return ['Dashboard', 'Files']
+    if (path === '/superadmin/dashboard') return ['Platform Admin', 'Dashboard']
+    if (path.startsWith('/superadmin/organizations')) return ['Platform Admin', 'Organizations']
+    if (path.startsWith('/superadmin/settings')) return ['Platform Admin', 'Platform Settings']
+    if (path.startsWith('/superadmin')) return ['Platform Admin']
     return ['Dashboard']
   }
 
@@ -154,13 +158,25 @@ export default function TopBar({ user }: TopBarProps) {
               >
                 <div className="p-4 border-b border-border">
                   <p className="text-sm font-semibold text-text">{user.full_name}</p>
-                  <p className="text-xs text-text-muted mt-1 capitalize truncate">{user.role.replace('_', ' ')}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <p className="text-xs text-text-muted capitalize truncate">{user.role.replace('_', ' ')}</p>
+                    {user.orgName && (
+                      <>
+                        <span className="text-text-muted text-[10px]">•</span>
+                        <p className="text-xs font-medium text-primary truncate max-w-[120px]">{user.orgName}</p>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="p-2">
                   <button 
                     onClick={() => {
                       setShowProfileMenu(false)
-                      router.push('/settings')
+                      if (user.role === 'platform_owner' || user.isSuperAdmin) {
+                        router.push('/superadmin/settings')
+                      } else {
+                        router.push('/settings')
+                      }
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-bg-tertiary rounded-lg transition-colors"
                   >
