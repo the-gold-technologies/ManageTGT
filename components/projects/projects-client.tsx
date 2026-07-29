@@ -292,6 +292,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Start Date</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Deadline</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Notes</th>
                   {isAdmin && <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Payments</th>}
                 </tr>
               </thead>
@@ -356,6 +357,9 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           {PROJECT_STATUS_CONFIG[project.status]?.label}
                         </Badge>
                       </td>
+                      <td className="px-4 py-3 text-xs text-text-secondary max-w-[150px] truncate" title={project.notes || ''}>
+                        {project.notes || '—'}
+                      </td>
                       {isAdmin && (
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-center">
@@ -418,7 +422,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
             const hasPayments = inv.payments && inv.payments.length > 0
             const sumOfPayments = hasPayments ? inv.payments!.reduce((sum, p) => sum + p.amount, 0) : 0
             const legacyAmount = inv.amount_received - sumOfPayments
-            if (legacyAmount > 0) {
+            if (legacyAmount > 0.01) {
               allInstallments.push({
                 id: inv.id + '-legacy',
                 date: inv.payment_date || inv.invoice_date,
