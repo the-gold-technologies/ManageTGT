@@ -468,20 +468,15 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               )}
               </div>
 
-              {/* Admin-only: Notes + File Upload */}
-              {isAdmin && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes / Comments (Optional)</label>
-                    <textarea
-                      {...register('notes')}
-                      placeholder="Add any project comments, special requests, or extra details here..."
-                      rows={3}
-                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
-                    />
-                  </div>
-                </>
-              )}
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes / Comments (Optional)</label>
+                <textarea
+                  {...register('notes')}
+                  placeholder="Add any project comments, special requests, or extra details here..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                />
+              </div>
 
               <div className="pt-4 border-t border-border mt-2">
                 <ContextFilePanel
