@@ -63,6 +63,8 @@ export async function createInvoice(formData: FormData) {
     const status = formData.get('status') as any || 'pending'
     const notes = formData.get('notes') as string || null
     const gst_applied = formData.get('gst_applied') === 'true'
+    const currency = formData.get('currency') as string || 'INR'
+    const exchange_rate = formData.get('exchange_rate') ? parseFloat(formData.get('exchange_rate') as string) : null
 
     const files = formData.getAll('files') as File[]
     const file_urls: string[] = []
@@ -109,6 +111,8 @@ export async function createInvoice(formData: FormData) {
         notes,
         file_urls,
         gst_applied,
+        currency,
+        exchange_rate,
         ...(project_id ? { project_id } : {}),
         ...(client_id ? { client_id } : {}),
         created_by: session?.user?.id
@@ -169,6 +173,8 @@ export async function updateInvoice(id: string, formData: FormData) {
     const status = formData.get('status') as any || 'pending'
     const notes = formData.get('notes') as string || null
     const gst_applied = formData.get('gst_applied') === 'true'
+    const currency = formData.get('currency') as string || 'INR'
+    const exchange_rate = formData.get('exchange_rate') ? parseFloat(formData.get('exchange_rate') as string) : null
 
     const files = formData.getAll('files') as File[]
     const file_urls: string[] = []

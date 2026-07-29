@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { createNotification } from './notifications'
+import { logActivity } from './tasks'
 import { auth } from '@/auth'
 
 export async function getProjects() {
@@ -11,9 +12,19 @@ export async function getProjects() {
     let whereClause = {}
     
     if (session?.user?.role === 'team_lead') {
-      whereClause = { team_lead_id: session.user.id }
+      whereClause = {
+        OR: [
+          { team_lead_id: session.user.id },
+          { created_by: session.user.id }
+        ]
+      }
     } else if (session?.user?.role === 'team_member') {
-      whereClause = { assigned_member_ids: { has: session.user.id } }
+      whereClause = {
+        OR: [
+          { assigned_member_ids: { has: session.user.id } },
+          { created_by: session.user.id }
+        ]
+      }
     }
 
     const projects = await prisma.project.findMany({
@@ -165,6 +176,11 @@ export async function createProject(data: any) {
         console.warn('FileRecord sync failed for project create:', e)
       }
     }
+
+    await logActivity({
+      project_id: project.id,
+      action: `Created project: ${project.name}`,
+    })
 
     revalidatePath('/projects')
     revalidatePath('/targets')

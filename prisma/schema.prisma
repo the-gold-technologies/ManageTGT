@@ -218,6 +218,8 @@ model Project {
   client              Client?       @relation(fields: [client_id], references: [id], onDelete: SetNull)
   service_type        String
   quoted_price        Float
+  currency            String        @default("INR")
+  exchange_rate       Float?
   billing_cycle       BillingCycle  @default(ONE_TIME)
   next_billing_date   DateTime?
   start_date          DateTime?
@@ -334,6 +336,8 @@ model Invoice {
   quoted_value    Float
   final_billing   Float
   amount_received Float         @default(0)
+  currency        String        @default("INR")
+  exchange_rate   Float?
   invoice_date    DateTime
   due_date        DateTime?
   payment_date    DateTime?

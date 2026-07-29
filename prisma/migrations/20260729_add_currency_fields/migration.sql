@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "Project" ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'INR';
+ALTER TABLE "Project" ADD COLUMN "exchange_rate" DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "Invoice" ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'INR';
+ALTER TABLE "Invoice" ADD COLUMN "exchange_rate" DOUBLE PRECISION;

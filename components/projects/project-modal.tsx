@@ -16,6 +16,7 @@ import { getServices } from '@/app/actions/services'
 import { createProject as createProjectAction, updateProject as updateProjectAction } from '@/app/actions/projects'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import ContextFilePanel, { ContextFilePanelRef } from '@/components/files/context-file-panel'
+import SmartCurrencyInput from '@/components/ui/usd-tooltip-input'
 
 const schema = z.object({
   name: z.string().min(1, 'Required'),
@@ -61,6 +62,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const canAssignTeam = isAdmin || isTeamLead
 
   const [isUploading, setIsUploading] = useState(false)
+  const [currency, setCurrency] = useState<'INR' | 'USD'>((project as any)?.currency as 'INR' | 'USD' || 'INR')
+  const [exchangeRate, setExchangeRate] = useState<number | null>((project as any)?.exchange_rate || null)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([])
@@ -78,6 +81,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   })
 
   const currentBillingCycle = watch('billing_cycle')
+  const watchedStartDate = watch('start_date')
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
@@ -92,6 +96,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       setSelectedServices(initialServices)
       setSelectedTeamMembers(project?.assigned_member_ids || [])
       setSelectedTeamLeadId(project?.team_lead_id ?? '')
+      setCurrency((project as any)?.currency as 'INR' | 'USD' || 'INR')
+      setExchangeRate((project as any)?.exchange_rate || null)
       reset(project ? {
         name: project.name,
         client_id: project.client_id ?? '',
@@ -146,6 +152,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       assigned_member_ids: selectedTeamMembers,
       status: data.status,
       notes: data.notes || null,
+      currency,
+      exchange_rate: exchangeRate,
     } as any
 
     setIsUploading(true)
@@ -206,7 +214,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               </button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-4">
               {/* Project Name */}
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Project Name *</label>
@@ -289,10 +297,18 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               <div className={isAdmin ? "grid grid-cols-2 gap-4" : ""}>
                 {isAdmin && (
                   <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                      {currentBillingCycle === 'MONTHLY' ? 'Monthly Fee (₹)' : currentBillingCycle === 'ANNUAL' ? 'Annual Fee (₹)' : 'Quoted Price (₹)'} *
-                    </label>
-                    <input {...register('quoted_price')} type="number" min="0" placeholder="50000" className={inputClass} />
+                    <SmartCurrencyInput
+                      label={currentBillingCycle === 'MONTHLY' ? 'Monthly Fee' : currentBillingCycle === 'ANNUAL' ? 'Annual Fee' : 'Quoted Price'}
+                      required
+                      referenceDate={watchedStartDate || undefined}
+                      inputProps={register('quoted_price')}
+                      placeholder="50000"
+                      defaultCurrency={(project as any)?.currency as 'INR' | 'USD'}
+                      defaultExchangeRate={(project as any)?.exchange_rate}
+                      defaultInrValue={project?.quoted_price || 0}
+                      onInrChange={(inrValue) => setValue('quoted_price', inrValue, { shouldDirty: true })}
+                      onCurrencyStateChange={(c, r) => { setCurrency(c); setExchangeRate(r) }}
+                    />
                   </div>
                 )}
                 <div>

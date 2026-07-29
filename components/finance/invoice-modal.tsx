@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
 import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment } from '@/app/actions/finance'
 import ContextFilePanel from '@/components/files/context-file-panel'
+import SmartCurrencyInput from '@/components/ui/usd-tooltip-input'
 
 const schema = z.object({
   invoice_number: z.string().min(1, 'Invoice number is required'),
@@ -47,6 +48,9 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
   const [isDeleting, setIsDeleting] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  
+  const [currency, setCurrency] = useState<'INR' | 'USD'>((invoice as any)?.currency as 'INR' | 'USD' || 'INR')
+  const [exchangeRate, setExchangeRate] = useState<number | null>((invoice as any)?.exchange_rate || null)
 
   const { register, handleSubmit, reset, watch, setValue, getValues, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
     resolver: zodResolver(schema),
@@ -180,6 +184,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         notes: '',
         gst_applied: false,
       })
+      setCurrency((invoice as any)?.currency as 'INR' | 'USD' || 'INR')
+      setExchangeRate((invoice as any)?.exchange_rate || null)
       setConfirmDelete(false)
       setShowFullForm(!invoice)
       setFiles([])
@@ -231,6 +237,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       formData.append('final_billing', data.final_billing.toString())
       formData.append('amount_received', data.amount_received.toString())
       formData.append('gst_applied', String(data.gst_applied))
+      formData.append('currency', currency)
+      if (exchangeRate) formData.append('exchange_rate', exchangeRate.toString())
 
       const invDate = data.invoice_date ? new Date(data.invoice_date).toISOString() : new Date().toISOString()
       formData.append('invoice_date', invDate)
@@ -286,7 +294,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
               <button onClick={handleClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto p-6 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto overflow-x-hidden p-6 space-y-4">
               {showFullForm && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -313,13 +321,43 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    {[['quoted_value', 'Quoted (₹)'], ['final_billing', 'Final Billing (₹)'], ['amount_received', 'Received (₹)']].map(([name, label]) => (
-                      <div key={name}>
-                        <label className="block text-xs font-medium text-text-secondary mb-1.5">{label}</label>
-                        <input {...register(name as keyof FormData)} type="number" min="0" placeholder="0" className={inputClass} readOnly={isEdit && name === 'amount_received'} disabled={isEdit && name === 'amount_received'} />
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <SmartCurrencyInput
+                        label="Quoted"
+                        inputProps={register('quoted_value')}
+                        placeholder="50000"
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultExchangeRate={(invoice as any)?.exchange_rate}
+                        defaultInrValue={invoice?.quoted_value || 0}
+                        onInrChange={(inrValue) => setValue('quoted_value', inrValue, { shouldDirty: true })}
+                        onCurrencyStateChange={(c, r) => { setCurrency(c); setExchangeRate(r) }}
+                      />
+                    </div>
+                    <div>
+                      <SmartCurrencyInput
+                        label="Final Billing"
+                        inputProps={register('final_billing')}
+                        placeholder="45000"
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultExchangeRate={(invoice as any)?.exchange_rate}
+                        defaultInrValue={invoice?.final_billing || 0}
+                        onInrChange={(inrValue) => setValue('final_billing', inrValue, { shouldDirty: true })}
+                        onCurrencyStateChange={(c, r) => { setCurrency(c); setExchangeRate(r) }}
+                      />
+                    </div>
+                    <div>
+                      <SmartCurrencyInput
+                        label="Received"
+                        inputProps={register('amount_received')}
+                        placeholder="25000"
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultExchangeRate={(invoice as any)?.exchange_rate}
+                        defaultInrValue={invoice?.amount_received || 0}
+                        onInrChange={(inrValue) => setValue('amount_received', inrValue, { shouldDirty: true })}
+                        onCurrencyStateChange={(c, r) => { setCurrency(c); setExchangeRate(r) }}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2.5 py-2 pl-1">
@@ -477,8 +515,20 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                     <div className="p-4 bg-bg rounded-lg border border-border mb-4 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-medium text-text-secondary mb-1">Amount (₹)</label>
-                          <input type="number" min="1" value={newPayment.amount} onChange={e => setNewPayment(prev => ({ ...prev, amount: e.target.value }))} className={inputClass} placeholder="e.g. 5000" />
+                          {/* SmartCurrencyInput: uses payment DATE for historical USD→INR rate */}
+                          <SmartCurrencyInput
+                            label="Amount"
+                            referenceDate={newPayment.date || undefined}
+                            placeholder="e.g. 5000"
+                            onInrChange={(inrValue) =>
+                              setNewPayment(prev => ({ ...prev, amount: String(Math.round(inrValue)) }))
+                            }
+                            inputProps={{
+                              value: newPayment.amount,
+                              onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                                setNewPayment(prev => ({ ...prev, amount: e.target.value })),
+                            }}
+                          />
                         </div>
                         <div>
                           <label className="block text-[10px] font-medium text-text-secondary mb-1">Date</label>
@@ -513,7 +563,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                     const hasPayments = invoice.payments && invoice.payments.length > 0;
                     const sumOfPayments = hasPayments ? invoice.payments!.reduce((sum, p) => sum + p.amount, 0) : 0;
                     const legacyAmount = invoice.amount_received - sumOfPayments;
-                    const hasLegacy = legacyAmount > 0;
+                    const hasLegacy = legacyAmount > 0.01;
 
                     if (!hasPayments && !hasLegacy) {
                       return <p className="text-xs text-text-muted text-center py-4 bg-bg border border-border border-dashed rounded-lg">No payments recorded yet.</p>;
