@@ -86,8 +86,8 @@ export async function createProject(data: any) {
         created_by: session?.user?.id,
         deliverable_urls: deliverable_urls || [],
         assigned_member_ids: assigned_member_ids || [],
-        ...(client_id ? { client: { connect: { id: client_id } } } : {}),
-        ...(team_lead_id ? { teamLead: { connect: { id: team_lead_id } } } : {})
+        ...(client_id ? { client_id } : {}),
+        ...(team_lead_id ? { team_lead_id } : {})
       }
     })
     

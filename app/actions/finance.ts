@@ -109,8 +109,8 @@ export async function createInvoice(formData: FormData) {
         notes,
         file_urls,
         gst_applied,
-        ...(project_id ? { project: { connect: { id: project_id } } } : {}),
-        ...(client_id ? { client: { connect: { id: client_id } } } : {}),
+        ...(project_id ? { project_id } : {}),
+        ...(client_id ? { client_id } : {}),
         created_by: session?.user?.id
       }
     })

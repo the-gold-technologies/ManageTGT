@@ -68,7 +68,7 @@ export async function verifyModuleAccess(moduleKey: string) {
   const roleName = dbUser.role?.name || 'team_member'
   if (roleName === 'admin') return
 
-  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'files']
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'calendar', 'files']
   if (DEFAULT_MODULES.includes(moduleKey)) return
 
   const roleId = dbUser.roleId

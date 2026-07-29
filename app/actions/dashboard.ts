@@ -11,7 +11,7 @@ export async function getDashboardData() {
   })
   const userRole = dbUser?.role?.name || 'team_member'
 
-  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks']
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'calendar', 'files']
   let allowedModules: string[] = [...DEFAULT_MODULES]
   const roleId = dbUser?.roleId
   if (roleId) {

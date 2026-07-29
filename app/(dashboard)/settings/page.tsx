@@ -18,7 +18,7 @@ export default async function SettingsPage() {
     initialAdminData = { roles, services, access }
   }
 
-  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'settings-profile']
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'settings-profile', 'calendar', 'files']
   let allowedModules: string[] = [...DEFAULT_MODULES]
   if (profile?.id) {
     const dbUser = await prisma.user.findUnique({

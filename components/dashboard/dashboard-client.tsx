@@ -60,7 +60,8 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
     queryFn: async () => {
       const res = await getDashboardData()
       return res
-    }
+    },
+    initialData: initialData || undefined,
   })
 
   const gridColor = resolvedTheme === 'dark' ? '#1E1E2A' : '#E5E7EB'

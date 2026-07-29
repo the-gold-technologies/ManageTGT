@@ -149,21 +149,21 @@ export default function TopBar({ user }: TopBarProps) {
           {/* Profile Menu Dropdown */}
           <AnimatePresence>
             {showProfileMenu && (
-              <motion.div
+                <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 transition={{ duration: 0.15 }}
-                className="absolute right-0 mt-2 w-56 rounded-xl bg-bg-secondary border border-border shadow-card overflow-hidden z-50"
+                className="absolute right-0 mt-2 min-w-[14rem] max-w-[20rem] w-max rounded-xl bg-bg-secondary border border-border shadow-card overflow-hidden z-50"
               >
                 <div className="p-4 border-b border-border">
-                  <p className="text-sm font-semibold text-text">{user.full_name}</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    <p className="text-xs text-text-muted capitalize truncate">{user.role.replace('_', ' ')}</p>
+                  <p className="text-sm font-semibold text-text truncate">{user.full_name}</p>
+                  <div className="flex flex-wrap items-center gap-x-1 mt-1">
+                    <p className="text-xs text-text-muted capitalize shrink-0">{user.role.replace('_', ' ')}</p>
                     {user.orgName && (
                       <>
-                        <span className="text-text-muted text-[10px]">•</span>
-                        <p className="text-xs font-medium text-primary truncate max-w-[120px]">{user.orgName}</p>
+                        <span className="text-text-muted text-[10px] shrink-0">•</span>
+                        <p className="text-xs font-medium text-primary break-words whitespace-normal">{user.orgName}</p>
                       </>
                     )}
                   </div>

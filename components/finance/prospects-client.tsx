@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Trash2, Loader2, Users, FileText, CheckCircle2, TrendingUp, X, ChevronDown, Check, UploadCloud, Paperclip } from 'lucide-react'
+import { Plus, Search, Trash2, Loader2, Users, FileText, CheckCircle2, TrendingUp, X, ChevronDown, Check, UploadCloud, Bell, Send, Clock, SkipForward, Mail, Edit2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,10 +18,12 @@ import { getProspects, createProspect, updateProspect, deleteProspect } from '@/
 import { createClient, checkClientExists } from '@/app/actions/clients'
 import { getServices } from '@/app/actions/services'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
-import type { Prospect } from '@/types'
+import { getFollowUps, createFollowUp, updateFollowUp, deleteFollowUp, approveFollowUp } from '@/app/actions/follow-ups'
+import type { Prospect, ProspectFollowUp } from '@/types'
 
 interface ProspectsClientProps {
   initialProspects: Prospect[]
+  isAdmin?: boolean
 }
 
 
@@ -40,7 +42,15 @@ const schema = z.object({
 type FormInput = z.input<typeof schema>
 type FormData = z.output<typeof schema>
 
-export default function ProspectsClient({ initialProspects }: ProspectsClientProps) {
+// ─── Follow-Up default note template ────────────────────────────────────────
+function defaultFollowUpNote(prospectName: string, proposalDate?: string | null) {
+  const dateRef = proposalDate
+    ? `sent on ${new Date(proposalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`
+    : 'recently sent'
+  return `Hi ${prospectName},\n\nWe hope this message finds you well. We wanted to follow up on the proposal we ${dateRef} and check if you had any questions or needed any clarifications.\n\nWe are excited about the possibility of working together and would love to hear your thoughts.\n\nWarm regards,\nThe Gold Technologies Team`
+}
+
+export default function ProspectsClient({ initialProspects, isAdmin = false }: ProspectsClientProps) {
   const [search, setSearch] = useState('')
   const [proposalFilter, setProposalFilter] = useState('all') // all, yes, no
   const [convertedFilter, setConvertedFilter] = useState('all') // all, yes, no
@@ -48,6 +58,7 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
   const [editingProspect, setEditingProspect] = useState<Prospect | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [followUpDrawerOpen, setFollowUpDrawerOpen] = useState<Prospect | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const qc = useQueryClient()
@@ -57,6 +68,16 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
   const [isUploading, setIsUploading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+
+  // ─── Follow-Up state ─────────────────────────────────────────────────────
+  const [followUps, setFollowUps] = useState<ProspectFollowUp[]>([])
+  const [fuLoading, setFuLoading] = useState(false)
+  const [showFuForm, setShowFuForm] = useState(false)
+  const [fuDate, setFuDate] = useState('')
+  const [fuChannel, setFuChannel] = useState<'email' | 'manual'>('email')
+  const [fuNote, setFuNote] = useState('')
+  const [fuSubmitting, setFuSubmitting] = useState(false)
+  const [editingFu, setEditingFu] = useState<ProspectFollowUp | null>(null)
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
@@ -130,6 +151,128 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
       setConfirmDelete(false)
     }
   }, [modalOpen, editingProspect, reset])
+
+  useEffect(() => {
+    if (followUpDrawerOpen) {
+      setShowFuForm(false)
+      setEditingFu(null)
+      setFuDate('')
+      setFuChannel('email')
+      setFuNote('')
+      setFuLoading(true)
+      getFollowUps(followUpDrawerOpen.id).then((data) => {
+        setFollowUps(data as unknown as ProspectFollowUp[])
+        setFuLoading(false)
+      })
+    } else {
+      setFollowUps([])
+    }
+  }, [followUpDrawerOpen])
+
+  // ─── Follow-Up handlers ───────────────────────────────────────────────────
+  function openNewFuForm() {
+    setEditingFu(null)
+    // Default date: tomorrow at 09:00
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(9, 0, 0, 0)
+    setFuDate(tomorrow.toISOString().slice(0, 16))
+    setFuChannel('email')
+    setFuNote(defaultFollowUpNote(
+      followUpDrawerOpen?.name ?? '',
+      followUpDrawerOpen?.proposal_submission_date
+    ))
+    setShowFuForm(true)
+  }
+
+  function openEditFuForm(fu: ProspectFollowUp) {
+    setEditingFu(fu)
+    setFuDate(new Date(fu.scheduled_date).toISOString().slice(0, 16))
+    setFuChannel(fu.channel === 'manual' ? 'manual' : 'email')
+    setFuNote(fu.note ?? '')
+    setShowFuForm(true)
+  }
+
+  function applyPreset(days: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    d.setHours(9, 0, 0, 0)
+    setFuDate(d.toISOString().slice(0, 16))
+  }
+
+  async function handleFuSubmit() {
+    if (!followUpDrawerOpen || !fuDate) {
+      toast.error('Please select a date')
+      return
+    }
+    setFuSubmitting(true)
+    try {
+      if (editingFu) {
+        const res = await updateFollowUp(editingFu.id, {
+          scheduled_date: new Date(fuDate).toISOString(),
+          note: fuNote,
+        })
+        if (!res.success) throw new Error(res.error)
+        toast.success('Follow-up updated')
+      } else {
+        const res = await createFollowUp({
+          prospect_id: followUpDrawerOpen.id,
+          scheduled_date: new Date(fuDate).toISOString(),
+          channel: fuChannel,
+          note: fuNote || undefined,
+        })
+        if (!res.success) throw new Error(res.error)
+        toast.success('Follow-up scheduled')
+      }
+      // Refresh list
+      const fresh = await getFollowUps(followUpDrawerOpen.id)
+      setFollowUps(fresh as unknown as ProspectFollowUp[])
+      setShowFuForm(false)
+      setEditingFu(null)
+      // We should also trigger a refetch of the prospects query so the table badge updates
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save follow-up')
+    } finally {
+      setFuSubmitting(false)
+    }
+  }
+
+  async function handleFuSkip(fu: ProspectFollowUp) {
+    try {
+      await updateFollowUp(fu.id, { status: 'skipped' })
+      const fresh = await getFollowUps(followUpDrawerOpen!.id)
+      setFollowUps(fresh as unknown as ProspectFollowUp[])
+      toast.success('Follow-up marked as skipped')
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    } catch {
+      toast.error('Failed to skip follow-up')
+    }
+  }
+
+  async function handleFuDelete(fu: ProspectFollowUp) {
+    try {
+      await deleteFollowUp(fu.id)
+      setFollowUps(prev => prev.filter(f => f.id !== fu.id))
+      toast.success('Follow-up removed')
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    } catch {
+      toast.error('Failed to delete follow-up')
+    }
+  }
+
+  async function handleFuApprove(fu: ProspectFollowUp) {
+    try {
+      const res = await approveFollowUp(fu.id)
+      if (!res.success) throw new Error(res.error)
+      const fresh = await getFollowUps(followUpDrawerOpen!.id)
+      setFollowUps(fresh as unknown as ProspectFollowUp[])
+      toast.success('Follow-up approved')
+      qc.invalidateQueries({ queryKey: ['prospects'] })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to approve follow-up')
+    }
+  }
 
   const onSubmit = async (data: FormData) => {
     setIsUploading(true)
@@ -308,7 +451,7 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
             <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
-                  {['Name', 'Email / Phone', 'Company Name', 'Services', 'Proposal Status', 'Proposal Date', 'Comments', 'Conversion Status'].map(h => (
+                  {['Name', 'Email / Phone', 'Company Name', 'Services', 'Status', 'Date', 'Comments', 'Conversion Status'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -318,7 +461,22 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                   <tr key={p.id} onClick={() => { setEditingProspect(p); setModalOpen(true) }}
                     className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-text">{p.name}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="font-medium text-text">{p.name}</p>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setFollowUpDrawerOpen(p); }}
+                          className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-bg border border-border text-text-secondary hover:text-primary hover:border-primary/50 transition-all shrink-0"
+                          title="Manage Follow-Ups"
+                        >
+                          <Bell size={12} />
+                          {p.followUps && p.followUps.filter(f => f.status === 'pending').length > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 border-2 border-bg"></span>
+                            </span>
+                          )}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-text-secondary">
                       <div>
@@ -625,6 +783,292 @@ export default function ProspectsClient({ initialProspects }: ProspectsClientPro
                     {isSubmitting || isUploading ? 'Saving...' : (editingProspect ? 'Save Changes' : 'Add Prospect')}
                   </Button>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Follow-Up Slide-Over Drawer */}
+      <AnimatePresence>
+        {followUpDrawerOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setFollowUpDrawerOpen(null)} className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 !m-0" />
+            <motion.div
+              initial={{ opacity: 0, x: '100%' }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-[420px] bg-bg-secondary border-l border-border z-50 flex flex-col shadow-2xl overflow-hidden !m-0"
+            >
+              {/* Drawer Header */}
+              <div className="flex items-start justify-between px-4 py-3 border-b border-border bg-bg shrink-0">
+                <div>
+                  <h3 className="font-bold text-lg text-text flex items-center gap-2">
+                    <Bell size={18} className="text-primary" />
+                    Follow-Ups
+                  </h3>
+                  <p className="text-xs text-text-muted mt-1 font-medium">{followUpDrawerOpen.name} ({followUpDrawerOpen.email})</p>
+                </div>
+                <button onClick={() => setFollowUpDrawerOpen(null)} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-tertiary transition-all"><X size={16} /></button>
+              </div>
+
+              {/* Drawer Body (Timeline & Form) */}
+              <div className="flex-1 overflow-y-auto p-4 bg-bg/30">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-text">Schedule & Timeline</span>
+                    {followUps.filter(f => f.status === 'pending').length > 0 && (
+                      <span className="text-[10px] bg-amber-500/15 text-amber-500 font-medium px-1.5 py-0.5 rounded-full">
+                        {followUps.filter(f => f.status === 'pending').length} pending
+                      </span>
+                    )}
+                  </div>
+                  {!showFuForm && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={openNewFuForm}
+                      className="h-7 text-xs px-2.5 flex items-center gap-1.5"
+                    >
+                      <Plus size={12} /> Schedule
+                    </Button>
+                  )}
+                </div>
+
+                {/* Schedule Form */}
+                <AnimatePresence>
+                  {showFuForm && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mb-6"
+                    >
+                      <div className="bg-bg border border-border rounded-xl p-4 space-y-4 shadow-sm">
+                        <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                          {editingFu ? 'Edit Follow-Up' : 'New Follow-Up'}
+                        </p>
+
+                        {/* Quick presets */}
+                        {!editingFu && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-text-muted">Quick Schedule:</span>
+                            {[3, 7, 14].map(d => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => applyPreset(d)}
+                                className="text-xs px-2 py-1 rounded-md bg-bg-secondary hover:bg-primary/10 hover:text-primary border border-border transition-all font-medium"
+                              >+{d}d</button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Date/time */}
+                        <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1">Date & Time *</label>
+                          <input
+                            type="datetime-local"
+                            value={fuDate}
+                            onChange={e => setFuDate(e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+
+                        {/* Channel (only for new) */}
+                        {!editingFu && (
+                          <div>
+                            <label className="block text-xs font-medium text-text-secondary mb-1">Channel</label>
+                            <div className="flex gap-2">
+                              {(['email', 'manual'] as const).map(ch => (
+                                <button
+                                  key={ch}
+                                  type="button"
+                                  onClick={() => setFuChannel(ch)}
+                                  className={`flex items-center justify-center flex-1 gap-1.5 text-xs px-3 py-2 rounded-lg border font-medium transition-all ${
+                                    fuChannel === ch
+                                      ? 'bg-primary text-white border-primary shadow-sm'
+                                      : 'bg-bg border-border text-text-secondary hover:border-primary/50'
+                                  }`}
+                                >
+                                  {ch === 'email' ? <Mail size={12} /> : <Bell size={12} />}
+                                  {ch === 'email' ? 'Email Client' : 'Manual Reminder'}
+                                </button>
+                              ))}
+                            </div>
+                            {fuChannel === 'manual' && (
+                              <p className="text-[11px] text-text-muted mt-2">Receive a reminder notification no email will be sent to the client.</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Note / message body */}
+                        <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1">
+                            {fuChannel === 'email' ? 'Email Message (editable)' : 'Reminder Note'}
+                          </label>
+                          <textarea
+                            value={fuNote}
+                            onChange={e => setFuNote(e.target.value)}
+                            rows={8}
+                            placeholder={fuChannel === 'email' ? 'Professional follow-up message...' : 'Optional reminder note...'}
+                            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-y min-h-[150px] shadow-sm"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-4">
+                          <button
+                            type="button"
+                            onClick={() => { setShowFuForm(false); setEditingFu(null) }}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-bg-tertiary transition-all font-medium"
+                          >Cancel</button>
+                          <Button
+                            type="button"
+                            onClick={handleFuSubmit}
+                            loading={fuSubmitting}
+                            className="text-xs h-7 px-4"
+                          >
+                            {fuSubmitting ? 'Saving...' : (editingFu ? 'Update' : 'Schedule')}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Timeline */}
+                {fuLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    {[1, 2, 3].map(i => <div key={i} className="h-16 bg-bg border border-border/50 rounded-xl" />)}
+                  </div>
+                ) : followUps.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-text-muted bg-bg border border-dashed border-border rounded-xl">
+                    <Clock size={24} className="mx-auto mb-3 opacity-40 text-text-secondary" />
+                    <p className="font-medium text-text-secondary">No follow-ups scheduled yet</p>
+                    <p className="mt-1 opacity-70">Click 'Schedule' above to add one.</p>
+                  </div>
+                ) : (
+                  <div className="relative space-y-0 pb-10">
+                    {/* Vertical line */}
+                    <div className="absolute left-[15px] top-4 bottom-4 w-[2px] bg-border/50" />
+                    {followUps.map((fu, idx) => {
+                      const statusColor = {
+                        pending: 'bg-amber-500',
+                        sent: 'bg-emerald-500',
+                        skipped: 'bg-slate-400',
+                        failed: 'bg-red-500',
+                      }[fu.status]
+                      const statusLabel = {
+                        pending: 'Pending',
+                        sent: 'Sent',
+                        skipped: 'Skipped',
+                        failed: 'Failed',
+                      }[fu.status]
+                      const statusVariant = {
+                        pending: 'warning',
+                        sent: 'success',
+                        skipped: 'muted',
+                        failed: 'danger',
+                      }[fu.status] as any
+                      const isPast = new Date(fu.scheduled_date) < new Date()
+                      return (
+                        <div key={fu.id} className="flex items-start gap-4 pl-1 py-3 group relative">
+                          {/* Dot */}
+                          <div className={`w-[30px] h-[30px] shrink-0 rounded-full border-4 border-bg-secondary flex items-center justify-center z-10 mt-1 shadow-sm ${statusColor}`}>
+                            {fu.status === 'sent' ? <Check size={12} className="text-white stroke-[3]" /> :
+                              fu.status === 'skipped' ? <SkipForward size={12} className="text-white" /> :
+                              fu.status === 'failed' ? <X size={12} className="text-white" /> :
+                              <Clock size={12} className="text-white" />}
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 bg-bg border border-border shadow-sm rounded-xl px-4 py-3 hover:border-primary/30 transition-colors">
+                            <div className="flex flex-col gap-2 mb-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                                  <span className="text-sm font-bold text-text whitespace-nowrap">
+                                    {new Date(fu.scheduled_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    <span className="text-text-muted font-medium ml-1.5">
+                                      {new Date(fu.scheduled_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge variant={statusVariant} className="text-[10px] px-2 py-0.5 shadow-sm">{statusLabel}</Badge>
+                                    {fu.channel === 'email' ? (
+                                      <Mail size={12} className="text-text-muted" />
+                                    ) : (
+                                      <Bell size={12} className="text-text-muted" />
+                                    )}
+                                    {fu.status === 'pending' && isPast && (
+                                      <span className="text-[10px] text-red-500 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Overdue</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {(fu.status === 'sent' || fu.status === 'skipped' || fu.status === 'failed') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFuDelete(fu)}
+                                    title="Remove"
+                                    className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 transition-all shrink-0"
+                                  ><X size={13} /></button>
+                                )}
+                              </div>
+                              
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  {fu.status === 'pending' && isPast && !fu.is_approved && (
+                                    <span className="text-[10px] bg-indigo-500/15 text-indigo-500 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm">
+                                      🛡️ Awaiting Approval
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Actions */}
+                                {fu.status === 'pending' && (
+                                  <div className="flex items-center gap-1 transition-opacity">
+                                    {!fu.is_approved && isPast && isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleFuApprove(fu)}
+                                        title="Approve"
+                                        className="text-[10px] font-bold px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all mr-1 shadow-sm"
+                                      >Approve</button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditFuForm(fu)}
+                                      title="Edit"
+                                      className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-primary hover:bg-primary/10 transition-all"
+                                    ><Edit2 size={13} /></button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFuSkip(fu)}
+                                      title="Skip"
+                                      className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-bg-tertiary transition-all"
+                                    ><SkipForward size={13} /></button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFuDelete(fu)}
+                                      title="Delete"
+                                      className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-danger hover:bg-danger/10 transition-all"
+                                    ><Trash2 size={13} /></button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {fu.note && (
+                              <div className="bg-bg-secondary/30 rounded-lg p-2.5 mt-2 border border-border/50 dark:border-white/5">
+                                <p className="text-[12px] text-text-secondary leading-relaxed whitespace-pre-wrap">{fu.note}</p>
+                              </div>
+                            )}
+                          </div>
+                          </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </motion.div>
           </>

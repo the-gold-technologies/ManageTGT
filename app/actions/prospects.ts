@@ -6,7 +6,17 @@ import { revalidatePath } from 'next/cache'
 export async function getProspects() {
   try {
     const prospects = await prisma.prospect.findMany({
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: {
+        followUps: {
+          select: {
+            id: true,
+            status: true,
+            scheduled_date: true,
+            is_approved: true
+          }
+        }
+      }
     })
     return prospects
   } catch (error) {

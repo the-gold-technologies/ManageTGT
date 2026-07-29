@@ -76,3 +76,75 @@ export async function sendMeetingInvite(
     console.error('Error sending meeting invite:', error)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Follow-Up Email — sent to the prospect (client) on a scheduled date
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendFollowUpEmail(opts: {
+  toEmail: string
+  prospectName: string
+  agencyName?: string
+  proposalDate?: string
+  customNote?: string // editable message body set by admin at scheduling time
+}) {
+  const { toEmail, prospectName, agencyName = 'The Gold Technologies', proposalDate, customNote } = opts
+
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)
+  if (!valid) {
+    console.warn('sendFollowUpEmail: invalid email, skipping.', toEmail)
+    return { success: false, error: 'Invalid email' }
+  }
+
+  const proposalRef = proposalDate
+    ? `sent on ${new Date(proposalDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`
+    : 'recently sent'
+
+  const defaultBody = `We hope this message finds you well.\n\nWe wanted to follow up on the proposal we ${proposalRef} and check if you had any questions or needed any clarifications.\n\nWe are excited about the possibility of working together and would love to hear your thoughts.`
+
+  const messageBody = (customNote && customNote.trim()) ? customNote.trim() : defaultBody
+
+  // Convert newlines to <br> tags for HTML
+  const messageHtml = messageBody.replace(/\n/g, '<br>')
+
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%); padding: 32px 40px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.5px;">${agencyName}</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; color: #9ca3af;">Proposal Follow-Up</p>
+      </div>
+
+      <!-- Body -->
+      <div style="padding: 36px 40px;">
+        <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">Hi <strong>${prospectName}</strong>,</p>
+        <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.75; color: #374151;">${messageHtml}</p>
+
+        <div style="background: #f5f3ff; border-left: 4px solid #6366f1; border-radius: 6px; padding: 16px 20px; margin: 24px 0;">
+          <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.65;">Feel free to reply to this email or reach out to us directly. We are happy to schedule a quick call at your convenience.</p>
+        </div>
+
+        <p style="margin: 24px 0 0; font-size: 15px; color: #374151;">Looking forward to hearing from you.</p>
+        <p style="margin: 10px 0 0; font-size: 15px; font-weight: 600; color: #111827;">Warm regards,<br>${agencyName} Team</p>
+      </div>
+
+      <!-- Footer -->
+      <div style="background: #f9fafb; padding: 16px 40px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; font-size: 11px; color: #9ca3af; text-align: center;">This is an automated follow-up reminder from ${agencyName}. If you have already responded, please disregard this email.</p>
+      </div>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from: `"${agencyName}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to: toEmail,
+      subject: `Following up on our Proposal — ${agencyName}`,
+      html,
+    })
+    console.log(`Follow-up email sent to ${toEmail}`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error sending follow-up email:', error)
+    return { success: false, error }
+  }
+}

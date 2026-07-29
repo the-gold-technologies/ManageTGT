@@ -121,9 +121,9 @@ export async function createTask(data: any) {
       const task = await tx.task.create({
         data: {
           ...restData,
-          ...(project_id ? { project: { connect: { id: project_id } } } : {}),
+          ...(project_id ? { project_id } : {}),
           ...(assigned_member_ids && assigned_member_ids.length > 0 ? { assigned_member_ids } : {}),
-          ...(assignerId ? { assigner: { connect: { id: assignerId } } } : {})
+          ...(assignerId ? { assigned_by: assignerId } : {})
         }
       })
 

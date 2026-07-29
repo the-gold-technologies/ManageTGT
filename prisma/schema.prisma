@@ -501,6 +501,19 @@ model CalendarEvent {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
+enum FollowUpChannel {
+  email
+  whatsapp
+  manual
+}
+
+enum FollowUpStatus {
+  pending
+  sent
+  skipped
+  failed
+}
+
 model Prospect {
   id                       String    @id @default(cuid())
   name                     String
@@ -515,10 +528,39 @@ model Prospect {
   comments                 String?   @db.Text
   document_urls            String[]  @default([])
   fileRecords              FileRecord[]
+  followUps                ProspectFollowUp[]
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   orgId String @default("default_org_id")
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model ProspectFollowUp {
+  id             String          @id @default(cuid())
+  prospect_id    String
+  prospect       Prospect        @relation(fields: [prospect_id], references: [id], onDelete: Cascade)
+
+  scheduled_date DateTime
+  channel        FollowUpChannel @default(email)
+  status         FollowUpStatus  @default(pending)
+  note           String?         @db.Text
+  sent_at        DateTime?
+  
+  // Approval Workflow
+  is_approved    Boolean         @default(false)
+  approved_by    String?
+  approved_at    DateTime?
+
+  created_by     String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([prospect_id])
+  @@index([status])
+  @@index([scheduled_date])
+  orgId          String @default("default_org_id")
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
 // --- File Manager ---
@@ -621,7 +663,8 @@ model Organization {
   salesTargets      SalesTarget[]
   salesClosures     SalesClosure[]
   notifications     Notification[]
-  calendarEvents    CalendarEvent[]
-  prospects         Prospect[]
-  fileRecords       FileRecord[]
+  calendarEvents       CalendarEvent[]
+  prospects            Prospect[]
+  fileRecords          FileRecord[]
+  prospectFollowUps    ProspectFollowUp[]
 }

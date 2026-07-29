@@ -38,7 +38,7 @@ export default async function DashboardLayout({
   const roleId = dbUser?.roleId
   const roleName = userProfile.role
 
-  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'calendar']
+  const DEFAULT_MODULES = ['dashboard', 'settings', 'tasks', 'calendar', 'files']
 
   let allowedModules: string[] = [...DEFAULT_MODULES]
   if (roleId) {

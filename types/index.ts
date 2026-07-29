@@ -240,6 +240,26 @@ export interface Prospect {
   services?: string[]
   comments?: string | null
   document_urls?: string[]
+  followUps?: ProspectFollowUp[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type FollowUpChannel = 'email' | 'whatsapp' | 'manual'
+export type FollowUpStatus  = 'pending' | 'sent' | 'skipped' | 'failed'
+
+export interface ProspectFollowUp {
+  id: string
+  prospect_id: string
+  scheduled_date: string
+  channel: FollowUpChannel
+  status: FollowUpStatus
+  note?: string | null
+  sent_at?: string | null
+  is_approved: boolean
+  approved_by?: string | null
+  approved_at?: string | null
+  created_by?: string | null
   createdAt: string
   updatedAt: string
 }
