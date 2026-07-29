@@ -206,6 +206,7 @@ export async function removeTeamMember(userId: string) {
 export async function getTeamMembers() {
   try {
     const users = await prisma.user.findMany({
+      where: { isSuperAdmin: false },
       orderBy: { createdAt: 'asc' },
       include: { role: true }
     })

@@ -23,6 +23,7 @@ export default async function FilesPage() {
     getClients(),
     getProjects(),
     prisma.user.findMany({
+      where: { isSuperAdmin: false },
       select: { id: true, name: true, image: true },
       orderBy: { name: 'asc' },
     }),
