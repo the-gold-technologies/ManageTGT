@@ -341,28 +341,42 @@ export async function createCalendarEvent(data: {
     let meeting_url = null
     let meeting_id = null
 
-    // Generate meeting links if requested
-    if (data.type === 'meeting' && data.meeting_platform) {
-      if (data.meeting_platform === 'zoom') {
-        const { createZoomMeeting } = await import('./meet-api')
-        const zoom = await createZoomMeeting(data.title, data.start_date, 60)
-        meeting_url = zoom.join_url
-        meeting_id = zoom.id
-      } else if (data.meeting_platform === 'google_meet') {
-        const { createGoogleMeet } = await import('./meet-api')
-        const meet = await createGoogleMeet(
-          data.title, 
-          data.start_date, 
-          data.end_date || data.start_date,
-          data.attendee_emails,
-          session?.user?.id
-        )
-        if (!meet) {
-          // User hasn't connected Google — return a specific error code
+    // ── Sync to Google Calendar (and optionally generate Meet link) ──
+    let syncToGoogle = true
+    const isGoogleMeet = data.meeting_platform === 'google_meet'
+
+    // If Zoom is specifically requested, handle Zoom
+    if (data.type === 'meeting' && data.meeting_platform === 'zoom') {
+      syncToGoogle = false
+      const { createZoomMeeting } = await import('./meet-api')
+      const zoom = await createZoomMeeting(data.title, data.start_date, 60)
+      meeting_url = zoom.join_url
+      meeting_id = zoom.id
+    }
+
+    if (syncToGoogle) {
+      const { syncGoogleCalendarEvent } = await import('./meet-api')
+      const syncResult = await syncGoogleCalendarEvent(
+        data.title, 
+        data.start_date, 
+        data.end_date || data.start_date,
+        data.attendee_emails,
+        session?.user?.id,
+        isGoogleMeet // Only generate meet link if they specifically asked for Google Meet
+      )
+      
+      if (!syncResult) {
+        // User hasn't connected Google
+        if (isGoogleMeet) {
+          // If they explicitly requested a Google Meet link, it's a hard error
           return { success: false, error: 'google_not_connected' }
         }
-        meeting_url = meet.join_url
-        meeting_id = meet.id
+        // Otherwise (normal task/event), just gracefully skip syncing and proceed with local creation
+      } else {
+        if (isGoogleMeet) {
+          meeting_url = syncResult.join_url
+          meeting_id = syncResult.id
+        }
       }
     }
 
