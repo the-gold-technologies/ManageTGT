@@ -11,6 +11,11 @@ import { signOut } from 'next-auth/react'
 import { useRouter, usePathname } from 'next/navigation'
 import { toast } from 'sonner'
 import NotificationsPopover from './notifications-popover'
+import { MessageSquare } from 'lucide-react'
+import ChatDrawer from '@/components/chat/chat-drawer'
+
+import { getGlobalUnreadChatCount } from '@/app/actions/chat'
+import { useQuery } from '@tanstack/react-query'
 
 interface TopBarProps {
   user: Profile
@@ -23,6 +28,16 @@ export default function TopBar({ user }: TopBarProps) {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+
+  const { data: unreadChatCount = 0 } = useQuery({
+    queryKey: ['global-unread-chat-count'],
+    queryFn: async () => {
+      const count = await getGlobalUnreadChatCount()
+      return count
+    },
+    refetchInterval: 30000 // Refetch every 30 seconds as fallback
+  })
 
   useEffect(() => {
     setMounted(true)
@@ -124,8 +139,24 @@ export default function TopBar({ user }: TopBarProps) {
           </button>
         )}
 
+        {/* Chat Toggle */}
+        <button
+          onClick={() => setChatOpen(true)}
+          className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-bg-secondary border border-border text-text-secondary hover:text-text hover:border-border-muted transition-all"
+        >
+          <MessageSquare size={16} />
+          {unreadChatCount > 0 && (
+            <div className="absolute -top-2 -right-1 min-w-[18px] h-5 font-normal rounded-full bg-primary flex items-center justify-center px-1 text-[10px] font-bold text-white border-2 border-bg-secondary">
+              {unreadChatCount > 99 ? '99+' : unreadChatCount}
+            </div>
+          )}
+        </button>
+
         {/* Notifications */}
         <NotificationsPopover />
+
+        {/* Chat Drawer */}
+        <ChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} />
 
         {/* Avatar */}
         <div className="relative" ref={menuRef}>

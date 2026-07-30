@@ -15,7 +15,7 @@ const prisma = basePrisma.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
-        const excludedModels = ['Organization', 'Account', 'Session', 'VerificationToken', 'PasswordResetToken'];
+        const excludedModels = ['Organization', 'Account', 'Session', 'VerificationToken', 'PasswordResetToken', 'ChatParticipant', 'ChatMessage'];
         if (excludedModels.includes(model)) {
           return query(args);
         }

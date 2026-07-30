@@ -4,6 +4,7 @@ import { Toaster } from 'sonner'
 import QueryProvider from '@/components/providers/query-provider'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { AuthProvider } from '@/components/providers/session-provider'
+import { SessionSocketProvider } from '@/components/providers/session-socket-provider'
 
 export const metadata: Metadata = {
   title: 'TGT - Business Management Platform',
@@ -24,7 +25,9 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             <QueryProvider>
-              {children}
+              <SessionSocketProvider>
+                {children}
+              </SessionSocketProvider>
             <Toaster
               position="top-right"
               toastOptions={{

@@ -671,4 +671,60 @@ model Organization {
   prospects            Prospect[]
   fileRecords          FileRecord[]
   prospectFollowUps    ProspectFollowUp[]
+  ChatConversation     ChatConversation[]
+}
+
+// --- Chat System ---
+
+model ChatConversation {
+  id         String   @id @default(cuid())
+  is_group   Boolean  @default(false)
+  name       String?
+  project_id String?
+  project    Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orgId        String       @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model ChatParticipant {
+  id              String           @id @default(cuid())
+  conversation_id String
+  conversation    ChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user_id         String
+  user            User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  last_read_message_id String?
+
+  joined_at DateTime @default(now())
+
+  @@unique([conversation_id, user_id])
+}
+
+model ChatMessage {
+  id              String           @id @default(cuid())
+  conversation_id String
+  conversation    ChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender_id       String
+  sender          User             @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+
+  content        String  @db.Text
+  attachment_url String?
+
+  reply_to_id    String?
+  reply_to       ChatMessage?  @relation("Replies", fields: [reply_to_id], references: [id], onDelete: SetNull)
+  replies        ChatMessage[] @relation("Replies")
+
+  is_pinned      Boolean @default(false)
+  reactions      Json    @default("{}")
+
+  createdAt DateTime @default(now())
+
+  @@index([conversation_id])
 }
