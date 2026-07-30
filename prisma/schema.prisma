@@ -31,6 +31,8 @@ model User {
   activityLogs    ActivityLog[]  @relation("PerformedBy")
   salesClosures   SalesClosure[] @relation("ClosedBy")
   notifications   Notification[]
+  ChatParticipant ChatParticipant[]
+  ChatMessage     ChatMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -240,6 +242,7 @@ model Project {
   activityLogs  ActivityLog[]
   salesClosures SalesClosure[]
   fileRecords   FileRecord[]
+  ChatConversation ChatConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
