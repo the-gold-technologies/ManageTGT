@@ -107,9 +107,9 @@ export function ChatSidebar({
         {isLoading ? (
           <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
         ) : (
-          <AnimatePresence>
+          <AnimatePresence mode="popLayout">
             {filteredConversations.length === 0 ? (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-8 text-text-muted text-sm">
+              <motion.div key="empty-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center p-8 text-text-muted text-sm">
                 No chats found.
               </motion.div>
             ) : (

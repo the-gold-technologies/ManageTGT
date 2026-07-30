@@ -5,6 +5,7 @@ import { Paperclip, Smile, Send, Mic, X, Loader2, Image as ImageIcon } from 'luc
 interface MessageInputProps {
   input: string
   setInput: (val: string) => void
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   handleSend: (e: React.FormEvent) => void
   isTyping: boolean
   isUploading: boolean
@@ -22,6 +23,7 @@ interface MessageInputProps {
 export function MessageInput({
   input,
   setInput,
+  onChange,
   handleSend,
   isTyping,
   isUploading,
@@ -130,7 +132,7 @@ export function MessageInput({
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={onChange || ((e) => setInput(e.target.value))}
             onKeyDown={onKeyDown}
             onFocus={onFocus}
             placeholder="Type a message..."

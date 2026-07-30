@@ -616,6 +616,7 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                   <MessageInput
                     input={input}
                     setInput={setInput}
+                    onChange={handleInputChange}
                     handleSend={handleSend}
                     isTyping={isTyping}
                     isUploading={isUploading}
