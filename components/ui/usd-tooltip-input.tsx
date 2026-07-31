@@ -278,24 +278,44 @@ export default function SmartCurrencyInput({
 
         {/* Amount input */}
         <div className="flex-1 flex items-center">
-          {/* ── Hidden input for RHF registration ── */}
-          <input type="hidden" name={name} ref={rhfRef} value={isForeign ? (inrPreview ?? '') : (restInputProps.value !== undefined ? restInputProps.value : defaultInrValue)} />
-          
-          {/* ── Visible input ── */}
-          <input
-            name={name}
-            type="number"
-            step="any"
-            min={0}
-            placeholder={placeholder}
-            disabled={disabled}
-            className={inputBase}
-            defaultValue={!isForeign && restInputProps.value === undefined ? Number(defaultInrValue.toFixed(2).replace(/\.00$/, '')) : undefined}
-            value={isForeign ? rawValue : restInputProps.value}
-            onChange={(e) => {
-              if (isForeign) {
-                setRawValue(e.target.value)
-              } else {
+          {isForeign ? (
+            <>
+              {/* ── Hidden input for RHF registration ── */}
+              <input 
+                type="hidden" 
+                name={name} 
+                ref={rhfRef} 
+                value={inrPreview ?? ''} 
+              />
+              {/* ── Visible input (Controlled) ── */}
+              <input
+                key="foreign-input"
+                type="number"
+                step="any"
+                min={0}
+                placeholder={placeholder}
+                disabled={disabled}
+                className={inputBase}
+                value={rawValue}
+                onChange={(e) => setRawValue(e.target.value)}
+                onBlur={rhfOnBlur}
+              />
+            </>
+          ) : (
+            /* ── Visible input (Uncontrolled) ── */
+            <input
+              key="inr-input"
+              name={name}
+              type="number"
+              step="any"
+              min={0}
+              placeholder={placeholder}
+              disabled={disabled}
+              className={inputBase}
+              defaultValue={restInputProps.value === undefined ? Number(defaultInrValue.toFixed(2).replace(/\.00$/, '')) : undefined}
+              {...restInputProps}
+              ref={rhfRef}
+              onChange={(e) => {
                 if (rhfOnChange) {
                   e.target.name = name || '';
                   rhfOnChange(e);
@@ -303,10 +323,10 @@ export default function SmartCurrencyInput({
                 if (onInrChangeRef.current) {
                   onInrChangeRef.current(parseFloat(e.target.value) || 0, { usd: 0, rate: 1 });
                 }
-              }
-            }}
-            onBlur={rhfOnBlur}
-          />
+              }}
+              onBlur={rhfOnBlur}
+            />
+          )}
         </div>
       </div>
 
