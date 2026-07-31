@@ -62,7 +62,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const canAssignTeam = isAdmin || isTeamLead
 
   const [isUploading, setIsUploading] = useState(false)
-  const [currency, setCurrency] = useState<'INR' | 'USD'>((project as any)?.currency as 'INR' | 'USD' || 'INR')
+  const [currency, setCurrency] = useState<'INR' | 'USD' | 'GBP' | 'EUR'>((project as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR' || 'INR')
   const [exchangeRate, setExchangeRate] = useState<number | null>((project as any)?.exchange_rate || null)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
@@ -96,7 +96,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
       setSelectedServices(initialServices)
       setSelectedTeamMembers(project?.assigned_member_ids || [])
       setSelectedTeamLeadId(project?.team_lead_id ?? '')
-      setCurrency((project as any)?.currency as 'INR' | 'USD' || 'INR')
+      setCurrency((project as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR' || 'INR')
       setExchangeRate((project as any)?.exchange_rate || null)
       reset(project ? {
         name: project.name,
@@ -303,7 +303,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                       referenceDate={watchedStartDate || undefined}
                       inputProps={register('quoted_price')}
                       placeholder="50000"
-                      defaultCurrency={(project as any)?.currency as 'INR' | 'USD'}
+                      defaultCurrency={(project as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR'}
                       defaultExchangeRate={(project as any)?.exchange_rate}
                       defaultInrValue={project?.quoted_price || 0}
                       onInrChange={(inrValue) => setValue('quoted_price', inrValue, { shouldDirty: true })}

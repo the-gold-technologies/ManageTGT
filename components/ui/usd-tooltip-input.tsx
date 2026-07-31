@@ -5,7 +5,14 @@ import { ChevronDown } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Currency = 'INR' | 'USD'
+type Currency = 'INR' | 'USD' | 'GBP' | 'EUR'
+
+const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  INR: '₹',
+  USD: '$',
+  GBP: '£',
+  EUR: '€',
+}
 
 type RateState =
   | { status: 'idle' }
@@ -66,14 +73,14 @@ export default function SmartCurrencyInput({
   const [currency, setCurrency] = useState<Currency>(defaultCurrency)
   const [open, setOpen] = useState(false)
   
-  // If we're opening an existing USD record, reverse-calculate the USD amount for rawValue
-  const initialUsdValue = defaultCurrency === 'USD' && defaultExchangeRate && defaultInrValue > 0
+  // If we're opening an existing foreign currency record, reverse-calculate the foreign amount for rawValue
+  const initialForeignValue = defaultCurrency !== 'INR' && defaultExchangeRate && defaultInrValue > 0
     ? (defaultInrValue / defaultExchangeRate).toFixed(2).replace(/\.00$/, '')
     : ''
     
-  const [rawValue, setRawValue] = useState(initialUsdValue)
+  const [rawValue, setRawValue] = useState(initialForeignValue)
   const [rateState, setRateState] = useState<RateState>(
-    defaultExchangeRate && defaultCurrency === 'USD' 
+    defaultExchangeRate && defaultCurrency !== 'INR' 
       ? { status: 'ok', rate: defaultExchangeRate, label: 'saved' }
       : { status: 'idle' }
   )
@@ -82,14 +89,14 @@ export default function SmartCurrencyInput({
   const abortRef = useRef<AbortController | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const isUSD = currency === 'USD'
+  const isForeign = currency !== 'INR'
   const numVal = parseFloat(rawValue) || 0
 
   const effectiveRate =
     customRate ? parseFloat(customRate) :
     rateState.status === 'ok' ? rateState.rate : null
 
-  const inrPreview = isUSD && effectiveRate && numVal > 0
+  const inrPreview = isForeign && effectiveRate && numVal > 0
     ? numVal * effectiveRate
     : null
 
@@ -104,18 +111,21 @@ export default function SmartCurrencyInput({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // ── Fetch rate whenever USD is active or referenceDate changes ────────────
-  const fetchRate = useCallback(async (date?: string) => {
+  // ── Fetch rate whenever foreign currency is active or referenceDate changes ────────────
+  const fetchRate = useCallback(async (date?: string, targetCurrency?: Currency) => {
     if (abortRef.current) abortRef.current.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
     setRateState({ status: 'loading' })
 
+    const activeCurrency = targetCurrency || currency
+    const curParam = activeCurrency.toLowerCase()
+
     try {
       const today = new Date().toISOString().split('T')[0]
       const isHistorical = date && date !== today
       const tag = isHistorical ? date : 'latest'
-      const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${tag}/v1/currencies/usd.json`
+      const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${tag}/v1/currencies/${curParam}.json`
       const label = isHistorical
         ? new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
         : 'live'
@@ -123,22 +133,24 @@ export default function SmartCurrencyInput({
       const res = await fetch(url, { signal: ctrl.signal })
       if (!res.ok) throw new Error('bad response')
       const json = await res.json()
-      const rate: number = json?.usd?.inr
+      const rate: number = json?.[curParam]?.inr
       if (!rate) throw new Error('no INR rate')
 
       setRateState({ status: 'ok', rate, label })
     } catch (e: any) {
       if (e.name !== 'AbortError') setRateState({ status: 'err' })
     }
-  }, [])
+  }, [currency])
+
+  const isSavedRate = rateState.status === 'ok' && rateState.label === 'saved'
 
   useEffect(() => {
-    if (!isUSD) return
-    if (defaultExchangeRate && defaultCurrency === 'USD' && rateState.status === 'ok' && rateState.label === 'saved') {
+    if (!isForeign) return
+    if (defaultExchangeRate && defaultCurrency === currency && isSavedRate) {
       return // skip fetching if we just loaded the saved rate
     }
-    fetchRate(referenceDate)
-  }, [isUSD, referenceDate, fetchRate])
+    fetchRate(referenceDate, currency)
+  }, [isForeign, referenceDate, fetchRate, currency, defaultExchangeRate, defaultCurrency, isSavedRate])
 
   // ── Notify parent ─────────────────────────────────────────────────────────
   const onInrChangeRef = useRef(onInrChange)
@@ -155,9 +167,9 @@ export default function SmartCurrencyInput({
 
   useEffect(() => {
     if (onCurrencyStateChangeRef.current) {
-      onCurrencyStateChangeRef.current(currency, currency === 'USD' ? effectiveRate : null)
+      onCurrencyStateChangeRef.current(currency, isForeign ? effectiveRate : null)
     }
-  }, [currency, effectiveRate])
+  }, [currency, effectiveRate, isForeign])
 
   // ── Currency switch ───────────────────────────────────────────────────────
   const switchCurrency = (c: Currency) => {
@@ -177,7 +189,7 @@ export default function SmartCurrencyInput({
 
   // In INR mode, we don't want to show ugly floating point numbers if we can avoid it.
   // We use defaultInrValue if the input is uncontrolled and hasn't changed.
-  const displayValue = isUSD 
+  const displayValue = isForeign 
     ? rawValue 
     : (restInputProps.value !== undefined ? restInputProps.value : defaultInrValue)
 
@@ -191,8 +203,8 @@ export default function SmartCurrencyInput({
             {label}{required && ' *'}
           </label>
 
-          {/* Rate badge — only when USD is active */}
-          {isUSD && (
+          {/* Rate badge — only when foreign currency is active */}
+          {isForeign && (
             <span className="text-[11px] text-text-muted leading-none flex items-center gap-1.5">
               {rateState.status === 'loading' && (
                 <span className="flex items-center gap-1">
@@ -213,12 +225,12 @@ export default function SmartCurrencyInput({
                     )}
                     <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${rateState.label === 'live' ? 'bg-success' : 'bg-text-muted'}`} />
                   </span>
-                  <span className="text-text font-medium">1 USD = ₹{rateState.rate.toFixed(2)}</span>
+                  <span className="text-text font-medium">1 {currency} = ₹{rateState.rate.toFixed(2)}</span>
                 </>
               )}
               {rateState.status === 'ok' && customRate && (
                 <>
-                  <span className="text-text-secondary">₹{parseFloat(customRate).toFixed(2)}/$1</span>
+                  <span className="text-text-secondary">₹{parseFloat(customRate).toFixed(2)}/1 {currency}</span>
                   <button type="button" onClick={() => { setCustomRate(''); setShowCustom(false) }} className="text-danger hover:underline">✕</button>
                 </>
               )}
@@ -240,14 +252,14 @@ export default function SmartCurrencyInput({
             onClick={() => !disabled && setOpen(o => !o)}
             className="flex items-center gap-1 h-full px-3 text-xs font-medium text-text-secondary border-r border-border hover:bg-bg-tertiary transition-colors rounded-l-lg"
           >
-            <span className="text-text-muted">{isUSD ? '$' : '₹'}</span>
+            <span className="text-text-muted">{CURRENCY_SYMBOLS[currency]}</span>
             <span>{currency}</span>
             <ChevronDown size={11} className={`text-text-muted transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
           </button>
 
           {open && (
             <div className="absolute left-0 top-full mt-1 w-24 bg-bg-secondary border border-border rounded-lg shadow-xl z-30 overflow-hidden py-1">
-              {(['INR', 'USD'] as Currency[]).map(c => (
+              {(['INR', 'USD', 'GBP', 'EUR'] as Currency[]).map(c => (
                 <button
                   key={c}
                   type="button"
@@ -256,7 +268,7 @@ export default function SmartCurrencyInput({
                     currency === c ? 'text-primary bg-primary/5' : 'text-text-secondary hover:bg-bg-tertiary'
                   }`}
                 >
-                  <span className="text-text-muted">{c === 'USD' ? '$' : '₹'}</span>
+                  <span className="text-text-muted">{CURRENCY_SYMBOLS[c]}</span>
                   {c}
                 </button>
               ))}
@@ -267,7 +279,7 @@ export default function SmartCurrencyInput({
         {/* Amount input */}
         <div className="flex-1 flex items-center">
           {/* ── Hidden input for RHF registration ── */}
-          <input type="hidden" name={name} ref={rhfRef} value={isUSD ? (inrPreview ?? '') : (restInputProps.value !== undefined ? restInputProps.value : defaultInrValue)} />
+          <input type="hidden" name={name} ref={rhfRef} value={isForeign ? (inrPreview ?? '') : (restInputProps.value !== undefined ? restInputProps.value : defaultInrValue)} />
           
           {/* ── Visible input ── */}
           <input
@@ -278,10 +290,10 @@ export default function SmartCurrencyInput({
             placeholder={placeholder}
             disabled={disabled}
             className={inputBase}
-            defaultValue={!isUSD && restInputProps.value === undefined ? Number(defaultInrValue.toFixed(2).replace(/\.00$/, '')) : undefined}
-            value={isUSD ? rawValue : restInputProps.value}
+            defaultValue={!isForeign && restInputProps.value === undefined ? Number(defaultInrValue.toFixed(2).replace(/\.00$/, '')) : undefined}
+            value={isForeign ? rawValue : restInputProps.value}
             onChange={(e) => {
-              if (isUSD) {
+              if (isForeign) {
                 setRawValue(e.target.value)
               } else {
                 if (rhfOnChange) {
@@ -299,7 +311,7 @@ export default function SmartCurrencyInput({
       </div>
 
       {/* ── Single row: bank rate toggle (left) + INR result (right) ─── */}
-      {isUSD && rateState.status === 'ok' && !customRate && (
+      {isForeign && rateState.status === 'ok' && !customRate && (
         <div className="flex items-center justify-between px-0.5">
           <button
             type="button"
@@ -317,7 +329,7 @@ export default function SmartCurrencyInput({
         </div>
       )}
 
-      {isUSD && showCustom && (
+      {isForeign && showCustom && (
         <div className="flex items-center gap-2">
           <div className="flex items-stretch bg-bg border border-border rounded-lg focus-within:border-primary/50 transition-all flex-1">
             <span className="flex items-center px-2.5 text-xs text-text-muted border-r border-border bg-bg-tertiary rounded-l-lg">₹</span>
@@ -329,7 +341,7 @@ export default function SmartCurrencyInput({
               className="flex-1 min-w-0 px-3 py-1.5 bg-transparent text-xs text-text placeholder:text-text-muted focus:outline-none"
             />
           </div>
-          <span className="text-[11px] text-text-muted whitespace-nowrap">per $1</span>
+          <span className="text-[11px] text-text-muted whitespace-nowrap">per 1 {currency}</span>
         </div>
       )}
     </div>

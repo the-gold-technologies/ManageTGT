@@ -49,7 +49,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
   const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   
-  const [currency, setCurrency] = useState<'INR' | 'USD'>((invoice as any)?.currency as 'INR' | 'USD' || 'INR')
+  const [currency, setCurrency] = useState<'INR' | 'USD' | 'GBP' | 'EUR'>((invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR' || 'INR')
   const [exchangeRate, setExchangeRate] = useState<number | null>((invoice as any)?.exchange_rate || null)
 
   const { register, handleSubmit, reset, watch, setValue, getValues, formState: { errors, isSubmitting } } = useForm<FormInput, undefined, FormData>({
@@ -184,7 +184,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
         notes: '',
         gst_applied: false,
       })
-      setCurrency((invoice as any)?.currency as 'INR' | 'USD' || 'INR')
+      setCurrency((invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR' || 'INR')
       setExchangeRate((invoice as any)?.exchange_rate || null)
       setConfirmDelete(false)
       setShowFullForm(!invoice)
@@ -327,7 +327,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                         label="Quoted"
                         inputProps={register('quoted_value')}
                         placeholder="50000"
-                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR'}
                         defaultExchangeRate={(invoice as any)?.exchange_rate}
                         defaultInrValue={invoice?.quoted_value || 0}
                         onInrChange={(inrValue) => setValue('quoted_value', inrValue, { shouldDirty: true })}
@@ -339,7 +339,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                         label="Final Billing"
                         inputProps={register('final_billing')}
                         placeholder="45000"
-                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR'}
                         defaultExchangeRate={(invoice as any)?.exchange_rate}
                         defaultInrValue={invoice?.final_billing || 0}
                         onInrChange={(inrValue) => setValue('final_billing', inrValue, { shouldDirty: true })}
@@ -351,7 +351,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                         label="Received"
                         inputProps={register('amount_received')}
                         placeholder="25000"
-                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD'}
+                        defaultCurrency={(invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR'}
                         defaultExchangeRate={(invoice as any)?.exchange_rate}
                         defaultInrValue={invoice?.amount_received || 0}
                         onInrChange={(inrValue) => setValue('amount_received', inrValue, { shouldDirty: true })}
