@@ -17,6 +17,8 @@ import { createProject as createProjectAction, updateProject as updateProjectAct
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import ContextFilePanel, { ContextFilePanelRef } from '@/components/files/context-file-panel'
 import SmartCurrencyInput from '@/components/ui/usd-tooltip-input'
+import ClientModal from '@/components/clients/client-modal'
+import ServiceModal from '@/components/settings/service-modal'
 
 const schema = z.object({
   name: z.string().min(1, 'Required'),
@@ -70,6 +72,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false)
   const [selectedTeamLeadId, setSelectedTeamLeadId] = useState<string>('')
   const [teamLeadDropdownOpen, setTeamLeadDropdownOpen] = useState(false)
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false)
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false)
 
   const teamLeads = profiles.filter(p => p.role === 'team_lead')
   const teamMembers = profiles.filter(p => p.role === 'team_member')
@@ -227,66 +231,88 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                 {isAdmin && (
                   <div>
                     <label className="block text-xs font-medium text-text-secondary mb-1.5">Client</label>
-                    <select {...register('client_id')} className={inputClass}>
-                      <option value="">Select client</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>)}
-                    </select>
+                    <div className="flex gap-2 items-center">
+                      <select {...register('client_id')} className={inputClass}>
+                        <option value="">Select client</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>)}
+                      </select>
+                      <button 
+                        type="button" 
+                        onClick={() => setIsClientModalOpen(true)}
+                        className="shrink-0 w-[38px] h-[38px] flex items-center justify-center bg-bg border border-border rounded-lg text-text-secondary hover:text-primary hover:border-primary/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/20"
+                        title="Create New Client"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Type *</label>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => isAdmin && setServiceDropdownOpen(!serviceDropdownOpen)}
-                      disabled={!isAdmin}
-                      className="w-full min-h-[38px] px-3 py-1.5 bg-bg border border-border rounded-lg text-xs text-text flex items-center justify-between gap-2 focus:outline-none focus:border-primary/50 transition-colors disabled:opacity-85 disabled:cursor-not-allowed"
-                    >
-                      {selectedServices.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {selectedServices.map(s => (
-                            <span key={s} className="flex items-center gap-1 bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-md text-[11px]">
-                              {s}
-                              {isAdmin && (
-                                <span
-                                  onClick={(e) => { e.stopPropagation(); handleToggleService(s) }}
-                                  className="hover:text-danger cursor-pointer ml-0.5 text-xs font-bold"
-                                >×</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-text-muted text-xs">Select a service...</span>
-                      )}
-                      {isAdmin && <ChevronDown size={14} className="text-text-muted shrink-0 ml-auto" />}
-                    </button>
+                  <div className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <button
+                        type="button"
+                        onClick={() => isAdmin && setServiceDropdownOpen(!serviceDropdownOpen)}
+                        disabled={!isAdmin}
+                        className="w-full min-h-[38px] px-3 py-1.5 bg-bg border border-border rounded-lg text-xs text-text flex items-center justify-between gap-2 focus:outline-none focus:border-primary/50 transition-colors disabled:opacity-85 disabled:cursor-not-allowed"
+                      >
+                        {selectedServices.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedServices.map(s => (
+                              <span key={s} className="flex items-center gap-1 bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-md text-[11px]">
+                                {s}
+                                {isAdmin && (
+                                  <span
+                                    onClick={(e) => { e.stopPropagation(); handleToggleService(s) }}
+                                    className="hover:text-danger cursor-pointer ml-0.5 text-xs font-bold"
+                                  >×</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-text-muted text-xs">Select a service...</span>
+                        )}
+                        {isAdmin && <ChevronDown size={14} className="text-text-muted shrink-0 ml-auto" />}
+                      </button>
 
-                    {isAdmin && serviceDropdownOpen && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setServiceDropdownOpen(false)} />
-                        <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-20 p-1.5 space-y-0.5">
-                          {services.length > 0 ? (
-                            services.map(s => {
-                              const isChecked = selectedServices.includes(s.name)
-                              return (
-                                <div
-                                  key={s.id}
-                                  onClick={() => handleToggleService(s.name)}
-                                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-bg-tertiary cursor-pointer transition-colors text-xs text-text-secondary"
-                                >
-                                  <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-white' : 'border-border'}`}>
-                                    {isChecked && <Check size={10} className="stroke-[3]" />}
+                      {isAdmin && serviceDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setServiceDropdownOpen(false)} />
+                          <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-20 p-1.5 space-y-0.5">
+                            {services.length > 0 ? (
+                              services.map(s => {
+                                const isChecked = selectedServices.includes(s.name)
+                                return (
+                                  <div
+                                    key={s.id}
+                                    onClick={() => handleToggleService(s.name)}
+                                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-bg-tertiary cursor-pointer transition-colors text-xs text-text-secondary"
+                                  >
+                                    <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-white' : 'border-border'}`}>
+                                      {isChecked && <Check size={10} className="stroke-[3]" />}
+                                    </div>
+                                    <span>{s.name}</span>
                                   </div>
-                                  <span>{s.name}</span>
-                                </div>
-                              )
-                            })
-                          ) : (
-                            <p className="text-xs text-text-muted p-2 text-center">No services found</p>
-                          )}
-                        </div>
-                      </>
+                                )
+                              })
+                            ) : (
+                              <p className="text-xs text-text-muted p-2 text-center">No services found</p>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {isAdmin && (
+                      <button 
+                        type="button" 
+                        onClick={() => setIsServiceModalOpen(true)}
+                        className="shrink-0 w-[38px] h-[38px] flex items-center justify-center bg-bg border border-border rounded-lg text-text-secondary hover:text-primary hover:border-primary/50 transition-all focus:outline-none focus:ring-1 focus:ring-primary/20"
+                        title="Create New Service"
+                      >
+                        <Plus size={16} />
+                      </button>
                     )}
                   </div>
                   {errors.service_type && <p className="text-xs text-danger mt-1">{errors.service_type.message}</p>}
@@ -512,6 +538,15 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               </div>
             </div>
           </motion.div>
+          <ClientModal 
+            open={isClientModalOpen} 
+            onClose={() => setIsClientModalOpen(false)} 
+            client={null} 
+          />
+          <ServiceModal
+            open={isServiceModalOpen}
+            onClose={() => setIsServiceModalOpen(false)}
+          />
         </>
       )}
     </AnimatePresence>

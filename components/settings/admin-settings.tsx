@@ -13,6 +13,7 @@ import {
   FolderOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
+import ServiceModal from '@/components/settings/service-modal'
 
 const MODULE_GROUPS = [
   {
@@ -74,7 +75,7 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
 
   // Form states
   const [newRoleName, setNewRoleName] = useState('')
-  const [newServiceName, setNewServiceName] = useState('')
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false)
 
   const roles = data?.roles || []
   const services = data?.services || []
@@ -100,16 +101,7 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
     }
   }
 
-  const handleCreateService = async () => {
-    if (!newServiceName) return
-    const res = await createService({ name: newServiceName })
-    if (res.error) toast.error(res.error)
-    else { 
-      toast.success('Service created')
-      setNewServiceName('')
-      queryClient.invalidateQueries({ queryKey: ['adminSettingsData'] })
-    }
-  }
+
 
   const handleDeleteService = async (id: string) => {
     const res = await deleteService(id)
@@ -162,16 +154,16 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
   if (isLoading) return <div className="p-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></div>
 
   return (
-    <div className="bg-bg-secondary border border-border rounded-xl mt-0 overflow-hidden shadow-sm">
-      <div className="p-6">
+    <div className="bg-bg-secondary border border-border rounded-xl mt-0 overflow-hidden shadow-sm flex flex-col h-full min-h-0">
+      <div className="p-6 flex flex-col flex-1 min-h-0">
         {activeTab === 'roles' && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-text">Manage Roles</h3>
-            <div className="flex gap-2 mb-4">
+          <div className="space-y-4 flex flex-col h-full">
+            <h3 className="text-sm font-semibold text-text shrink-0">Manage Roles</h3>
+            <div className="flex gap-2 mb-4 shrink-0">
               <input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="New role name (e.g. hr_manager)" className="flex-1 px-3 py-2 bg-bg border border-border rounded-lg text-xs" />
               <button onClick={handleCreateRole} className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold flex items-center gap-1"><Plus size={14} /> Add</button>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 overflow-y-auto pr-2 min-h-0 content-start">
               {roles.map(r => (
                 <div key={r.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-bg">
                   <span className="text-sm text-text font-medium">{r.name} {r.isSystem && <span className="text-[10px] text-text-muted ml-2">(System)</span>}</span>
@@ -185,13 +177,17 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
         )}
 
         {activeTab === 'services' && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-text">Manage Services</h3>
-            <div className="flex gap-2 mb-4">
-              <input value={newServiceName} onChange={(e) => setNewServiceName(e.target.value)} placeholder="New service name (e.g. SEO)" className="flex-1 px-3 py-2 bg-bg border border-border rounded-lg text-xs" />
-              <button onClick={handleCreateService} className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold flex items-center gap-1"><Plus size={14} /> Add</button>
+          <div className="space-y-4 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h3 className="text-sm font-semibold text-text">Manage Services</h3>
+              <button 
+                onClick={() => setIsServiceModalOpen(true)} 
+                className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-primary/90 transition-colors"
+              >
+                <Plus size={14} /> Add Service
+              </button>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 overflow-y-auto pr-2 min-h-0 content-start">
               {services.map(s => (
                 <div key={s.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-bg">
                   <span className="text-sm text-text font-medium">{s.name}</span>
@@ -203,9 +199,9 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
         )}
 
         {activeTab === 'access' && (
-          <div className="space-y-4 overflow-x-auto">
-            <h3 className="text-sm font-semibold text-text mb-4">Module Access Matrix</h3>
-            <div className="overflow-x-auto rounded-xl border dark:border-white/10 border-black/10 bg-bg/20">
+          <div className="space-y-4 overflow-x-auto flex flex-col h-full">
+            <h3 className="text-sm font-semibold text-text mb-4 shrink-0">Module Access Matrix</h3>
+            <div className="overflow-x-auto overflow-y-auto rounded-xl border dark:border-white/10 border-black/10 bg-bg/20 flex-1 min-h-0">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr>
@@ -258,6 +254,10 @@ export default function AdminSettings({ activeTab, initialData }: AdminSettingsP
           </div>
         )}
       </div>
+      <ServiceModal 
+        open={isServiceModalOpen} 
+        onClose={() => setIsServiceModalOpen(false)} 
+      />
     </div>
   )
 }
