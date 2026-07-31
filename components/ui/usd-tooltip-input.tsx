@@ -267,10 +267,11 @@ export default function SmartCurrencyInput({
         {/* Amount input */}
         <div className="flex-1 flex items-center">
           {/* ── Hidden input for RHF registration ── */}
-          <input type="hidden" name={name} ref={rhfRef} />
+          <input type="hidden" name={name} ref={rhfRef} value={isUSD ? (inrPreview ?? '') : (restInputProps.value !== undefined ? restInputProps.value : defaultInrValue)} />
           
           {/* ── Visible input ── */}
           <input
+            name={name}
             type="number"
             step="any"
             min={0}
@@ -280,8 +281,17 @@ export default function SmartCurrencyInput({
             defaultValue={!isUSD && restInputProps.value === undefined ? Number(defaultInrValue.toFixed(2).replace(/\.00$/, '')) : undefined}
             value={isUSD ? rawValue : restInputProps.value}
             onChange={(e) => {
-              if (isUSD) setRawValue(e.target.value)
-              else if (rhfOnChange) rhfOnChange(e)
+              if (isUSD) {
+                setRawValue(e.target.value)
+              } else {
+                if (rhfOnChange) {
+                  e.target.name = name || '';
+                  rhfOnChange(e);
+                }
+                if (onInrChangeRef.current) {
+                  onInrChangeRef.current(parseFloat(e.target.value) || 0, { usd: 0, rate: 1 });
+                }
+              }
             }}
             onBlur={rhfOnBlur}
           />

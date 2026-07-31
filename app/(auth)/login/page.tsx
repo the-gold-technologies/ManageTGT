@@ -5,13 +5,10 @@ import { loginAction, signInWithGoogle } from '@/app/actions/auth'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
-import { useFormStatus } from 'react-dom'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
-function SubmitButton() {
-  const { pending } = useFormStatus()
-  
+function SubmitButton({ pending }: { pending: boolean }) {
   return (
     <button
       type="submit"
@@ -34,6 +31,7 @@ function SubmitButton() {
 }
 
 function LoginForm() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const errorParam = searchParams.get('error')
   
@@ -67,19 +65,35 @@ function LoginForm() {
   }
 
   const [showPassword, setShowPassword] = useState(false)
-  const [state, formAction] = useActionState(loginAction, undefined)
+  const [isPending, setIsPending] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
-  useEffect(() => {
-    if (state?.error) {
-      toast.error(state.error)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsPending(true)
+    setErrorMsg('')
+    
+    const formData = new FormData(e.currentTarget)
+    
+    try {
+      const result = await loginAction(undefined, formData)
+      
+      if (result?.error) {
+        setErrorMsg(result.error)
+        toast.error(result.error)
+        setIsPending(false)
+      } else if (result?.success) {
+        // Keep isPending true so the loader stays active!
+        // Smoothly refresh server components and navigate to dashboard
+        router.refresh()
+        router.push('/?login=success')
+      }
+    } catch (err) {
+      setErrorMsg('Something went wrong.')
+      toast.error('Something went wrong.')
+      setIsPending(false)
     }
-    if (state?.success) {
-      // Hard reload to completely bypass Next.js client-side router cache.
-      // This forces the browser to request the root from the server, 
-      // which will see the new cookie and render the authenticated layout.
-      window.location.href = '/?login=success'
-    }
-  }, [state])
+  }
 
   return (
     <div className="bg-bg-secondary border border-border rounded-2xl p-8 shadow-card">
@@ -94,10 +108,10 @@ function LoginForm() {
         </div>
       )}
 
-      <form action={formAction} className="space-y-5">
-        {state?.error && (
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {errorMsg && (
           <div className="p-3 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg">
-            {state.error}
+            {errorMsg}
           </div>
         )}
         
@@ -150,7 +164,7 @@ function LoginForm() {
         </div>
 
         {/* Submit */}
-        <SubmitButton />
+        <SubmitButton pending={isPending} />
       </form>
 
       {/* Divider */}
