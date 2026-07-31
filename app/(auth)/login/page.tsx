@@ -73,7 +73,13 @@ function LoginForm() {
     if (state?.error) {
       toast.error(state.error)
     }
-  }, [state?.error])
+    if (state?.success) {
+      // Hard reload to completely bypass Next.js client-side router cache.
+      // This forces the browser to request the root from the server, 
+      // which will see the new cookie and render the authenticated layout.
+      window.location.href = '/?login=success'
+    }
+  }, [state])
 
   return (
     <div className="bg-bg-secondary border border-border rounded-2xl p-8 shadow-card">

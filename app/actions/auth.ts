@@ -12,10 +12,13 @@ export async function loginAction(prevState: any, formData: FormData) {
     // Clear the router cache so layout evaluates auth correctly on redirect
     revalidatePath('/', 'layout')
     
-    await signIn('credentials', {
+    const result = await signIn('credentials', {
       ...credentials,
-      redirectTo: '/?login=success',
+      redirect: false,
     })
+    
+    // If we reach here, signIn was successful (or returned an error string we should handle, but Auth.js v5 throws AuthError on failure even with redirect: false, except for success where it returns).
+    return { success: true }
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {
@@ -25,7 +28,8 @@ export async function loginAction(prevState: any, formData: FormData) {
           return { error: 'Something went wrong.' }
       }
     }
-    throw error // Important: Next.js redirect must be rethrown
+    // If it's a redirect error (which shouldn't happen with redirect: false, but just in case), let it throw.
+    throw error
   }
 }
 
