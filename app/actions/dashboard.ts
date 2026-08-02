@@ -1,6 +1,7 @@
 'use server'
 
 import prisma from '@/lib/prisma'
+import { getCalendarEvents } from './calendar'
 import { auth } from '@/auth'
 
 export async function getDashboardData() {
@@ -37,6 +38,7 @@ export async function getDashboardData() {
     closures,
     userTasks,
     sharedFiles,
+    calendarEvents,
   ] = await Promise.all([
     allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true, billing_cycle: true, quoted_price: true } }) : Promise.resolve([]),
     allowedModules.includes('revenue') ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true, gst_applied: true } }) : Promise.resolve([]),
@@ -54,6 +56,11 @@ export async function getDashboardData() {
       take: 10,
     }) : Promise.resolve([]),
   ])
+
+  const unifiedEvents = await getCalendarEvents(
+    new Date(new Date().getFullYear(), 0, 1),
+    new Date(new Date().getFullYear() + 1, 0, 1)
+  )
 
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -222,5 +229,6 @@ export async function getDashboardData() {
     taskStats,
     pendingTasks,
     sharedFiles,
+    unifiedEvents,
   }
 }

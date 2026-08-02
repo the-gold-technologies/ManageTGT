@@ -17,6 +17,7 @@ interface StatCardProps {
   sparkType?: 'area' | 'bar'
   sparkColor?: string
   href?: string
+  variant?: 'default' | 'orange'
 }
 
 export default function StatCard({
@@ -31,18 +32,23 @@ export default function StatCard({
   sparkType = 'area',
   sparkColor,
   href,
+  variant = 'default',
 }: StatCardProps) {
   const isPositive = change !== undefined && change >= 0
+  const isOrange = variant === 'orange'
   const defaultColor = isPositive ? '#10B981' : '#EF4444'
-  const color = sparkColor ?? defaultColor
+  const color = sparkColor ?? (isOrange ? '#ffffff' : defaultColor)
 
   const chartData = sparkData?.map((v, i) => ({ v, i })) ?? []
 
   const wrapperProps = {
     className: cn(
-      'relative overflow-hidden rounded-xl bg-bg-secondary border border-border px-4 pb-4 pt-2',
-      'hover:border-border-muted transition-all duration-200 group flex flex-col justify-between gap-3',
-      href && 'cursor-pointer hover:bg-bg-tertiary shadow-sm hover:shadow-md',
+      'relative overflow-hidden rounded-xl px-4 pb-4 pt-2 transition-all duration-200 group flex flex-col justify-between gap-3',
+      isOrange 
+        ? 'bg-gradient-to-br from-orange-500 to-orange-600 border-none shadow-[0_0_20px_rgba(249,115,22,0.15)]'
+        : 'bg-bg-secondary border border-border hover:border-border-muted',
+      href && !isOrange && 'cursor-pointer hover:bg-bg-tertiary shadow-sm hover:shadow-md',
+      href && isOrange && 'cursor-pointer shadow-[0_0_25px_rgba(249,115,22,0.25)]',
       className
     )
   }
@@ -54,14 +60,14 @@ export default function StatCard({
         {Icon && (
           <div className={cn(
             'w-5 h-10 rounded-full flex items-center justify-center shrink-0',
-            iconColor,
+            isOrange ? 'text-white' : iconColor,
             // ring color matches the icon text color roughly
-            'ring-current/20'
+            !isOrange && 'ring-current/20'
           )}>
             {typeof Icon === 'function' || (typeof Icon === 'object' && 'render' in Icon) ? <Icon size={15} /> : Icon}
           </div>
         )}
-        <span className="text-sm font-medium text-text-secondary leading-tight">
+        <span className={cn("text-sm font-medium leading-tight", isOrange ? "text-white/90" : "text-text-secondary")}>
           {title}
         </span>
       </div>
@@ -70,7 +76,7 @@ export default function StatCard({
       <div className="flex items-end justify-between gap-4">
         {/* Left: value + change */}
         <div className="min-w-0">
-          <div className="text-2xl font-bold text-text tracking-tight leading-none mb-1.5">
+          <div className={cn("text-2xl font-bold tracking-tight leading-none mb-1.5", isOrange ? "text-white" : "text-text")}>
             {value}
           </div>
           {change !== undefined && (
@@ -78,14 +84,14 @@ export default function StatCard({
               <span
                 className={cn(
                   'flex items-center gap-1 text-[10px] font-semibold',
-                  isPositive ? 'text-success' : 'text-danger'
+                  isOrange ? 'text-white' : (isPositive ? 'text-success' : 'text-danger')
                 )}
               >
                 {isPositive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
                 {isPositive ? '+' : ''}{change}%
               </span>
               {changeLabel && (
-                <span className="text-xs text-text-muted whitespace-nowrap">{changeLabel}</span>
+                <span className={cn("text-xs whitespace-nowrap", isOrange ? "text-white/70" : "text-text-muted")}>{changeLabel}</span>
               )}
             </div>
           )}
@@ -93,7 +99,7 @@ export default function StatCard({
 
         {/* Right: Sparkline */}
         {chartData.length > 0 && (
-          <div className="h-12 w-24 shrink-0 relative z-10">
+          <div className="h-12 flex-1 min-w-[60px] relative z-10 ml-2">
             <ResponsiveContainer width="100%" height="100%">
               {sparkType === 'bar' ? (
                 <BarChart data={chartData} barSize={5} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>

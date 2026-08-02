@@ -283,11 +283,6 @@ export default function CalendarClient({
     }
   }
 
-  // ── ICS download ────────────────────────────────────────────
-  function downloadICS() {
-    window.open('/api/calendar/ics', '_blank')
-    toast.success('Calendar export started')
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -345,14 +340,6 @@ export default function CalendarClient({
           </div>
         </div>
 
-        {/* ICS export */}
-        <button
-          onClick={downloadICS}
-          className="flex items-center gap-2 h-9 px-3 rounded-xl bg-bg-secondary border border-border text-xs text-text-muted hover:text-text hover:border-border-muted shrink-0 transition-colors"
-        >
-          <Download size={13} />
-          Export .ics
-        </button>
       </div>
 
       {/* ── Main calendar area ────────────────────────────────── */}
