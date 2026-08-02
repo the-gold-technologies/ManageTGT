@@ -38,7 +38,6 @@ export async function getDashboardData() {
     closures,
     userTasks,
     sharedFiles,
-    calendarEvents,
   ] = await Promise.all([
     allowedModules.includes('projects') ? prisma.project.findMany({ where: projectsWhere, select: { id: true, status: true, expected_completion: true, createdAt: true, billing_cycle: true, quoted_price: true } }) : Promise.resolve([]),
     allowedModules.includes('revenue') ? prisma.invoice.findMany({ select: { final_billing: true, amount_received: true, status: true, createdAt: true, gst_applied: true } }) : Promise.resolve([]),
