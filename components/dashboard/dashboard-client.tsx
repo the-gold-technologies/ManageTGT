@@ -119,32 +119,43 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
         {/* Main Column */}
         <div className="xl:col-span-9 flex flex-col gap-6">
           
-          {/* Quick Actions Bar */}
+          {/* Quick Actions Bar — role-gated */}
           <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-5 md:gap-7 py-2">
-            <div onClick={() => router.push('/projects/new')} className="flex items-center gap-2.5 cursor-pointer group">
-              <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-primary transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-primary/50 group-hover:shadow-[0_0_15px_rgba(var(--primary),0.15)]">
-                <Plus size={16} />
+            {/* Create Project — needs projects module */}
+            {isProjectsVisible && (
+              <div onClick={() => router.push('/projects/new')} className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-primary transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-primary/50 group-hover:shadow-[0_0_15px_rgba(var(--primary),0.15)]">
+                  <Plus size={16} />
+                </div>
+                <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Create Project</span>
               </div>
-              <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Create Project</span>
-            </div>
+            )}
+            {/* Add Task — visible to all */}
             <div onClick={() => router.push('/my-tasks')} className="flex items-center gap-2.5 cursor-pointer group">
               <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-success transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-success/50 group-hover:shadow-[0_0_15px_rgba(var(--success),0.15)]">
                 <CheckSquare size={16} />
               </div>
               <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Add Task</span>
             </div>
-            <div onClick={() => router.push('/clients')} className="flex items-center gap-2.5 cursor-pointer group">
-              <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-info transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-info/50 group-hover:shadow-[0_0_15px_rgba(var(--info),0.15)]">
-                <Users size={16} />
+            {/* Add Client — admin only */}
+            {role === 'admin' && (
+              <div onClick={() => router.push('/clients')} className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-info transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-info/50 group-hover:shadow-[0_0_15px_rgba(var(--info),0.15)]">
+                  <Users size={16} />
+                </div>
+                <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Add Client</span>
               </div>
-              <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Add Client</span>
-            </div>
-            <div onClick={() => router.push('/finance/revenue')} className="flex items-center gap-2.5 cursor-pointer group">
-              <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-warning transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-warning/50 group-hover:shadow-[0_0_15px_rgba(var(--warning),0.15)]">
-                <FileText size={16} />
+            )}
+            {/* Create Invoice — needs revenue module */}
+            {hasRevenueAccess && (
+              <div onClick={() => router.push('/finance/revenue')} className="flex items-center gap-2.5 cursor-pointer group">
+                <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-warning transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-warning/50 group-hover:shadow-[0_0_15px_rgba(var(--warning),0.15)]">
+                  <FileText size={16} />
+                </div>
+                <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Create Invoice</span>
               </div>
-              <span className="font-medium text-[13px] text-text-muted group-hover:text-text transition-colors">Create Invoice</span>
-            </div>
+            )}
+            {/* Manage Files — visible to all */}
             <div onClick={() => router.push('/files')} className="flex items-center gap-2.5 cursor-pointer group">
               <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-accent-cyan transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-accent-cyan/50 group-hover:shadow-[0_0_15px_rgba(var(--accent-cyan),0.15)]">
                 <FolderKanban size={16} />
