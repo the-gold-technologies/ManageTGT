@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   FileText, Image, FileSpreadsheet, File, Download, Eye,
   Share2, GitBranch, Archive, Trash2, MoreVertical, Calendar,
-  User, Tag, ExternalLink,
+  User, Tag, ExternalLink, Edit3,
   Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -63,9 +63,10 @@ interface FileCardProps {
   onShare: () => void
   onVersions: () => void
   onDeleted: () => void
+  onEdit: () => void
 }
 
-export default function FileCard({ file, view, categoryColors, onPreview, onShare, onVersions, onDeleted }: FileCardProps) {
+export default function FileCard({ file, view, categoryColors, onPreview, onShare, onVersions, onDeleted, onEdit }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -183,6 +184,9 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
                   <button onClick={() => { onPreview(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
                     <Eye size={12} /> Preview
                   </button>
+                  <button onClick={() => { onEdit(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
+                    <Edit3 size={12} /> Edit
+                  </button>
                   <button onClick={() => { handleDownload(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
                     <Download size={12} /> Download
                   </button>
@@ -254,6 +258,13 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
               title="Preview"
             >
               <Eye size={14} />
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); onEdit() }}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              title="Edit"
+            >
+              <Edit3 size={14} />
             </button>
             <button
               onClick={e => { e.stopPropagation(); handleDownload() }}

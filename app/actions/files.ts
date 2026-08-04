@@ -259,11 +259,21 @@ export async function updateFileRecord(
     source_note?: string | null
     shared_with?: string[]
     is_archived?: boolean
+    client_id?: string | null
+    project_id?: string | null
+    prospect_id?: string | null
   }
 ) {
   try {
+    const session = await auth()
     const admin = await isAdmin()
-    if (!admin) return { success: false, error: 'Admin only' }
+    
+    const existing = await prisma.fileRecord.findUnique({ where: { id } })
+    if (!existing) return { success: false, error: 'File not found' }
+
+    if (!admin && existing.uploaded_by !== session?.user?.id) {
+      return { success: false, error: 'Not authorized to edit this file' }
+    }
 
     const record = await prisma.fileRecord.update({
       where: { id },
@@ -275,6 +285,9 @@ export async function updateFileRecord(
         ...(input.source_note !== undefined && { source_note: input.source_note }),
         ...(input.shared_with !== undefined && { shared_with: input.shared_with }),
         ...(input.is_archived !== undefined && { is_archived: input.is_archived }),
+        ...(input.client_id !== undefined && { client_id: input.client_id }),
+        ...(input.project_id !== undefined && { project_id: input.project_id }),
+        ...(input.prospect_id !== undefined && { prospect_id: input.prospect_id }),
       },
     })
 
@@ -355,11 +368,15 @@ export async function unshareFileFromUsers(fileId: string, userIds: string[]) {
 
 export async function deleteFileRecord(id: string) {
   try {
+    const session = await auth()
     const admin = await isAdmin()
-    if (!admin) return { success: false, error: 'Admin only' }
 
     const record = await prisma.fileRecord.findUnique({ where: { id } })
     if (!record) return { success: false, error: 'Not found' }
+
+    if (!admin && record.uploaded_by !== session?.user?.id) {
+      return { success: false, error: 'Not authorized to delete this file' }
+    }
 
     // Delete from Supabase storage
     if (record.storage_path) {

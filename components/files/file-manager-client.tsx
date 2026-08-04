@@ -81,6 +81,7 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
   const [previewFile, setPreviewFile] = useState<any | null>(null)
   const [shareFile, setShareFile] = useState<any | null>(null)
   const [versionsFile, setVersionsFile] = useState<any | null>(null)
+  const [editFile, setEditFile] = useState<any | null>(null)
 
   const { data: files = initialFiles, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['files', activeContext, activeCategory],
@@ -134,6 +135,11 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
   }, [qc, refetch])
 
   const onDeleted = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['files'] })
+    refetch()
+  }, [qc, refetch])
+
+  const onEdited = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['files'] })
     refetch()
   }, [qc, refetch])
@@ -321,6 +327,7 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
                     onShare={() => setShareFile(file)}
                     onVersions={() => setVersionsFile(file)}
                     onDeleted={onDeleted}
+                    onEdit={() => setEditFile(file)}
                   />
                 ))}
               </AnimatePresence>
@@ -331,13 +338,14 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
 
       {/* ── Modals ── */}
       <FileUploadModal
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
+        open={uploadOpen || !!editFile}
+        onClose={() => { setUploadOpen(false); setEditFile(null) }}
         clients={clients}
         projects={projects}
-        onSuccess={onUploaded}
+        onSuccess={editFile ? onEdited : onUploaded}
         currentUserId={currentUserId}
         allowedModules={allowedModules}
+        editingFile={editFile}
       />
 
       {previewFile && (

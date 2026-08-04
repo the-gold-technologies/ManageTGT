@@ -1,16 +1,16 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Upload, File, Image, FileText, FileSpreadsheet,
   Loader2, ChevronDown, Calendar, AlignLeft, FolderOpen,
-  CheckCircle2, AlertCircle,
+  CheckCircle2, AlertCircle, Edit3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
-import { createFileRecord } from '@/app/actions/files'
+import { createFileRecord, updateFileRecord } from '@/app/actions/files'
 import { Button } from '@/components/ui/button'
 
 type FileCategory = 'brand_assets' | 'reference' | 'deliverable' | 'contract' | 'invoice_docs' | 'content' | 'bill_receipt' | 'general'
@@ -35,6 +35,7 @@ interface Props {
   onSuccess: () => void
   currentUserId: string
   allowedModules?: string[]
+  editingFile?: any
 }
 
 interface FileWithPreview {
@@ -45,7 +46,7 @@ interface FileWithPreview {
   url?: string
 }
 
-export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId, allowedModules }: Props) {
+export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId, allowedModules, editingFile }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -55,6 +56,30 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
   const [sourceDate, setSourceDate] = useState('')
   const [sourceNote, setSourceNote] = useState('')
   const [uploading, setUploading] = useState(false)
+
+  useEffect(() => {
+    if (editingFile && open) {
+      setCategory(editingFile.category || 'general')
+      setSourceDate(editingFile.source_date ? new Date(editingFile.source_date).toISOString().split('T')[0] : '')
+      setSourceNote(editingFile.source_note || '')
+      
+      let ctxType: ContextType = 'none'
+      let ctxId = ''
+      if (editingFile.client_id) { ctxType = 'client'; ctxId = editingFile.client_id }
+      else if (editingFile.project_id) { ctxType = 'project'; ctxId = editingFile.project_id }
+      else if (editingFile.prospect_id) { ctxType = 'prospect'; ctxId = editingFile.prospect_id }
+      
+      setContextType(ctxType)
+      setContextId(ctxId)
+    } else {
+      setFiles([])
+      setCategory('general')
+      setContextType('none')
+      setContextId('')
+      setSourceDate('')
+      setSourceNote('')
+    }
+  }, [editingFile, open])
 
   const reset = () => {
     setFiles([])
@@ -93,6 +118,41 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
   }, [addFiles])
 
   const handleSubmit = async () => {
+    if (editingFile) {
+      if (contextType !== 'none' && !contextId) {
+        toast.error('Please select a specific client or project')
+        return
+      }
+      setUploading(true)
+      
+      let client_id = null
+      let project_id = null
+      let prospect_id = null
+      
+      if (contextType === 'client') client_id = contextId || null
+      if (contextType === 'project') project_id = contextId || null
+      if (contextType === 'prospect') prospect_id = contextId || null
+
+      const result = await updateFileRecord(editingFile.id, {
+        category,
+        source_date: sourceDate || null,
+        source_note: sourceNote || null,
+        client_id,
+        project_id,
+        prospect_id
+      })
+      
+      setUploading(false)
+      if (result.success) {
+        toast.success('File updated successfully')
+        onSuccess()
+        handleClose()
+      } else {
+        toast.error(result.error || 'Failed to update file')
+      }
+      return
+    }
+
     if (files.length === 0) {
       toast.error('Please select at least one file')
       return
@@ -198,11 +258,11 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Upload size={16} className="text-primary" />
+                  {editingFile ? <Edit3 size={16} className="text-primary" /> : <Upload size={16} className="text-primary" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-text">Upload File</h3>
-                  <p className="text-xs text-text-muted">Max 100MB · PDF, Word, Excel, Images</p>
+                  <h3 className="text-sm font-semibold text-text">{editingFile ? 'Edit File Details' : 'Upload File'}</h3>
+                  {!editingFile && <p className="text-xs text-text-muted">Max 100MB · PDF, Word, Excel, Images</p>}
                 </div>
               </div>
               <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-bg-secondary text-text-muted hover:text-text transition-colors">
@@ -212,7 +272,9 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
 
             <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* Drop Zone */}
-              <div
+              {!editingFile && (
+                <>
+                  <div
                 onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={onDrop}
@@ -263,7 +325,22 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
                   ))}
                 </div>
               )}
+                </>
+              )}
 
+              {/* Category */}
+              <div>
+                <label className="text-xs font-medium text-text-secondary mb-1.5 block">Category</label>
+                <select
+                  value={category}
+                  onChange={e => setCategory(e.target.value as FileCategory)}
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 transition-all"
+                >
+                  {CATEGORIES.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
 
               {/* Context */}
               <div>
@@ -331,9 +408,9 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-border bg-bg-secondary">
               <Button variant="outline" onClick={handleClose} disabled={uploading}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={uploading || files.length === 0} className="gap-2">
-                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`}
+              <Button onClick={handleSubmit} disabled={uploading || (!editingFile && files.length === 0)} className="gap-2">
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : (editingFile ? <Edit3 size={14} /> : <Upload size={14} />)}
+                {uploading ? (editingFile ? 'Saving...' : 'Uploading...') : (editingFile ? 'Save Changes' : `Upload ${files.length > 0 ? `(${files.length})` : ''}`)}
               </Button>
             </div>
           </motion.div>
