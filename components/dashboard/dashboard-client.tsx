@@ -523,11 +523,11 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
               </motion.div>
 
               {/* Row 2: Upcoming Deadlines + Recent Files */}
-              <motion.div variants={itemVariants} className={cn('grid gap-4', (data.recentFiles?.length > 0) ? 'grid-cols-1 md:grid-cols-5' : 'grid-cols-1')}>
+              <motion.div variants={itemVariants} className="grid gap-4 grid-cols-1 md:grid-cols-5">
 
                 {/* Upcoming Deadlines Timeline */}
-                {data.upcomingTasks && data.upcomingTasks.length > 0 && (
-                  <div className={cn('rounded-2xl bg-bg-secondary border border-border p-5 relative overflow-hidden', (data.recentFiles?.length > 0) ? 'md:col-span-3' : '')}>
+                {((data.upcomingTasks && data.upcomingTasks.length > 0) || (data.recentFiles && data.recentFiles.length > 0)) && (
+                  <div className="rounded-2xl bg-bg-secondary border border-border p-5 relative overflow-hidden md:col-span-3">
                     <Glow />
                     <div className="relative z-10">
                       <div className="flex items-center justify-between mb-4">
@@ -537,7 +537,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
                         <button onClick={() => router.push('/my-tasks')} className="text-[10px] uppercase tracking-widest font-semibold text-text-muted hover:text-text transition-colors">View All</button>
                       </div>
                       <div className="space-y-1">
-                        {data.upcomingTasks.map((task: any) => {
+                        {data.upcomingTasks && data.upcomingTasks.length > 0 ? data.upcomingTasks.map((task: any) => {
                           const now = new Date()
                           const dl = task.deadline ? new Date(task.deadline) : null
                           const todayMid = new Date(); todayMid.setHours(0,0,0,0)
@@ -570,25 +570,30 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
                               <span className={cn('text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0', PRIORITY_COLORS[task.priority])}>{task.priority}</span>
                             </div>
                           )
-                        })}
+                        }) : (
+                          <div className="flex flex-col items-center justify-center py-8 text-center">
+                            <CheckCircle2 size={24} className="text-text-muted mb-2 opacity-30" />
+                            <p className="text-xs text-text-muted font-medium">No upcoming deadlines</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Recent Shared Files — with image previews */}
-                {data.recentFiles && data.recentFiles.length > 0 && (
+                {((data.upcomingTasks && data.upcomingTasks.length > 0) || (data.recentFiles && data.recentFiles.length > 0)) && (
                   <div className="md:col-span-2 rounded-2xl bg-bg-secondary border border-border p-5 relative overflow-hidden">
                     <Glow />
                     <div className="relative z-10">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                          <FileIcon size={12} /> Shared Files
+                          <FileIcon size={12} /> Recent Files
                         </h3>
                         <button onClick={() => router.push('/files')} className="text-[10px] uppercase tracking-widest font-semibold text-text-muted hover:text-text transition-colors">View All</button>
                       </div>
                       <div className="space-y-1.5">
-                        {data.recentFiles.map((file: any) => {
+                        {data.recentFiles && data.recentFiles.length > 0 ? data.recentFiles.map((file: any) => {
                           const mime: string = file.mimeType || ''
                           const name: string = file.name || 'Unnamed File'
                           const ext = name.split('.').pop()?.toLowerCase() || ''
@@ -635,7 +640,12 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
                             <ArrowRight size={12} className="text-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                           </a>
                         )
-                      })}
+                      }) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <FileIcon size={24} className="text-text-muted mb-2 opacity-30" />
+                          <p className="text-xs text-text-muted font-medium">No recent files</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

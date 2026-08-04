@@ -50,9 +50,31 @@ export async function getDashboardData() {
       orderBy: { deadline: 'asc' }
     }) : Promise.resolve([]),
     userRole !== 'admin' ? prisma.fileRecord.findMany({
-      where: { shared_with: { has: session?.user?.id || '' }, is_archived: false },
+      where: {
+        is_archived: false,
+        OR: [
+          { shared_with: { has: session?.user?.id || '' } },
+          { uploaded_by: session?.user?.id || '' },
+          {
+            project: {
+              OR: [
+                { team_lead_id: session?.user?.id || '' },
+                { assigned_member_ids: { has: session?.user?.id || '' } }
+              ]
+            }
+          },
+          {
+            task: {
+              OR: [
+                { assigned_by: session?.user?.id || '' },
+                { assigned_member_ids: { has: session?.user?.id || '' } }
+              ]
+            }
+          }
+        ]
+      },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 4,
     }) : Promise.resolve([]),
   ])
 
@@ -257,7 +279,7 @@ export async function getDashboardData() {
 
   // Recent shared files with richer metadata
   const recentFiles = userRole !== 'admin'
-    ? sharedFiles.slice(0, 6).map((f: any) => ({
+    ? sharedFiles.slice(0, 4).map((f: any) => ({
         id: f.id,
         name: f.name || 'Unnamed File',
         url: f.url || f.storage_path || '',
