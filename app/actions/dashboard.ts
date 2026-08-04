@@ -189,20 +189,86 @@ export async function getDashboardData() {
   ].filter(d => d.value > 0)
 
 
+  // --- Personal Workspace Data (data-driven, works for any role with task access) ---
   const taskStats = userRole !== 'admin' ? {
     total: userTasks.length,
     pending: userTasks.filter(t => t.status !== 'completed').length,
     completed: userTasks.filter(t => t.status === 'completed').length,
   } : null
 
-  const pendingTasks = userRole !== 'admin' ? userTasks.filter(t => t.status !== 'completed').slice(0, 5).map(t => ({
-    id: t.id,
-    title: t.title,
-    status: t.status,
-    priority: t.priority,
-    deadline: t.deadline?.toISOString() || null,
-    projectName: t.project?.name || null,
-  })) : []
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999)
+
+  const overdueCount = userRole !== 'admin'
+    ? userTasks.filter(t => t.deadline && t.status !== 'completed' && new Date(t.deadline) < todayStart).length
+    : 0
+
+  const dueTodayCount = userRole !== 'admin'
+    ? userTasks.filter(t => {
+        if (!t.deadline || t.status === 'completed') return false
+        const d = new Date(t.deadline)
+        return d >= todayStart && d <= todayEnd
+      }).length
+    : 0
+
+  // Task counts by status (for the status mini-bars)
+  const tasksByStatus = userRole !== 'admin' ? {
+    todo:        userTasks.filter(t => t.status === 'todo').length,
+    in_progress: userTasks.filter(t => t.status === 'in_progress').length,
+    review:      userTasks.filter(t => t.status === 'review').length,
+    completed:   userTasks.filter(t => t.status === 'completed').length,
+  } : null
+
+  // Upcoming tasks sorted by urgency: overdue → today → by deadline → by priority
+  const PRIORITY_WEIGHT: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+  const upcomingTasks = userRole !== 'admin'
+    ? userTasks
+        .filter(t => t.status !== 'completed')
+        .sort((a, b) => {
+          const aD = a.deadline ? new Date(a.deadline).getTime() : Infinity
+          const bD = b.deadline ? new Date(b.deadline).getTime() : Infinity
+          if (aD !== bD) return aD - bD
+          return (PRIORITY_WEIGHT[a.priority] ?? 3) - (PRIORITY_WEIGHT[b.priority] ?? 3)
+        })
+        .slice(0, 8)
+        .map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          deadline: t.deadline?.toISOString() || null,
+          projectName: t.project?.name || null,
+        }))
+    : []
+
+  // Weekly activity: tasks completed per day (last 7 days)
+  const weeklyActivity = userRole !== 'admin'
+    ? Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0)
+        const end = new Date(d); end.setHours(23, 59, 59, 999)
+        const count = userTasks.filter(t => {
+          if (!t.completion_date) return false
+          const cd = new Date(t.completion_date)
+          return cd >= d && cd <= end
+        }).length
+        return { day: d.toLocaleDateString('en', { weekday: 'short' }), completed: count }
+      })
+    : []
+
+  // Recent shared files with richer metadata
+  const recentFiles = userRole !== 'admin'
+    ? sharedFiles.slice(0, 6).map((f: any) => ({
+        id: f.id,
+        name: f.name || 'Unnamed File',
+        url: f.url || f.storage_path || '',
+        mimeType: f.mime_type || '',
+        size: f.size || null,
+        createdAt: f.createdAt?.toISOString() || null,
+        category: f.category || 'general',
+      }))
+    : []
+
+  const pendingTasks = upcomingTasks.slice(0, 5)
 
   return {
     userRole,
@@ -226,6 +292,12 @@ export async function getDashboardData() {
     activeProjectsTrend,
     completedProjectsTrend,
     taskStats,
+    tasksByStatus,
+    overdueCount,
+    dueTodayCount,
+    upcomingTasks,
+    weeklyActivity,
+    recentFiles,
     pendingTasks,
     sharedFiles,
     unifiedEvents,

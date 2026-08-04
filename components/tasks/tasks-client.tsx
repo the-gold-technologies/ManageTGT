@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, FileDown, CheckSquare, AlertCircle, Calendar, FileText, X } from 'lucide-react'
+import { Plus, Search, CheckSquare, AlertCircle, Calendar, FileText, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
@@ -17,7 +17,7 @@ import { formatDate, isOverdue } from '@/lib/utils'
 import TaskModal from './task-modal'
 import CardMarkdownPreview from '@/components/tasks/markdown-preview'
 import { cn } from '@/lib/utils'
-import ExportDropdown from '@/components/ui/export-dropdown'
+
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 
 interface TasksClientProps {
@@ -173,16 +173,7 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
     return matchesSearch && matchesDate
   })
 
-  const exportHeaders = ['Title', 'Project', 'Assignee', 'Status', 'Priority', 'Deadline', 'Created At']
-  const mapExportData = (t: Task) => [
-    t.title,
-    t.project?.name || 'N/A',
-    t.assigned_member_ids && t.assigned_member_ids.length > 0 ? profiles.filter(p => t.assigned_member_ids?.includes(p.id)).map(p => p.full_name).join(', ') : 'Unassigned',
-    t.status,
-    t.priority,
-    t.deadline ? new Date(t.deadline).toLocaleDateString() : 'N/A',
-    new Date(t.createdAt).toLocaleDateString()
-  ]
+
 
   const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
   const itemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
@@ -213,12 +204,10 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
               setDateFilter('custom')
             }} 
           />
-          <ExportDropdown 
-            data={filteredTasks} 
-            headers={exportHeaders} 
-            filename={`tasks_export_${new Date().toISOString().split('T')[0]}`} 
-            mapData={mapExportData} 
-          />
+
+          <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+            <Plus size={15} /> Add Task
+          </Button>
         </div>
       </div>
 

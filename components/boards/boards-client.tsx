@@ -81,21 +81,8 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
 
   const isLoading = isTasksLoading || isProjectsLoading || isProfilesLoading
 
-  // Server-side filtering logic migrated to client
-  const teamLeadProjectIds = projectsData
-    .filter(p => p.team_lead_id === userId)
-    .map(p => p.id)
-
-  let roleFilteredTasks = tasksData
-  if (userRole === 'team_lead') {
-    roleFilteredTasks = tasksData.filter(t =>
-      teamLeadProjectIds.includes(t.project_id || '') ||
-      t.assigned_by === userId ||
-      t.assigned_member_ids?.includes(userId || '')
-    )
-  } else if (userRole === 'team_member') {
-    roleFilteredTasks = tasksData.filter(t => t.assigned_member_ids?.includes(userId || ''))
-  }
+  // All users can see all tasks on the board — no role-based filtering
+  const roleFilteredTasks = tasksData
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {

@@ -46,7 +46,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const supabase = createClient()
   const qc = useQueryClient()
   const isEdit = !!task
-  const isRestricted = userRole === 'team_member'
+  const isRestricted = false // All users can create and edit tasks
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
