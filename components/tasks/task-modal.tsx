@@ -463,16 +463,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                 )}
               </div>
 
-              {/* File Manager Panel — shown when editing an existing task */}
-              {isEdit && task?.id && (
-                <div className="pt-4 border-t border-border mt-4">
-                  <ContextFilePanel
-                    contextId={task.id}
-                    contextType="task"
-                    defaultCategory="deliverable"
-                  />
-                </div>
-              )}
+              {/* File Manager Panel removed to avoid duplicate attachment fields */}
             </form>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border">

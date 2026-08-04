@@ -238,10 +238,26 @@ export async function addTaskFile(data: any) {
 
 export async function deleteTaskFile(id: string) {
   try {
-    await prisma.taskFile.delete({
+    const deletedFile = await prisma.taskFile.delete({
       where: { id }
     })
+    
+    // Sync: also remove from File Manager (FileRecord)
+    if (deletedFile && deletedFile.file_url) {
+      try {
+        await prisma.fileRecord.deleteMany({
+          where: { 
+            url: deletedFile.file_url,
+            task_id: deletedFile.task_id
+          }
+        })
+      } catch (syncErr) {
+        console.warn('Failed to delete corresponding FileRecord:', syncErr)
+      }
+    }
+
     revalidatePath('/my-tasks')
+    revalidatePath('/files')
     return { success: true }
   } catch (error) {
     console.error('Error deleting task file:', error)

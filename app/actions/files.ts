@@ -189,7 +189,24 @@ export async function createFileRecord(input: CreateFileRecordInput) {
       },
     })
 
+    // Sync: also add to taskFile if this file is linked to a task
+    if (record.url && record.task_id) {
+      try {
+        await prisma.taskFile.create({
+          data: {
+            task_id: record.task_id,
+            file_name: record.name,
+            file_url: record.url,
+            file_size: record.size
+          }
+        })
+      } catch (syncErr) {
+        console.warn('Failed to sync to taskFile:', syncErr)
+      }
+    }
+
     revalidatePath('/files')
+    revalidatePath('/my-tasks')
     return { success: true, record }
   } catch (error: any) {
     console.error('createFileRecord error:', error)
@@ -355,7 +372,19 @@ export async function deleteFileRecord(id: string) {
 
     await prisma.fileRecord.delete({ where: { id } })
 
+    // Sync: also delete from taskFile if it was attached to a task
+    if (record.url && record.task_id) {
+      try {
+        await prisma.taskFile.deleteMany({
+          where: { file_url: record.url, task_id: record.task_id }
+        })
+      } catch (syncErr) {
+        console.warn('Failed to delete corresponding taskFile:', syncErr)
+      }
+    }
+
     revalidatePath('/files')
+    revalidatePath('/my-tasks')
     return { success: true }
   } catch (error: any) {
     console.error('deleteFileRecord error:', error)
