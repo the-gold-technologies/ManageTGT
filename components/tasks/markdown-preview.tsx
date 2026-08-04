@@ -94,7 +94,7 @@ export default function CardMarkdownPreview({ source, onUpdate }: { source: stri
       <div 
         ref={containerRef}
         onClick={handleClick}
-        className="markdown-preview-container text-[11px] text-text-secondary mb-3 leading-tight prose prose-sm dark:prose-invert prose-p:my-0.5 prose-p:leading-tight prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text"
+        className="markdown-preview-container text-[11px] text-text-secondary mb-3 leading-tight prose prose-sm dark:prose-invert prose-p:my-0.5 prose-p:leading-tight prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text break-words prose-a:break-all"
         dangerouslySetInnerHTML={{ __html: localSource }}
         style={{ fontSize: '11px' }}
       />
