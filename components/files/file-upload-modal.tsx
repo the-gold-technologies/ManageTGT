@@ -34,6 +34,7 @@ interface Props {
   projects: any[]
   onSuccess: () => void
   currentUserId: string
+  allowedModules?: string[]
 }
 
 interface FileWithPreview {
@@ -44,7 +45,7 @@ interface FileWithPreview {
   url?: string
 }
 
-export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId }: Props) {
+export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId, allowedModules }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -268,7 +269,12 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
               <div>
                 <label className="text-xs font-medium text-text-secondary mb-1.5 block">Attach to</label>
                 <div className="flex gap-2 mb-2">
-                  {(['none', 'client', 'project'] as ContextType[]).map(v => (
+                  {(['none', 'client', 'project'] as ContextType[]).filter(v => {
+                    if (v === 'none') return true
+                    if (v === 'client' && allowedModules && !allowedModules.includes('clients') && !allowedModules.includes('admin')) return false
+                    if (v === 'project' && allowedModules && !allowedModules.includes('projects') && !allowedModules.includes('admin')) return false
+                    return true
+                  }).map(v => (
                     <button
                       key={v}
                       onClick={() => { setContextType(v); setContextId('') }}

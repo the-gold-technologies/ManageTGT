@@ -337,6 +337,7 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
         projects={projects}
         onSuccess={onUploaded}
         currentUserId={currentUserId}
+        allowedModules={allowedModules}
       />
 
       {previewFile && (
