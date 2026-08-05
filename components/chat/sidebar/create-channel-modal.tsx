@@ -43,7 +43,7 @@ export function CreateChannelModal({
     )
   }
 
-  const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+  const inputClass = "w-full px-3 py-2 bg-bg border border-border-muted rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
 
   return (
     <AnimatePresence>
@@ -100,7 +100,7 @@ export function CreateChannelModal({
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search members..."
-                      className="w-full bg-bg border border-border rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-primary/50 text-text"
+                      className="w-full bg-bg border border-border-muted rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-primary text-text"
                     />
                   </div>
                 </div>
@@ -117,7 +117,7 @@ export function CreateChannelModal({
                           className="flex items-center gap-3 p-2 rounded-lg hover:bg-bg-tertiary cursor-pointer transition-colors"
                         >
                           <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                            selectedMembers.includes(user.id) ? 'bg-primary border-primary text-white' : 'border-border/80'
+                            selectedMembers.includes(user.id) ? 'bg-primary border-primary text-white' : 'border-border'
                           }`}>
                             {selectedMembers.includes(user.id) && <svg viewBox="0 0 24 24" fill="none" className="w-3 h-3" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                           </div>

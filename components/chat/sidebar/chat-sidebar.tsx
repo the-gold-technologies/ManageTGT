@@ -56,6 +56,58 @@ export function ChatSidebar({
     return u.name?.toLowerCase().includes(searchQuery.toLowerCase())
   })
 
+  const renderConversationItem = (conv: any) => {
+    const isGroup = conv.is_group
+    const otherParticipant = !isGroup ? conv.participants.find((p: any) => p.user_id !== sessionUserId)?.user : null
+    const name = isGroup ? (conv.name || 'General') : (otherParticipant?.name || 'User')
+    const isOnline = otherParticipant ? onlineUsers.has(otherParticipant.id) : false
+    const lastMsg = conv.messages?.[0]
+    const isActive = activeConvId === conv.id
+
+    return (
+      <motion.button
+        layout
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        key={conv.id}
+        onClick={() => setActiveConvId(conv.id)}
+        className={`w-full flex items-center gap-2.5 pr-2.5 pl-6 py-1.5 rounded-lg transition-all text-left group ${
+          isActive ? 'bg-bg-tertiary shadow-sm' : 'hover:bg-bg-secondary'
+        }`}
+      >
+        {/* Avatar */}
+        <div className="relative shrink-0">
+          <div className={`w-6 h-6 rounded-md flex items-center justify-center font-medium text-[11px] overflow-hidden ${
+            isActive ? 'bg-primary/20 text-primary' : 'bg-bg-secondary text-text-secondary group-hover:bg-bg-tertiary'
+          }`}>
+            {isGroup ? (
+              <Hash size={14} />
+            ) : otherParticipant?.image ? (
+              <img src={otherParticipant.image} alt={name} className="w-full h-full object-cover" />
+            ) : (
+              getInitials(name)
+            )}
+          </div>
+          {!isGroup && isOnline && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success border-2 border-bg rounded-full z-10" />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+          <h3 className={`font-medium text-[13px] truncate ${isActive ? 'text-text' : (conv.unreadCount > 0 ? 'text-text font-semibold' : 'text-text-secondary')}`}>
+            {name} {(!isGroup && otherParticipant?.id === sessionUserId) && <span className="text-text-muted font-normal ml-1">(you)</span>}
+          </h3>
+          {(conv.unreadCount > 0) && (
+            <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-white shrink-0">
+              {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+            </div>
+          )}
+        </div>
+      </motion.button>
+    )
+  }
+
   return (
     <div className={`flex flex-col h-full bg-bg border-r border-border transition-all duration-300 ${isMobile && activeConvId ? 'hidden' : 'w-full md:w-[320px] shrink-0'}`}>
       {/* Header */}
@@ -80,145 +132,102 @@ export function ChatSidebar({
             placeholder="Search or start a new chat"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-bg border border-border focus:border-primary/50 focus:ring-1 focus:ring-primary/50 rounded-full pl-9 pr-4 py-2 text-sm text-text transition-all outline-none shadow-sm"
+            className="w-full bg-bg border border-border focus:border-primary focus:ring-0 focus:ring-offset-0 focus:shadow-none rounded-full pl-9 pr-4 py-2 text-sm text-text transition-all outline-none focus:outline-none shadow-sm"
           />
         </div>
 
         {/* Filters */}
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-          {['all', 'channels', 'dms'].map((f) => (
+          {[
+            { id: 'all', label: 'All', icon: null },
+            { id: 'channels', label: 'Channels', icon: <Hash size={12} /> },
+            { id: 'dms', label: 'Direct messages', icon: <MessageSquare size={12} /> }
+          ].map((f) => (
             <button
-              key={f}
-              onClick={() => setFilter(f as any)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                filter === f 
-                  ? 'bg-primary/10 text-primary border border-primary/20' 
-                  : 'bg-bg text-text-muted hover:text-text hover:bg-bg-tertiary border border-border'
+              key={f.id}
+              onClick={() => setFilter(f.id as any)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${
+                filter === f.id 
+                  ? 'bg-primary/10 text-primary border-[#E06A26]/30' 
+                  : 'bg-bg text-text-muted hover:text-text hover:bg-bg-tertiary border-transparent hover:border-border'
               }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f.icon}
+              {f.label}
             </button>
           ))}
         </div>
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-bg">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-4 bg-bg">
         {isLoading ? (
           <div className="flex justify-center p-8"><Loader2 className="animate-spin text-primary" /></div>
         ) : (
           <AnimatePresence mode="popLayout">
-            {filteredConversations.length === 0 ? (
+            {filteredConversations.length === 0 && filter !== 'dms' ? (
               <motion.div key="empty-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center p-8 text-text-muted text-sm">
                 No chats found.
               </motion.div>
             ) : (
-              filteredConversations.map(conv => {
-                const isGroup = conv.is_group
-                const otherParticipant = !isGroup ? conv.participants.find((p: any) => p.user_id !== sessionUserId)?.user : null
-                const name = isGroup ? (conv.name || 'General') : (otherParticipant?.name || 'User')
-                const isOnline = otherParticipant ? onlineUsers.has(otherParticipant.id) : false
-                const lastMsg = conv.messages?.[0]
-                const isActive = activeConvId === conv.id
-
-                return (
-                  <motion.button
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    key={conv.id}
-                    onClick={() => setActiveConvId(conv.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left group ${
-                      isActive ? 'bg-bg-tertiary shadow-sm ring-1 ring-border-muted' : 'hover:bg-bg-secondary'
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <div className="relative shrink-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-medium text-sm overflow-hidden ${
-                        isActive ? 'bg-primary/20 text-primary' : 'bg-bg-secondary text-text-secondary group-hover:bg-bg-tertiary'
-                      }`}>
-                        {isGroup ? (
-                          <Hash size={18} />
-                        ) : otherParticipant?.image ? (
-                          <img src={otherParticipant.image} alt={name} className="w-full h-full object-cover" />
-                        ) : (
-                          getInitials(name)
-                        )}
-                      </div>
-                      {!isGroup && isOnline && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-success border-2 border-bg rounded-full z-10" />
-                      )}
+              <>
+                {(filter === 'all' || filter === 'channels') && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-1">
+                    <div className="px-3 mb-2 flex items-center justify-between text-text-muted">
+                      <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Hash size={12} />
+                        Channels
+                      </span>
                     </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-text' : (conv.unreadCount > 0 ? 'text-text' : 'text-text')}`}>
-                          {name}
-                        </h3>
-                        {lastMsg && (
-                          <span className={`text-[10px] font-medium shrink-0 ml-2 ${isActive ? 'text-primary' : (conv.unreadCount > 0 ? 'text-primary' : 'text-text-muted')}`}>
-                            {new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        )}
+                    {filteredConversations.filter(c => c.is_group).map(conv => renderConversationItem(conv))}
+                    <button onClick={onOpenCreateChannel} className="w-full flex items-center gap-2.5 pr-2.5 pl-6 py-1.5 text-text-muted hover:text-text hover:bg-bg-secondary rounded-lg transition-colors mt-0.5 group">
+                      <div className="w-6 h-6 flex items-center justify-center bg-bg-secondary group-hover:bg-bg-tertiary rounded-md transition-colors shrink-0">
+                        <Plus size={14} />
                       </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <p className={`text-[12px] truncate ${isActive ? 'text-text-secondary' : (conv.unreadCount > 0 ? 'text-text font-medium' : 'text-text-muted')}`}>
-                          {lastMsg ? (
-                            <>
-                              {lastMsg.sender_id === sessionUserId ? 'You: ' : ''}
-                              {lastMsg.content || 'Attached a file'}
-                            </>
-                          ) : (
-                            'Start a conversation'
-                          )}
-                        </p>
-                        {(conv.unreadCount > 0) && (
-                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                            {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                      <span className="text-[13px] font-medium">Add channels</span>
+                    </button>
+                  </motion.div>
+                )}
+
+                {(filter === 'all' || filter === 'dms') && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-1 mt-6">
+                    <div className="px-3 mb-2 flex items-center justify-between text-text-muted">
+                      <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <MessageSquare size={12} />
+                        Direct messages
+                      </span>
+                    </div>
+                    {filteredConversations.filter(c => !c.is_group).map(conv => renderConversationItem(conv))}
+                    
+                    {/* Other members without DMs yet */}
+                    {filteredUsersWithoutDM.map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => onStartDM && onStartDM(u.id)}
+                        className="w-full flex items-center gap-2.5 pr-2.5 pl-6 py-1.5 rounded-lg transition-all text-left hover:bg-bg-secondary group"
+                      >
+                        <div className="relative shrink-0">
+                          <div className="w-6 h-6 rounded-md bg-bg-secondary text-text-secondary group-hover:bg-bg-tertiary flex items-center justify-center font-medium text-[11px] overflow-hidden border border-border">
+                            {u.image ? (
+                              <img src={u.image} alt={u.name} className="w-full h-full object-cover" />
+                            ) : (
+                              getInitials(u.name || 'User')
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.button>
-                )
-              })
-            )}
-            
-            {filter === 'dms' && filteredUsersWithoutDM.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4">
-                <h3 className="px-3 text-xs font-semibold text-text-muted mb-2 uppercase tracking-wider">Other Team Members</h3>
-                <div className="space-y-1">
-                  {filteredUsersWithoutDM.map(u => (
-                    <button
-                      key={u.id}
-                      onClick={() => onStartDM && onStartDM(u.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left hover:bg-bg-secondary group"
-                    >
-                      <div className="relative shrink-0">
-                        <div className="w-10 h-10 rounded-full bg-bg-secondary text-text-secondary group-hover:bg-bg-tertiary flex items-center justify-center font-medium text-sm overflow-hidden">
-                          {u.image ? (
-                            <img src={u.image} alt={u.name} className="w-full h-full object-cover" />
-                          ) : (
-                            getInitials(u.name || 'User')
+                          {onlineUsers.has(u.id) && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success border-2 border-bg rounded-full z-10" />
                           )}
                         </div>
-                        {onlineUsers.has(u.id) && (
-                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-success border-2 border-bg rounded-full z-10" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm truncate text-text">
-                          {u.name}
-                        </h3>
-                        <p className="text-[12px] text-text-muted truncate">
-                          Start a conversation
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-[13px] truncate text-text-secondary group-hover:text-text">
+                            {u.name} {u.id === sessionUserId && <span className="text-text-muted font-normal ml-1">(you)</span>}
+                          </h3>
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </>
             )}
           </AnimatePresence>
         )}

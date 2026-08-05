@@ -1,74 +1,83 @@
-                                              'use client'
+'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, ArrowLeft, MessageSquare, Paperclip, Loader2, MoreHorizontal, User, Hash, Briefcase, Plus, Reply, Pin, Smile, ChevronDown } from 'lucide-react'
-import { getConversations, getMessages, sendMessage, getChatUsers, getOrCreateDM, convertMessageToTask, createChannel, pinMessage, toggleReaction, addGroupMember, removeGroupMember, markConversationAsRead } from '@/app/actions/chat'
+import {
+  getConversations, getMessages, sendMessage, getChatUsers, getOrCreateDM,
+  convertMessageToTask, createChannel, pinMessage, toggleReaction,
+  addGroupMember, removeGroupMember, markConversationAsRead,
+  editMessage, deleteMessage, getThreadReplies, sendThreadReply, searchMessages
+} from '@/app/actions/chat'
 import { uploadFileAction } from '@/app/actions/upload'
 import { MentionDropdown } from './mention-dropdown'
 import { useSocket } from '@/components/providers/socket-provider'
 import { useSession } from 'next-auth/react'
-import { format } from 'date-fns'
 import { getInitials } from '@/lib/utils'
 import { toast } from 'sonner'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { X, UserMinus, UserPlus, Search, Hash, Loader2 } from 'lucide-react'
 
 import { ChatSidebar } from './sidebar/chat-sidebar'
 import { ChatWindow } from './window/chat-window'
-import { MessageInput } from './input/message-input'
+import { RichMessageInput } from './input/rich-message-input'
 import { CreateChannelModal } from './sidebar/create-channel-modal'
-import { UserMinus, UserPlus, Search } from 'lucide-react'
+import { ThreadPanel } from './thread/thread-panel'
 
 interface ChatDrawerProps {
   isOpen: boolean
   onClose: () => void
 }
 
-const ANIMATED_EMOJIS = [
-  { char: '👍', hex: '1f44d' },
-  { char: '❤️', hex: '2764' },
-  { char: '😂', hex: '1f602' },
-  { char: '😮', hex: '1f62e' },
-  { char: '😢', hex: '1f622' },
-  { char: '🙏', hex: '1f64f' }
-]
-
 export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
   const { data: session } = useSession()
   const { socket, onlineUsers, isConnected } = useSocket()
   const queryClient = useQueryClient()
-  
+
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
-  const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
-  const [pendingFile, setPendingFile] = useState<{ file: File, name: string, type: string, url: string } | null>(null)
-  
+  const [pendingFile, setPendingFile] = useState<{ file: File; name: string; type: string; url: string } | null>(null)
+
   // Channel Creation State
   const [isCreatingChannel, setIsCreatingChannel] = useState(false)
   const [isSubmittingChannel, setIsSubmittingChannel] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
-  
+
   // Mentions State
   const [mentionType, setMentionType] = useState<'user' | 'task' | null>(null)
   const [mentionQuery, setMentionQuery] = useState('')
   const [cursorPos, setCursorPos] = useState({ bottom: 60, left: 20 })
 
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
-  const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null) // stores message ID if picker is open
   const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false)
-  const [openMessageDropdown, setOpenMessageDropdown] = useState<string | null>(null)
-  
   const [groupSearchQuery, setGroupSearchQuery] = useState('')
   const [isProcessingMember, setIsProcessingMember] = useState<string | null>(null)
 
+  // Thread state
+  const [threadParentId, setThreadParentId] = useState<string | null>(null)
+  const [threadReplies, setThreadReplies] = useState<any[]>([])
+  const [threadLoading, setThreadLoading] = useState(false)
+
+  // Edit state
+  const [editingMessage, setEditingMessage] = useState<{ id: string; content: string } | null>(null)
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+
+  // Thread file upload state (separate from main)
+  const [threadPendingFile, setThreadPendingFile] = useState<any>(null)
+  const [threadIsUploading, setThreadIsUploading] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const threadFileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch Conversations
+  // ─── Data Fetching ─────────────────────────────────────────
   const { data: conversationsData, isLoading: convsLoading } = useQuery({
     queryKey: ['chat-conversations'],
     queryFn: async () => {
@@ -78,19 +87,9 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     },
     enabled: isOpen,
   })
-  
-  const activeConv = conversationsData?.find((c: any) => c.id === activeConvId)
-  const otherParticipant = activeConv && !activeConv.is_group 
-    ? activeConv.participants.find((p: any) => p.user_id !== session?.user?.id)?.user 
-    : null
-    
-  const memberNames = activeConv && activeConv.is_group
-    ? activeConv.participants
-        .map((p: any) => p.user_id === session?.user?.id ? 'You' : p.user.name.split(' ')[0])
-        .join(', ')
-    : ''
 
-  // Fetch users for new DM
+  const activeConv = conversationsData?.find((c: any) => c.id === activeConvId)
+
   const { data: usersData } = useQuery({
     queryKey: ['chat-users'],
     queryFn: async () => {
@@ -101,7 +100,6 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     enabled: isOpen && !activeConvId,
   })
 
-  // Fetch Messages for active conversation
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ['chat-messages', activeConvId],
     queryFn: async () => {
@@ -113,69 +111,107 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     enabled: !!activeConvId,
   })
 
-  // Scroll to bottom when messages change
+  // ─── Effects ───────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, pendingFile])
 
-  // Mark conversation as read when opened
+  // Mark conversation as read
   useEffect(() => {
     if (activeConvId) {
       markConversationAsRead(activeConvId).then(() => {
-        // Optimistically update the UI to remove the badge
         queryClient.setQueryData(['chat-conversations'], (old: any) => {
           if (!old) return old
           return old.map((c: any) => c.id === activeConvId ? { ...c, unreadCount: 0 } : c)
         })
-        // Invalidate global unread count
         queryClient.invalidateQueries({ queryKey: ['global-unread-chat-count'] })
       })
     }
   }, [activeConvId, queryClient])
 
-  // Global socket listener for new messages
+  // Global socket listener
   useEffect(() => {
     if (!socket) return
-    
+
     const handleGlobalNewMessage = (newMsg: any) => {
-      console.log('[Socket] Global received:', newMsg)
-      
-      // Update the conversations list query to show latest message snippet
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })
       queryClient.invalidateQueries({ queryKey: ['global-unread-chat-count'] })
-      
-      // If we are currently in this conversation, update the messages list
+
       if (activeConvId === newMsg.conversation_id || activeConvId === newMsg.conversationId) {
         queryClient.setQueryData(['chat-messages', activeConvId], (old: any) => {
           if (!old) return [newMsg]
           if (old.some((m: any) => m.id === newMsg.id)) return old
           return [...old, newMsg]
         })
-        // Since we are in the conversation, mark it as read immediately
         if (activeConvId) {
           markConversationAsRead(activeConvId).then(() => {
             queryClient.invalidateQueries({ queryKey: ['global-unread-chat-count'] })
           })
         }
       } else {
-        // Optionally show a toast for messages received in other conversations
         toast(`New message from ${newMsg.sender?.name || 'Someone'}`)
       }
     }
-    
+
+    const handleMessageEdited = (editedMsg: any) => {
+      const convId = editedMsg.conversation_id || editedMsg.conversationId
+      queryClient.setQueryData(['chat-messages', convId], (old: any) => {
+        if (!old) return old
+        return old.map((m: any) => m.id === editedMsg.id ? { ...m, ...editedMsg } : m)
+      })
+    }
+
+    const handleMessageDeleted = (deletedMsg: any) => {
+      const convId = deletedMsg.conversation_id || deletedMsg.conversationId
+      queryClient.setQueryData(['chat-messages', convId], (old: any) => {
+        if (!old) return old
+        return old.map((m: any) =>
+          m.id === deletedMsg.id ? { ...m, is_deleted: true, content: '', reactions: {} } : m
+        )
+      })
+    }
+
+    const handleThreadReply = (replyData: any) => {
+      if (threadParentId === replyData.reply_to_id) {
+        setThreadReplies(prev => {
+          if (prev.some(r => r.id === replyData.id)) return prev
+          return [...prev, replyData]
+        })
+      }
+      // Also update the parent message's reply count in the main feed
+      const convId = replyData.conversation_id || replyData.conversationId
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', convId] })
+    }
+
+    const handleMessageReacted = (reactedMsg: any) => {
+      const convId = reactedMsg.conversation_id || reactedMsg.conversationId
+      queryClient.setQueryData(['chat-messages', convId], (old: any) => {
+        if (!old) return old
+        return old.map((m: any) => m.id === reactedMsg.id ? { ...m, reactions: reactedMsg.reactions } : m)
+      })
+    }
+
     socket.on('message:new', handleGlobalNewMessage)
+    socket.on('message:edited', handleMessageEdited)
+    socket.on('message:deleted', handleMessageDeleted)
+    socket.on('thread:new-reply', handleThreadReply)
+    socket.on('message:reacted', handleMessageReacted)
+
     return () => {
       socket.off('message:new', handleGlobalNewMessage)
+      socket.off('message:edited', handleMessageEdited)
+      socket.off('message:deleted', handleMessageDeleted)
+      socket.off('thread:new-reply', handleThreadReply)
+      socket.off('message:reacted', handleMessageReacted)
     }
-  }, [socket, activeConvId, queryClient])
+  }, [socket, activeConvId, queryClient, threadParentId])
 
-  // Room joining and typing event listeners
+  // Room joining and typing
   useEffect(() => {
     if (!socket || !activeConvId || !isConnected) return
-
     socket.emit('conversation:join', activeConvId)
 
-    const handleTyping = (data: { userId: string, isTyping: boolean }) => {
+    const handleTyping = (data: { userId: string; isTyping: boolean }) => {
       setTypingUsers(prev => {
         const next = new Set(prev)
         if (data.isTyping) next.add(data.userId)
@@ -185,14 +221,13 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     }
 
     socket.on('typing:update', handleTyping)
-
     return () => {
       socket.emit('conversation:leave', activeConvId)
       socket.off('typing:update', handleTyping)
     }
   }, [socket, activeConvId, isConnected])
 
-  // Handle typing indicator timeout
+  // Typing timeout
   useEffect(() => {
     const timer = setTimeout(() => {
       if (isTyping && socket && activeConvId && session?.user?.id) {
@@ -201,92 +236,58 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [input, isTyping, socket, activeConvId, session?.user?.id])
+  }, [isTyping, socket, activeConvId, session?.user?.id])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value
-    setInput(val)
-    
-    if (!isTyping && socket && activeConvId && session?.user?.id) {
-      setIsTyping(true)
-      socket.emit('typing:start', { conversationId: activeConvId, userId: session.user.id })
+  // Load thread replies when thread opens
+  useEffect(() => {
+    if (!threadParentId) {
+      setThreadReplies([])
+      return
     }
+    setThreadLoading(true)
+    getThreadReplies(threadParentId).then(res => {
+      if (res.success && res.replies) {
+        setThreadReplies(res.replies)
+      }
+      setThreadLoading(false)
+    })
+  }, [threadParentId])
 
-    // Mention parsing
-    const cursor = e.target.selectionStart || 0
-    const textBeforeCursor = val.slice(0, cursor)
-    const mentionMatch = textBeforeCursor.match(/(?:^|\s)([@#])([\w\s-]*)$/)
-    
-    if (mentionMatch) {
-      const type = mentionMatch[1] === '@' ? 'user' : 'task'
-      const query = mentionMatch[2]
-      setMentionType(type)
-      setMentionQuery(query)
-      setCursorPos({ bottom: 60, left: 60 }) 
-    } else {
-      setMentionType(null)
-    }
-    
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
-    }
-  }
+  // ─── Handlers ──────────────────────────────────────────────
 
-  const handleMentionSelect = (item: { id: string, display: string, type: 'user' | 'task' }) => {
-    const cursor = textareaRef.current?.selectionStart || input.length
-    const textBeforeCursor = input.slice(0, cursor)
-    const textAfterCursor = input.slice(cursor)
-    
-    const mentionMatch = textBeforeCursor.match(/(?:^|\s)([@#])([\w\s-]*)$/)
-    if (mentionMatch) {
-      const startIndex = mentionMatch.index! + (mentionMatch[0].startsWith(' ') ? 1 : 0)
-      const prefix = input.slice(0, startIndex)
-      const tag = item.type === 'user' ? '@' : '#'
-      const replacement = `${tag}[${item.display}](${item.id}) `
-      
-      const newVal = prefix + replacement + textAfterCursor
-      setInput(newVal)
-      
-      setTimeout(() => {
-        if (textareaRef.current) {
-          const newCursor = prefix.length + replacement.length
-          textareaRef.current.selectionStart = newCursor
-          textareaRef.current.selectionEnd = newCursor
-          textareaRef.current.focus()
-        }
-      }, 0)
-    }
+  const handleMentionSelect = (item: { id: string; display: string; type: 'user' | 'task' }) => {
+    // For now, append mention to the editor via a global event or callback
     setMentionType(null)
   }
 
-  // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     const url = URL.createObjectURL(file)
     setPendingFile({ file, name: file.name, type: file.type, url })
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // Handle send message
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if ((!input.trim() && !pendingFile) || !activeConvId || !session?.user?.id) return
+  const handleThreadFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    setThreadPendingFile({ file, name: file.name, type: file.type, url })
+    if (threadFileInputRef.current) threadFileInputRef.current.value = ''
+  }
 
-    const msgContent = input.trim() || pendingFile?.name || 'File attachment'
-    setInput('')
-    
-    let attachmentUrl = null
-    
+  // Main send handler
+  const handleSend = async (html: string, plainText: string) => {
+    if ((!plainText.trim() && !pendingFile) || !activeConvId || !session?.user?.id) return
+
+    const msgContent = html || plainText || pendingFile?.name || 'File attachment'
+
+    let attachmentUrl: string | null = null
     if (pendingFile) {
       setIsUploading(true)
       const formData = new FormData()
       formData.append('file', pendingFile.file)
       formData.append('folder', 'chat-attachments')
-      
       try {
         const result = await uploadFileAction(formData)
         if (result.success && result.url) {
@@ -296,8 +297,8 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
           setIsUploading(false)
           return
         }
-      } catch (error) {
-        toast.error('An error occurred during upload')
+      } catch {
+        toast.error('Upload error')
         setIsUploading(false)
         return
       }
@@ -309,12 +310,25 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
       socket.emit('typing:stop', { conversationId: activeConvId, userId: session.user.id })
     }
 
+    // Handle edit mode
+    if (editingMessage) {
+      const editRes = await editMessage(editingMessage.id, msgContent)
+      if (editRes.success) {
+        queryClient.setQueryData(['chat-messages', activeConvId], (old: any) =>
+          (old || []).map((m: any) => m.id === editingMessage.id ? { ...m, content: msgContent, is_edited: true } : m)
+        )
+        if (socket) {
+          socket.emit('message:edit', { ...editRes.message, conversation_id: activeConvId })
+        }
+        toast.success('Message edited')
+      }
+      setEditingMessage(null)
+      return
+    }
+
     // Optimistic update
     const tempId = `temp-${Date.now()}`
-    
-    // Find reply_to message if any
     const repliedMsg = replyingToId ? messages.find((m: any) => m.id === replyingToId) : null
-    
     const optimisticMsg = {
       id: tempId,
       content: msgContent,
@@ -324,119 +338,150 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
       reply_to_id: replyingToId,
       reply_to: repliedMsg,
       createdAt: new Date().toISOString(),
-      sender: { id: session.user.id, name: session.user.name, image: session.user.image }
+      sender: { id: session.user.id, name: session.user.name, image: session.user.image },
+      reactions: {},
+      replies: []
     }
-    
+
     const currentReplyId = replyingToId
-    setReplyingToId(null) // clear immediately for UX
-    
-    // 1. Immediately update local UI
+    setReplyingToId(null)
+
     queryClient.setQueryData(['chat-messages', activeConvId], (old: any) => [...(old || []), optimisticMsg])
 
-    // 2. Immediately send to other users via socket (Instant Delivery)
     if (socket) {
       socket.emit('message:send', optimisticMsg)
     }
 
     try {
-      // 3. Save to database in the background
       const res = await sendMessage(activeConvId, msgContent, attachmentUrl || undefined, currentReplyId || undefined)
       if (res.success && res.message) {
-        // Replace optimistic message with actual message from DB locally
-        queryClient.setQueryData(['chat-messages', activeConvId], (old: any) => 
-          (old || []).map((msg: any) => msg.id === tempId ? res.message : msg)
+        queryClient.setQueryData(['chat-messages', activeConvId], (old: any) =>
+          (old || []).map((msg: any) => msg.id === tempId ? { ...res.message, replies: [] } : msg)
         )
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to send message')
-      // Revert optimistic update on failure
-      queryClient.setQueryData(['chat-messages', activeConvId], (old: any) => 
+      queryClient.setQueryData(['chat-messages', activeConvId], (old: any) =>
         (old || []).filter((msg: any) => msg.id !== tempId)
       )
     }
   }
 
-  // Convert Message to Task
-  const handleConvertToTask = async (msgContent: string) => {
-    const projectId = activeConv?.project?.id || null
-    
-    toast.promise(convertMessageToTask(msgContent, projectId), {
-      loading: 'Converting to task...',
-      success: (data) => {
-        if (!data.success) throw new Error(data.error || 'Failed to convert to task')
-        return 'Successfully converted message to task!'
-      },
-      error: (err: any) => err.message
-    })
-  }
-  
-  // Handle Reaction
-  const handleReaction = async (messageId: string, emoji: string) => {
-    setShowEmojiPicker(null)
-    
-    // Optimistic UI Update
-    if (session?.user?.id && activeConvId) {
-      queryClient.setQueryData(['chat-messages', activeConvId], (oldData: any) => {
-        if (!oldData) return oldData
-        return oldData.map((msg: any) => {
-          if (msg.id === messageId) {
-            const currentReactions = msg.reactions || {}
-            const newReactions: any = {}
-            let hadOtherEmoji = false
+  // Thread reply handler
+  const handleSendThreadReply = async (html: string, plainText: string, alsoSendToChannel: boolean) => {
+    if (!threadParentId || !session?.user?.id) return
 
-            // Clean up the user from all emojis, and check if they had this specific emoji
-            for (const [key, users] of Object.entries(currentReactions)) {
-              const userList = (users as string[]) || []
-              const filteredUsers = userList.filter((id: string) => id !== session.user.id)
-              
-              if (key === emoji && userList.length !== filteredUsers.length) {
-                hadOtherEmoji = true // Toggling off the same emoji
-              }
-              
-              if (filteredUsers.length > 0) {
-                newReactions[key] = filteredUsers
-              }
-            }
+    const msgContent = html || plainText
 
-            // If they didn't just toggle off their existing emoji, add the new one
-            if (!hadOtherEmoji) {
-              if (!newReactions[emoji]) newReactions[emoji] = []
-              newReactions[emoji].push(session.user.id)
-            }
-
-            return { ...msg, reactions: newReactions }
-          }
-          return msg
-        })
-      })
+    let attachmentUrl: string | null = null
+    if (threadPendingFile) {
+      setThreadIsUploading(true)
+      const formData = new FormData()
+      formData.append('file', threadPendingFile.file)
+      formData.append('folder', 'chat-attachments')
+      try {
+        const result = await uploadFileAction(formData)
+        if (result.success && result.url) attachmentUrl = result.url
+      } catch {}
+      setThreadIsUploading(false)
+      setThreadPendingFile(null)
     }
+
+    // Optimistic thread reply
+    const tempId = `temp-thread-${Date.now()}`
+    const optimisticReply = {
+      id: tempId,
+      content: msgContent,
+      attachment_url: attachmentUrl,
+      sender_id: session.user.id,
+      reply_to_id: threadParentId,
+      createdAt: new Date().toISOString(),
+      sender: { id: session.user.id, name: session.user.name, image: session.user.image },
+      reactions: {},
+      replies: []
+    }
+
+    setThreadReplies(prev => [...prev, optimisticReply])
+
+    if (socket) {
+      socket.emit('thread:reply', { ...optimisticReply, conversation_id: activeConvId })
+    }
+
+    try {
+      const res = await sendThreadReply(threadParentId, msgContent, attachmentUrl || undefined, alsoSendToChannel)
+      if (res.success && res.reply) {
+        setThreadReplies(prev => prev.map(r => r.id === tempId ? res.reply : r))
+        queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] })
+      }
+    } catch {
+      toast.error('Failed to send reply')
+      setThreadReplies(prev => prev.filter(r => r.id !== tempId))
+    }
+  }
+
+  // Edit handler
+  const handleEditMessage = (msgId: string, content: string) => {
+    setEditingMessage({ id: msgId, content })
+    setThreadParentId(null) // close thread if open
+  }
+
+  // Delete handler
+  const handleDeleteMessage = async (msgId: string) => {
+    // Optimistic
+    queryClient.setQueryData(['chat-messages', activeConvId], (old: any) =>
+      (old || []).map((m: any) => m.id === msgId ? { ...m, is_deleted: true, content: '', reactions: {} } : m)
+    )
+
+    const res = await deleteMessage(msgId)
+    if (res.success) {
+      if (socket) {
+        socket.emit('message:delete', { id: msgId, conversation_id: activeConvId })
+      }
+    } else {
+      toast.error(res.error || 'Failed to delete')
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] })
+    }
+  }
+
+  // Reaction handler
+  const handleReaction = async (messageId: string, emoji: string) => {
+    if (!session?.user?.id || !activeConvId) return
+
+    queryClient.setQueryData(['chat-messages', activeConvId], (oldData: any) => {
+      if (!oldData) return oldData
+      return oldData.map((msg: any) => {
+        if (msg.id === messageId) {
+          const currentReactions = { ...(msg.reactions || {}) }
+          let hadThisEmoji = false
+
+          for (const [key, users] of Object.entries(currentReactions)) {
+            const userList = (users as string[]) || []
+            const filtered = userList.filter((id: string) => id !== session.user.id)
+            if (key === emoji && userList.length !== filtered.length) hadThisEmoji = true
+            if (filtered.length > 0) currentReactions[key] = filtered
+            else delete currentReactions[key]
+          }
+
+          if (!hadThisEmoji) {
+            currentReactions[emoji] = [...(currentReactions[emoji] || []), session.user.id]
+          }
+
+          return { ...msg, reactions: currentReactions }
+        }
+        return msg
+      })
+    })
 
     const res = await toggleReaction(messageId, emoji)
     if (res.success) {
-      // Sync in background
       queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] })
       if (socket) socket.emit('message:react', res.message)
     } else {
-      toast.error(res.error)
-      // Rollback on failure
       queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] })
     }
   }
 
-  // Handle Group Member Toggle
-  const handleToggleGroupMember = async (userId: string, isMember: boolean) => {
-    if (!activeConvId) return
-    const action = isMember ? removeGroupMember : addGroupMember
-    const res = await action(activeConvId, userId)
-    if (res.success) {
-      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })
-      toast.success(isMember ? 'Member removed' : 'Member added')
-    } else {
-      toast.error(res.error || 'Failed to update members')
-    }
-  }
-
-  // Handle Pin
+  // Pin handler
   const handlePin = async (messageId: string, isPinned: boolean) => {
     const res = await pinMessage(messageId, isPinned)
     if (res.success) {
@@ -447,21 +492,36 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     }
   }
 
-  // Start DM
-  const startDM = async (userId: string) => {
-    const res = await getOrCreateDM(userId)
-    if (res.success && res.conversationId) {
-      setActiveConvId(res.conversationId)
+  // Convert to task
+  const handleConvertToTask = async (msgContent: string) => {
+    const projectId = activeConv?.project?.id || null
+    toast.promise(convertMessageToTask(msgContent, projectId), {
+      loading: 'Converting to task...',
+      success: (data) => {
+        if (!data.success) throw new Error(data.error || 'Failed')
+        return 'Converted to task!'
+      },
+      error: (err: any) => err.message
+    })
+  }
+
+  // Group member toggle
+  const handleToggleGroupMember = async (userId: string, isMember: boolean) => {
+    if (!activeConvId) return
+    const action = isMember ? removeGroupMember : addGroupMember
+    const res = await action(activeConvId, userId)
+    if (res.success) {
+      queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })
+      toast.success(isMember ? 'Member removed' : 'Member added')
     } else {
-      toast.error('Failed to start chat')
+      toast.error(res.error || 'Failed')
     }
   }
 
-  // Create Channel
+  // Create channel
   const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newChannelName.trim()) return toast.error('Channel name required')
-    
     setIsSubmittingChannel(true)
     try {
       const res = await createChannel(newChannelName.trim(), selectedMembers)
@@ -470,14 +530,9 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
         setIsCreatingChannel(false)
         setNewChannelName('')
         setSelectedMembers([])
-        // Optimistically update conversations list
         queryClient.setQueryData(['chat-conversations'], (old: any) => [res.conversation, ...(old || [])])
         setActiveConvId(res.conversation.id)
-        
-        // Notify other users to refresh their conversations via socket
-        if (socket) {
-          socket.emit('channel:created', res.conversation)
-        }
+        if (socket) socket.emit('channel:created', res.conversation)
       } else {
         toast.error('Failed to create channel')
       }
@@ -486,43 +541,25 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     }
   }
 
-  // Parse Mentions and basic formatting
-  const renderMessageContent = (content: string) => {
-    if (!content) return null
-    
-    // Split by mention pattern: @[Display Name](id) or #[Display Name](id)
-    const parts = content.split(/([@#]\[[^\]]+\]\([^)]+\))/g)
-    
-    return parts.map((part, i) => {
-      const mentionMatch = part.match(/([@#])\[([^\]]+)\]\(([^)]+)\)/)
-      if (mentionMatch) {
-        const type = mentionMatch[1]
-        const display = mentionMatch[2]
-        
-        return (
-          <span key={i} className="inline-flex items-center gap-0.5 bg-primary/20 text-primary px-1.5 py-0.5 mx-0.5 rounded text-xs font-semibold cursor-pointer hover:bg-primary/30 transition-colors">
-            {type === '@' ? '@' : '#'}
-            {display}
-          </span>
-        )
-      }
-      
-      // Basic markdown (bold, italic)
-      let formattedText = part
-      const boldParts = formattedText.split(/(\*\*.*?\*\*)/g)
-      return (
-        <React.Fragment key={i}>
-          {boldParts.map((bPart, j) => {
-            if (bPart.startsWith('**') && bPart.endsWith('**')) {
-              return <strong key={j} className="font-semibold">{bPart.slice(2, -2)}</strong>
-            }
-            return bPart
-          })}
-        </React.Fragment>
-      )
-    })
+  // Search
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query)
+    if (!query.trim()) {
+      setSearchResults([])
+      return
+    }
+    setIsSearching(true)
+    const res = await searchMessages(query)
+    if (res.success && res.messages) {
+      setSearchResults(res.messages)
+    }
+    setIsSearching(false)
   }
 
+  // Get channel name for thread panel
+  const channelName = activeConv?.is_group ? (activeConv?.name || 'General') : ''
+  const threadParentMsg = threadParentId ? messages.find((m: any) => m.id === threadParentId) : null
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
   return (
     <AnimatePresence>
@@ -540,18 +577,22 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '120%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-4 right-4 bottom-4 w-[1000px] max-w-[calc(100vw-2rem)] bg-bg border border-border rounded-2xl z-50 flex shadow-2xl overflow-hidden"
+            className="fixed top-4 right-4 bottom-4 w-[1100px] max-w-[calc(100vw-2rem)] bg-bg border border-border rounded-2xl z-50 flex shadow-2xl overflow-hidden"
           >
             <ChatSidebar
               conversations={conversationsData || []}
               users={usersData || []}
               activeConvId={activeConvId}
-              setActiveConvId={setActiveConvId}
+              setActiveConvId={(id) => {
+                setActiveConvId(id)
+                setThreadParentId(null) // close thread
+                setEditingMessage(null) // cancel edit
+              }}
               onlineUsers={onlineUsers}
               sessionUserId={session?.user?.id}
               isLoading={convsLoading}
               onClose={onClose}
-              isMobile={typeof window !== 'undefined' && window.innerWidth < 768}
+              isMobile={isMobile}
               onOpenCreateChannel={() => setIsCreatingChannel(true)}
               onStartDM={async (userId) => {
                 const res = await getOrCreateDM(userId)
@@ -562,28 +603,7 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
               }}
             />
 
-            <div className={`flex-1 flex flex-col h-full relative overflow-hidden bg-[#efeae2] dark:bg-[#0c1015] ${!activeConvId && 'hidden md:flex'}`}>
-              
-              {/* WhatsApp Doodle Background - Light Mode */}
-              <div 
-                className="absolute inset-0 pointer-events-none z-0 opacity-[0.6] mix-blend-multiply dark:hidden"
-                style={{
-                  backgroundImage: 'url("/chat-bg.png")',
-                  backgroundRepeat: 'repeat',
-                  backgroundSize: '700px'
-                }}
-              />
-
-              {/* WhatsApp Doodle Background - Dark Mode */}
-              <div 
-                className="absolute inset-0 pointer-events-none z-0 hidden dark:block opacity-[0.5] invert mix-blend-screen"
-                style={{
-                  backgroundImage: 'url("/chat-bg.png")',
-                  backgroundRepeat: 'repeat',
-                  backgroundSize: '700px'
-                }}
-              />
-
+            <div className={`flex-1 flex flex-col h-full relative overflow-hidden bg-bg ${!activeConvId && 'hidden md:flex'}`}>
               <ChatWindow
                 activeConv={activeConv}
                 messages={messages}
@@ -596,87 +616,132 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                 onConvertToTask={handleConvertToTask}
                 onReply={(id) => {
                   setReplyingToId(id)
-                  textareaRef.current?.focus()
+                }}
+                onReplyInThread={(id) => {
+                  setThreadParentId(id)
                 }}
                 onReact={handleReaction}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
                 messagesEndRef={messagesEndRef}
                 onOpenGroupInfo={() => setIsGroupInfoOpen(true)}
-                isMobile={typeof window !== 'undefined' && window.innerWidth < 768}
+                isMobile={isMobile}
+                typingUsers={typingUsers}
               />
-              
+
               {activeConvId && (
                 <div className="relative flex-shrink-0">
-                  <MentionDropdown 
+                  <MentionDropdown
                     type={mentionType}
                     query={mentionQuery}
                     position={cursorPos}
                     onSelect={handleMentionSelect}
                     onClose={() => setMentionType(null)}
                   />
-                  <MessageInput
-                    input={input}
-                    setInput={setInput}
-                    onChange={handleInputChange}
-                    handleSend={handleSend}
-                    isTyping={isTyping}
+                  <RichMessageInput
+                    onSend={handleSend}
+                    channelName={activeConv?.is_group ? (activeConv?.name || 'General') : (activeConv?.participants?.find((p: any) => p.user_id !== session?.user?.id)?.user?.name || '')}
                     isUploading={isUploading}
                     pendingFile={pendingFile}
                     handleFileSelect={handleFileSelect}
                     setPendingFile={setPendingFile}
-                    textareaRef={textareaRef}
                     fileInputRef={fileInputRef}
                     replyingToMsg={replyingToId ? messages.find((m: any) => m.id === replyingToId) : null}
                     onCancelReply={() => setReplyingToId(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey && !mentionType) {
-                        e.preventDefault()
-                        handleSend(e as any)
-                      }
+                    editingMessage={editingMessage}
+                    onCancelEdit={() => setEditingMessage(null)}
+                    onMentionTrigger={(type, query) => {
+                      setMentionType(type)
+                      setMentionQuery(query)
                     }}
-                    onFocus={() => {}}
+                    onMentionClose={() => setMentionType(null)}
                   />
                 </div>
               )}
+
+              {/* Thread Panel */}
+              <AnimatePresence>
+                {threadParentId && threadParentMsg && (
+                  <ThreadPanel
+                    parentMessage={threadParentMsg}
+                    replies={threadReplies}
+                    isLoading={threadLoading}
+                    sessionUserId={session?.user?.id}
+                    channelName={channelName}
+                    onClose={() => setThreadParentId(null)}
+                    onSendReply={handleSendThreadReply}
+                    onReact={handleReaction}
+                    onPin={handlePin}
+                    onConvertToTask={handleConvertToTask}
+                    onEdit={handleEditMessage}
+                    onDelete={handleDeleteMessage}
+                    isUploading={threadIsUploading}
+                    pendingFile={threadPendingFile}
+                    handleFileSelect={handleThreadFileSelect}
+                    setPendingFile={setThreadPendingFile}
+                    fileInputRef={threadFileInputRef}
+                  />
+                )}
+              </AnimatePresence>
 
               {/* Group Info Overlay */}
               <AnimatePresence>
                 {isGroupInfoOpen && activeConv?.is_group && (
                   <>
-                    {/* Click-outside backdrop */}
-                    <div 
-                      className="absolute inset-0 z-[50]" 
+                    <div
+                      className="absolute inset-0 z-[50]"
                       onClick={() => setIsGroupInfoOpen(false)}
                     />
-                    <motion.div 
+                    <motion.div
                       initial={{ x: '100%', opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       exit={{ x: '100%', opacity: 0 }}
                       transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                      className="absolute top-0 right-0 bottom-0 w-[320px] bg-bg-secondary border-l border-border z-[60] shadow-2xl flex flex-col hidden md:flex"
+                      className="absolute top-0 right-0 bottom-0 w-[320px] bg-bg border-l border-border z-[60] shadow-2xl flex flex-col hidden md:flex"
                     >
-                     <div className="p-4 border-b border-border flex justify-between items-center bg-bg shrink-0">
-                        <h3 className="font-semibold text-text">Group Info</h3>
+                      <div className="p-4 border-b border-border flex justify-between items-center bg-bg-secondary shrink-0">
+                        <h3 className="font-bold text-text text-[15px]">Channel Details</h3>
                         <button onClick={() => setIsGroupInfoOpen(false)} className="p-1.5 hover:bg-bg-tertiary rounded-lg text-text-muted hover:text-text transition-colors">
                           <X size={16} />
                         </button>
-                     </div>
-                     
-                     <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
-                       {/* Current Members */}
-                       <div className="p-4 border-b border-border">
-                          <h4 className="text-[11px] font-bold text-text-muted uppercase mb-3 tracking-wider">Members ({activeConv.participants.length})</h4>
-                          <div className="space-y-1">
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                        {/* Channel Name & Description */}
+                        <div className="p-4 border-b border-border">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                              <Hash size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-text">{activeConv.name || 'General'}</h4>
+                              <p className="text-[11px] text-text-muted">{activeConv.participants.length} members</p>
+                            </div>
+                          </div>
+                          {activeConv.description && (
+                            <p className="text-[13px] text-text-muted mt-2 leading-relaxed">{activeConv.description}</p>
+                          )}
+                        </div>
+
+                        {/* Members */}
+                        <div className="p-4 border-b border-border">
+                          <h4 className="text-[11px] font-bold text-text-muted uppercase mb-3 tracking-wider">
+                            Members ({activeConv.participants.length})
+                          </h4>
+                          <div className="space-y-0.5">
                             {activeConv.participants.map((p: any) => {
                               const isMe = p.user_id === session?.user?.id
                               return (
                                 <div key={p.user_id} className="flex items-center justify-between p-2 rounded-lg hover:bg-bg-tertiary transition-colors group">
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs shrink-0 overflow-hidden">
-                                      {p.user?.image ? <img src={p.user.image} alt="" className="w-full h-full object-cover"/> : getInitials(p.user?.name || '?')}
+                                    <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs shrink-0 overflow-hidden">
+                                      {p.user?.image ? <img src={p.user.image} alt="" className="w-full h-full object-cover" /> : getInitials(p.user?.name || '?')}
                                     </div>
-                                    <span className="text-[13px] font-medium text-text truncate">
-                                      {p.user?.name} {isMe && <span className="text-text-muted font-normal">(You)</span>}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className="text-[13px] font-medium text-text truncate">{p.user?.name}</span>
+                                      {isMe && <span className="text-[10px] text-text-muted">(you)</span>}
+                                      {onlineUsers.has(p.user_id) && <div className="w-2 h-2 bg-success rounded-full shrink-0" />}
+                                    </div>
                                   </div>
                                   {!isMe && (
                                     <button
@@ -696,60 +761,62 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                               )
                             })}
                           </div>
-                       </div>
+                        </div>
 
-                       {/* Add Members */}
-                       <div className="p-4 flex-1">
+                        {/* Add Members */}
+                        <div className="p-4 flex-1">
                           <h4 className="text-[11px] font-bold text-text-muted uppercase mb-3 tracking-wider">Add People</h4>
                           <div className="relative mb-3">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                            <input 
+                            <input
                               value={groupSearchQuery}
                               onChange={(e) => setGroupSearchQuery(e.target.value)}
                               placeholder="Search users..."
-                              className="w-full bg-bg border border-border rounded-lg pl-9 pr-3 py-1.5 text-[13px] focus:outline-none focus:border-primary/50 text-text"
+                              className="w-full bg-bg border border-border-muted rounded-lg pl-9 pr-3 py-1.5 text-[13px] focus:outline-none focus:border-primary text-text"
                             />
                           </div>
-                          <div className="space-y-1">
-                            {usersData?.filter((u: any) => 
-                              !activeConv.participants.some((p: any) => p.user_id === u.id) &&
-                              (u.name?.toLowerCase().includes(groupSearchQuery.toLowerCase()) || 
-                               u.email?.toLowerCase().includes(groupSearchQuery.toLowerCase()))
-                            ).map((user: any) => (
-                              <div key={user.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-bg-tertiary transition-colors">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-7 h-7 rounded-full bg-bg text-text-muted border border-border flex items-center justify-center text-xs shrink-0 overflow-hidden">
-                                    {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover"/> : getInitials(user.name || '?')}
+                          <div className="space-y-0.5">
+                            {usersData
+                              ?.filter((u: any) =>
+                                !activeConv.participants.some((p: any) => p.user_id === u.id) &&
+                                (u.name?.toLowerCase().includes(groupSearchQuery.toLowerCase()) ||
+                                  u.email?.toLowerCase().includes(groupSearchQuery.toLowerCase()))
+                              )
+                              .map((user: any) => (
+                                <div key={user.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-bg-tertiary transition-colors">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-7 h-7 rounded-lg bg-bg text-text-muted border border-border flex items-center justify-center text-xs shrink-0 overflow-hidden">
+                                      {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : getInitials(user.name || '?')}
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[13px] font-medium text-text truncate">{user.name}</span>
+                                      <span className="text-[10px] text-text-muted truncate">{user.email || user.role?.name}</span>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-[13px] font-medium text-text truncate">{user.name}</span>
-                                    <span className="text-[10px] text-text-muted truncate">{user.email || user.role?.name}</span>
-                                  </div>
+                                  <button
+                                    onClick={async () => {
+                                      setIsProcessingMember(user.id)
+                                      await handleToggleGroupMember(user.id, false)
+                                      setIsProcessingMember(null)
+                                    }}
+                                    disabled={isProcessingMember === user.id}
+                                    className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50 shrink-0"
+                                    title="Add"
+                                  >
+                                    <UserPlus size={14} />
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={async () => {
-                                    setIsProcessingMember(user.id)
-                                    await handleToggleGroupMember(user.id, false)
-                                    setIsProcessingMember(null)
-                                  }}
-                                  disabled={isProcessingMember === user.id}
-                                  className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50 shrink-0"
-                                  title="Add"
-                                >
-                                  <UserPlus size={14} />
-                                </button>
-                              </div>
-                            ))}
+                              ))}
                           </div>
-                       </div>
-                     </div>
-                   </motion.div>
+                        </div>
+                      </div>
+                    </motion.div>
                   </>
                 )}
               </AnimatePresence>
             </div>
-
           </motion.div>
+
           <CreateChannelModal
             open={isCreatingChannel}
             onClose={() => setIsCreatingChannel(false)}

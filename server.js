@@ -68,6 +68,30 @@ app.prepare().then(() => {
       console.log(`[Socket] Emitted message:new to room ${roomId}`);
     });
 
+    // Message edit
+    socket.on('message:edit', (data) => {
+      const roomId = data.conversation_id || data.conversationId;
+      io.to(roomId).emit('message:edited', data);
+    });
+
+    // Message delete
+    socket.on('message:delete', (data) => {
+      const roomId = data.conversation_id || data.conversationId;
+      io.to(roomId).emit('message:deleted', data);
+    });
+
+    // Thread reply
+    socket.on('thread:reply', (data) => {
+      const roomId = data.conversation_id || data.conversationId;
+      io.to(roomId).emit('thread:new-reply', data);
+    });
+
+    // Message reaction
+    socket.on('message:react', (data) => {
+      const roomId = data.conversation_id || data.conversationId;
+      io.to(roomId).emit('message:reacted', data);
+    });
+
     // Typing indicators
     socket.on('typing:start', (data) => {
       socket.to(data.conversationId).emit('typing:update', { userId: data.userId, isTyping: true });

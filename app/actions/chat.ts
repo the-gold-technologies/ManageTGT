@@ -110,7 +110,14 @@ export async function getMessages(conversationId: string) {
     }
 
     const messages = await prisma.chatMessage.findMany({
-      where: { conversation_id: conversationId },
+      where: { 
+        conversation_id: conversationId,
+        // Only fetch top-level messages (not thread replies)
+        OR: [
+          { reply_to_id: null },
+          { reply_to: { conversation_id: conversationId } }
+        ]
+      },
       include: {
         sender: {
           select: { id: true, name: true, image: true }
@@ -119,6 +126,15 @@ export async function getMessages(conversationId: string) {
           include: {
             sender: { select: { id: true, name: true } }
           }
+        },
+        replies: {
+          select: {
+            id: true,
+            sender_id: true,
+            sender: { select: { id: true, name: true, image: true } },
+            createdAt: true
+          },
+          orderBy: { createdAt: 'asc' }
         }
       },
       orderBy: { createdAt: 'asc' }
@@ -564,5 +580,215 @@ export async function getGlobalUnreadChatCount() {
   } catch (error) {
     console.error('Error fetching global unread count:', error)
     return 0
+  }
+}
+
+// 16. Edit Message
+export async function editMessage(messageId: string, newContent: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const msg = await prisma.chatMessage.findUnique({ where: { id: messageId } })
+    if (!msg) return { success: false, error: 'Message not found' }
+    if (msg.sender_id !== session.user.id) return { success: false, error: 'Can only edit your own messages' }
+
+    const updated = await prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        content: newContent,
+        is_edited: true,
+        edited_at: new Date()
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        reply_to: { include: { sender: { select: { id: true, name: true } } } }
+      }
+    })
+
+    return { success: true, message: updated }
+  } catch (error) {
+    console.error('Error editing message:', error)
+    return { success: false, error: 'Failed to edit message' }
+  }
+}
+
+// 17. Delete Message (soft delete)
+export async function deleteMessage(messageId: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const msg = await prisma.chatMessage.findUnique({ where: { id: messageId } })
+    if (!msg) return { success: false, error: 'Message not found' }
+    if (msg.sender_id !== session.user.id) return { success: false, error: 'Can only delete your own messages' }
+
+    const updated = await prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        is_deleted: true,
+        content: '',
+        attachment_url: null,
+        reactions: {}
+      }
+    })
+
+    return { success: true, message: updated }
+  } catch (error) {
+    console.error('Error deleting message:', error)
+    return { success: false, error: 'Failed to delete message' }
+  }
+}
+
+// 18. Get Thread Replies
+export async function getThreadReplies(parentMessageId: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const replies = await prisma.chatMessage.findMany({
+      where: { reply_to_id: parentMessageId },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        reply_to: { include: { sender: { select: { id: true, name: true } } } },
+        replies: {
+          select: {
+            id: true,
+            sender_id: true,
+            sender: { select: { id: true, name: true, image: true } },
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    })
+
+    return { success: true, replies }
+  } catch (error) {
+    console.error('Error fetching thread replies:', error)
+    return { success: false, error: 'Failed to fetch replies' }
+  }
+}
+
+// 19. Send Thread Reply
+export async function sendThreadReply(
+  parentMessageId: string,
+  content: string,
+  attachmentUrl?: string,
+  alsoSendToChannel: boolean = false
+) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    // Get parent message to find conversation
+    const parentMsg = await prisma.chatMessage.findUnique({
+      where: { id: parentMessageId },
+      select: { conversation_id: true }
+    })
+    if (!parentMsg) return { success: false, error: 'Parent message not found' }
+
+    const reply = await prisma.chatMessage.create({
+      data: {
+        conversation_id: parentMsg.conversation_id,
+        sender_id: session.user.id,
+        content,
+        attachment_url: attachmentUrl || null,
+        reply_to_id: parentMessageId
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        reply_to: { include: { sender: { select: { id: true, name: true } } } }
+      }
+    })
+
+    // Update conversation timestamp
+    await prisma.chatConversation.update({
+      where: { id: parentMsg.conversation_id },
+      data: { updatedAt: new Date() }
+    })
+
+    return { success: true, reply, conversationId: parentMsg.conversation_id, alsoSendToChannel }
+  } catch (error) {
+    console.error('Error sending thread reply:', error)
+    return { success: false, error: 'Failed to send reply' }
+  }
+}
+
+// 20. Get Pinned Messages for a Conversation
+export async function getPinnedMessages(conversationId: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const pinned = await prisma.chatMessage.findMany({
+      where: {
+        conversation_id: conversationId,
+        is_pinned: true,
+        is_deleted: false
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    return { success: true, messages: pinned }
+  } catch (error) {
+    console.error('Error fetching pinned messages:', error)
+    return { success: false, error: 'Failed to fetch pinned messages' }
+  }
+}
+
+// 21. Search Messages Globally
+export async function searchMessages(query: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    if (!query.trim()) return { success: true, messages: [] }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: {
+        content: { contains: query, mode: 'insensitive' },
+        is_deleted: false,
+        conversation: {
+          participants: {
+            some: { user_id: session.user.id }
+          }
+        }
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true } },
+        conversation: {
+          select: { id: true, name: true, is_group: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    })
+
+    return { success: true, messages }
+  } catch (error) {
+    console.error('Error searching messages:', error)
+    return { success: false, error: 'Failed to search messages' }
+  }
+}
+
+// 22. Update Channel Description
+export async function updateChannelDescription(conversationId: string, description: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    await prisma.chatConversation.update({
+      where: { id: conversationId },
+      data: { description }
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error updating channel description:', error)
+    return { success: false, error: 'Failed' }
   }
 }

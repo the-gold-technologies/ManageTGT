@@ -680,11 +680,12 @@ model Organization {
 // --- Chat System ---
 
 model ChatConversation {
-  id         String   @id @default(cuid())
-  is_group   Boolean  @default(false)
-  name       String?
-  project_id String?
-  project    Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  is_group    Boolean  @default(false)
+  name        String?
+  description String?  @db.Text
+  project_id  String?
+  project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
 
   participants ChatParticipant[]
   messages     ChatMessage[]
@@ -725,6 +726,9 @@ model ChatMessage {
   replies        ChatMessage[] @relation("Replies")
 
   is_pinned      Boolean @default(false)
+  is_edited      Boolean @default(false)
+  is_deleted     Boolean @default(false)
+  edited_at      DateTime?
   reactions      Json    @default("{}")
 
   createdAt DateTime @default(now())

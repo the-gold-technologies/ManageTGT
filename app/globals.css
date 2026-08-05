@@ -15,13 +15,13 @@
   --spacing: 0.25rem;
 
   /* Base surfaces */
-  --color-bg: #0A0A0A;
-  --color-bg-secondary: #131316;
-  --color-bg-tertiary: #1C1C21;
+  --color-bg: #151618;
+  --color-bg-secondary: #1E1F22;
+  --color-bg-tertiary: #2B2D31;
 
   /* Borders */
-  --color-border: #19191d;
-  --color-border-muted: #2c2c31;
+  --color-border: #2B2D31;
+  --color-border-muted: #383A40;
 
   /* Primary (Orange - softer) */
   --color-primary: #E06A26;
@@ -182,4 +182,158 @@ body {
   color: var(--color-text) !important;
   font-size: 13px !important;
   font-weight: 500 !important;
+}
+
+/* ============================================================
+   Tiptap Rich Text Editor — Chat Input Styles
+   ============================================================ */
+.chat-editor-content {
+  outline: none;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text);
+  min-height: 24px;
+}
+
+.chat-editor-content p {
+  margin: 0;
+}
+
+.chat-editor-content p.is-editor-empty:first-child::before {
+  color: var(--color-text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.chat-editor-content strong {
+  font-weight: 700;
+}
+
+.chat-editor-content em {
+  font-style: italic;
+}
+
+.chat-editor-content u {
+  text-decoration: underline;
+}
+
+.chat-editor-content s {
+  text-decoration: line-through;
+}
+
+.chat-editor-content .chat-inline-code,
+.chat-editor-content code {
+  background-color: var(--color-bg-tertiary);
+  color: #f472b6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat-editor-content pre {
+  background-color: #1e1e2e;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 6px 0;
+  overflow-x: auto;
+}
+
+.chat-editor-content pre code {
+  background: transparent;
+  color: #a6e3a1;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-editor-content blockquote {
+  border-left: 4px solid var(--color-primary);
+  padding-left: 12px;
+  margin: 6px 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.chat-editor-content ul {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.chat-editor-content ol {
+  list-style: decimal;
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.chat-editor-content li {
+  margin: 0;
+}
+
+.chat-editor-content .chat-link,
+.chat-editor-content a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(224, 106, 38, 0.3);
+  cursor: pointer;
+}
+
+.chat-editor-content a:hover {
+  text-decoration-color: var(--color-primary);
+}
+
+.chat-editor-content h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+
+.chat-editor-content h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+
+.chat-editor-content h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 4px 0;
+}
+
+/* Task list items */
+.chat-editor-content ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 4px;
+}
+
+.chat-editor-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.chat-editor-content ul[data-type="taskList"] li input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--color-primary);
+}
+
+/* ProseMirror placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--color-text-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.ProseMirror:focus {
+  outline: none;
+}
+
+.ProseMirror {
+  min-height: 24px;
 }
