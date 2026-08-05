@@ -76,7 +76,8 @@ export async function getConversations() {
       return prisma.chatMessage.count({
         where: {
           conversation_id: c.id,
-          createdAt: { gt: afterDate }
+          createdAt: { gt: afterDate },
+          sender_id: { not: session.user.id }
         }
       })
     }))
@@ -552,7 +553,8 @@ export async function getGlobalUnreadChatCount() {
       const count = await prisma.chatMessage.count({
         where: {
           conversation_id: c.id,
-          createdAt: { gt: afterDate }
+          createdAt: { gt: afterDate },
+          sender_id: { not: session.user.id }
         }
       })
       totalUnread += count
