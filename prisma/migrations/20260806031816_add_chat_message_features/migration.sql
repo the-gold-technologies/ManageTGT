@@ -1,4 +1,7 @@
--- AlterTable
+-- AlterTable ChatConversation
+ALTER TABLE "ChatConversation" ADD COLUMN IF NOT EXISTS "description" TEXT;
+
+-- AlterTable ChatMessage
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "reply_to_id" TEXT;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "is_pinned" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "is_edited" BOOLEAN NOT NULL DEFAULT false;
