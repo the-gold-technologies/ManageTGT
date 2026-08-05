@@ -1,14 +1,13 @@
--- AlterTable ChatConversation
+-- AlterTable
 ALTER TABLE "ChatConversation" ADD COLUMN IF NOT EXISTS "description" TEXT;
 
--- AlterTable ChatMessage
+-- AlterTable
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "reply_to_id" TEXT;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "is_pinned" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "is_edited" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "is_deleted" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "edited_at" TIMESTAMP(3);
 ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "reactions" JSONB NOT NULL DEFAULT '{}';
-
 
 -- AddForeignKey
 DO $$
