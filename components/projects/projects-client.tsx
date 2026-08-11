@@ -22,6 +22,7 @@ import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { TablePagination } from '@/components/ui/table-pagination'
+import { NoteCell } from '@/components/ui/note-cell'
 
 interface ProjectsClientProps {
   initialProjects: Project[]
@@ -357,8 +358,8 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                           {PROJECT_STATUS_CONFIG[project.status]?.label}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-xs text-text-secondary max-w-[150px] truncate" title={project.notes || ''}>
-                        {project.notes || '—'}
+                      <td className="px-4 py-3">
+                        <NoteCell note={project.notes} />
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>

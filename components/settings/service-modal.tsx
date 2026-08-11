@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Loader2 } from 'lucide-react'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 import { toast } from 'sonner'
 import { createService } from '@/app/actions/services'
 import { useQueryClient } from '@tanstack/react-query'
@@ -84,12 +85,11 @@ export default function ServiceModal({ open, onClose }: ServiceModalProps) {
               
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Description (Optional)</label>
-                <textarea
+                <AutoResizeTextarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Service details..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[80px]"
                 />
               </div>
 

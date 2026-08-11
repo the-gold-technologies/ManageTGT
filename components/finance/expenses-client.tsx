@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Search, Wallet, Trash2, Loader2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -23,7 +23,9 @@ import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter
 import ExportDropdown from '@/components/ui/export-dropdown'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 import { TablePagination } from '@/components/ui/table-pagination'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 import ContextFilePanel from '@/components/files/context-file-panel'
+import { NoteCell } from '@/components/ui/note-cell'
 
 
 const EXPENSE_TYPES = ['freelancer', 'designer', 'developer', 'advertising', 'travel', 'software', 'hosting', 'miscellaneous']
@@ -63,6 +65,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
   const [isUploading, setIsUploading] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const filePanelRef = useRef<any>(null)
   const qc = useQueryClient()
 
   const { data: expensesData, isLoading: isExpensesLoading } = useQuery({
@@ -194,9 +197,13 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
       if (data.description) formData.append('description', data.description)
       if (session?.user?.id) formData.append('created_by', session.user.id)
       files.forEach(f => formData.append('files', f))
-
       if (editingExpense) {
         await updateExpense(editingExpense.id, formData)
+        
+        if (filePanelRef.current?.hasPendingFiles()) {
+          await filePanelRef.current.uploadPendingFiles(editingExpense.id)
+        }
+        
         toast.success('Expense updated')
       } else {
         await addExpense(formData)
@@ -297,7 +304,9 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                       {EXPENSE_LABELS[e.expense_type]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-text">{e.description || '—'}</td>
+                  <td className="px-4 py-3">
+                    <NoteCell note={e.description} />
+                  </td>
                   <td className="px-4 py-3 text-text-secondary">{e.project?.name || '—'}</td>
                   <td className="px-4 py-3 font-medium text-danger">{formatCurrency(e.amount)}</td>
                   <td className="px-4 py-3">
@@ -373,13 +382,17 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Description</label>
-                  <textarea {...register('description')} placeholder="e.g. Freelancer payment for landing page" rows={3}
-                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none" />
+                  <AutoResizeTextarea {...register('description')} placeholder="e.g. Freelancer payment for landing page"
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none min-h-[80px]" />
                 </div>
                 <div className="pt-2">
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Receipts / Attachments (Optional)</label>
+                  {!editingExpense && (
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">Receipts / Attachments (Optional)</label>
+                  )}
                   
-                  {files.length > 0 && (
+                  {!editingExpense && (
+                    <>
+                      {files.length > 0 && (
                     <div className="space-y-2 mb-3">
                       {files.map((f, idx) => (
                         <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
@@ -433,15 +446,20 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
                       </p>
                     </div>
                   )}
+                  </>
+                  )}
                 </div>
 
                 {/* File Manager Panel — shown when editing an existing expense */}
                 {editingExpense && (
                   <div className="pt-4 border-t border-border mt-4">
                     <ContextFilePanel
+                      ref={filePanelRef}
                       contextId={editingExpense.id}
                       contextType="expense"
                       defaultCategory="bill_receipt"
+                      title="Receipts / Attachments"
+                      deferUpload={true}
                     />
                   </div>
                 )}

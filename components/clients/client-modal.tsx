@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ import { createClient as createClientAction, updateClient as updateClientAction 
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 import type { Client } from '@/types'
 import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import ContextFilePanel from '@/components/files/context-file-panel'
@@ -50,6 +51,7 @@ const FIELDS = [
 export default function ClientModal({ open, onClose, client, onDelete }: ClientModalProps) {
   const qc = useQueryClient()
   const isEdit = !!client
+  const filePanelRef = useRef<any>(null)
 
   const [files, setFiles] = useState<File[]>([])
   const [existingUrls, setExistingUrls] = useState<string[]>([])
@@ -114,6 +116,11 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
       if (isEdit && client) {
         const result = await updateClientAction(client.id, payload)
         if (!result.success) { toast.error(result.error); return }
+        
+        if (filePanelRef.current?.hasPendingFiles()) {
+          await filePanelRef.current.uploadPendingFiles(client.id)
+        }
+        
         toast.success('Client updated')
       } else {
         const result = await createClientAction(payload)
@@ -171,11 +178,10 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                       {field.label}
                     </label>
                     {field.textarea ? (
-                      <textarea
+                      <AutoResizeTextarea
                         {...register(field.name)}
                         placeholder={field.placeholder}
-                        rows={3}
-                        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                        className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[100px]"
                       />
                     ) : (
                       <input
@@ -193,10 +199,12 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
               </div>
 
               {/* Document Upload Area */}
-              <div className="pt-4">
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                  Client Documents (Optional)
-                </label>
+              <div className="pt-4 border-t border-border mt-4">
+                {!isEdit && (
+                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                    Client Documents (Optional)
+                  </label>
+                )}
 
                 {existingUrls.length > 0 && (
                   <div className="space-y-2 mb-3">
@@ -227,7 +235,9 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                   </div>
                 )}
 
-                {files.length > 0 && (
+                {!isEdit && (
+                  <>
+                    {files.length > 0 && (
                   <div className="space-y-2 mb-3">
                     {files.map((f, idx) => (
                       <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
@@ -280,14 +290,20 @@ export default function ClientModal({ open, onClose, client, onDelete }: ClientM
                     <p className="text-[11px] text-text-muted mt-0.5">Upload client contract, project briefs, etc.</p>
                   </div>
                 )}
+                </>
+              )}
+
               </div>
 
               {/* File Manager Panel — only shown when editing an existing client */}
               {isEdit && client?.id && (
-                <div className="pt-4 border-t border-border mt-4">
+                <div className={existingUrls.length > 0 ? "pt-4 border-t border-border mt-4" : ""}>
                   <ContextFilePanel
+                    ref={filePanelRef}
                     contextId={client.id}
                     contextType="client"
+                    title="Client Documents"
+                    deferUpload={true}
                   />
                 </div>
               )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import type { Invoice, Project, Client } from '@/types'
 import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment } from '@/app/actions/finance'
 import ContextFilePanel from '@/components/files/context-file-panel'
 import SmartCurrencyInput from '@/components/ui/usd-tooltip-input'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 
 const schema = z.object({
   invoice_number: z.string().min(1, 'Invoice number is required'),
@@ -48,6 +49,7 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
   const [isDeleting, setIsDeleting] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const filePanelRef = useRef<any>(null)
   
   const [currency, setCurrency] = useState<'INR' | 'USD' | 'GBP' | 'EUR'>((invoice as any)?.currency as 'INR' | 'USD' | 'GBP' | 'EUR' || 'INR')
   const [exchangeRate, setExchangeRate] = useState<number | null>((invoice as any)?.exchange_rate || null)
@@ -254,6 +256,11 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       if (isEdit && invoice) {
         const result = await updateInvoice(invoice.id, formData)
         if (!result.success) { toast.error('Failed to update invoice'); return }
+        
+        if (filePanelRef.current?.hasPendingFiles()) {
+          await filePanelRef.current.uploadPendingFiles(invoice.id)
+        }
+        
         toast.success('Invoice updated')
       } else {
         const result = await createInvoice(formData)
@@ -421,12 +428,14 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
 
                   <div>
                     <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes</label>
-                    <textarea {...register('notes')} placeholder="Any payment notes..." rows={2}
-                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none" />
+                    <AutoResizeTextarea {...register('notes')} placeholder="Any payment notes..."
+                      className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all resize-none min-h-[80px]" />
                   </div>
 
                   <div className="pt-2">
-                    <label className="block text-xs font-medium text-text-secondary mb-1.5 font-semibold">Attachments / Proof (Optional)</label>
+                    {!isEdit && (
+                      <label className="block text-xs font-medium text-text-secondary mb-1.5 font-semibold">Attachments / Proof (Optional)</label>
+                    )}
 
                     {isEdit && invoice?.file_urls && invoice.file_urls.length > 0 && (
                       <div className="space-y-2 mb-3">
@@ -445,7 +454,9 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                       </div>
                     )}
 
-                    {files.length > 0 && (
+                    {!isEdit && (
+                      <>
+                        {files.length > 0 && (
                       <div className="space-y-2 mb-3">
                         {files.map((f, idx) => (
                           <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
@@ -498,6 +509,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                           Click or drag files to upload
                         </p>
                       </div>
+                    )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -609,9 +622,12 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
               {isEdit && invoice?.id && (
                 <div className="pt-4 border-t border-border mt-6">
                   <ContextFilePanel
+                    ref={filePanelRef}
                     contextId={invoice.id}
                     contextType="invoice"
                     defaultCategory="invoice_docs"
+                    title="Attachments / Proof"
+                    deferUpload={true}
                   />
                 </div>
               )}

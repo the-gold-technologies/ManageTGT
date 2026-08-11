@@ -99,6 +99,8 @@ interface Props {
   defaultCategory?: FileCategory
   /** If true, hides the upload button so the parent can trigger upload via ref */
   deferUpload?: boolean
+  /** Override the default "ATTACHMENTS" title */
+  title?: string
 }
 
 const ContextFilePanel = forwardRef<ContextFilePanelRef, Props>(({
@@ -108,6 +110,7 @@ const ContextFilePanel = forwardRef<ContextFilePanelRef, Props>(({
   uploaderId,
   defaultCategory,
   deferUpload = false,
+  title,
 }, ref) => {
   const qc = useQueryClient()
   const [uploading, setUploading] = useState(false)
@@ -258,13 +261,13 @@ const ContextFilePanel = forwardRef<ContextFilePanelRef, Props>(({
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-            Attachments
+          <span className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+            {title || 'Attachments'}
           </span>
           {!isLoading && files.length > 0 && (
-            <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded-full font-medium">
+            <span className="text-[10px] text-text-muted border border-border px-1.5 py-0.5 rounded-full font-medium flex items-center justify-center leading-none">
               {files.length}
             </span>
           )}

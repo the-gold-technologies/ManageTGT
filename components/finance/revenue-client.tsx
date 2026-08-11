@@ -197,7 +197,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
       ) : (
         <div className="flex flex-col flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto flex-1">
-            <table className="min-w-max w-full text-sm">
+            <table className="min-w-max w-full text-xs">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
                   {['Invoice #', 'Project', 'Client', 'Billed', 'Received', 'GST (18%)', 'Net Revenue', 'Pending', 'Due Date', 'Status'].map(h => (

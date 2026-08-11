@@ -18,6 +18,7 @@ import ClientModal from './client-modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
 import ExportDropdown from '@/components/ui/export-dropdown'
+import { NoteCell } from '@/components/ui/note-cell'
 
 interface ClientsClientProps {
   initialClients: Client[]
@@ -305,11 +306,7 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
 
                     {/* Notes */}
                     <td className="px-4 py-3">
-                      {client.notes ? (
-                        <div className="text-xs text-text-secondary max-w-[160px]">
-                          <span className="line-clamp-2" title={client.notes}>{client.notes}</span>
-                        </div>
-                      ) : <span className="text-xs text-text-muted">—</span>}
+                      <NoteCell note={client.notes} />
                     </td>
 
                     {/* Added */}

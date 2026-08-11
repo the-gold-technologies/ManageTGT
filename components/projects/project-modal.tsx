@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 import type { Project, Client, Profile } from '@/types'
 import { PROJECT_STATUS_CONFIG } from '@/lib/utils'
 import { getServices } from '@/app/actions/services'
@@ -227,7 +228,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               </div>
 
               {/* Client + Service Type */}
-              <div className={isAdmin ? "grid grid-cols-2 gap-4" : ""}>
+              <div className="space-y-4">
                 {isAdmin && (
                   <div>
                     <label className="block text-xs font-medium text-text-secondary mb-1.5">Client</label>
@@ -496,11 +497,10 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
 
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Notes / Comments (Optional)</label>
-                <textarea
+                <AutoResizeTextarea
                   {...register('notes')}
                   placeholder="Add any project comments, special requests, or extra details here..."
-                  rows={3}
-                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                  className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[100px]"
                 />
               </div>
 
@@ -511,6 +511,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                   contextType="project"
                   defaultCategory="deliverable"
                   deferUpload={true}
+                  title="Project Documents"
                 />
               </div>
             </form>

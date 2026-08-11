@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Search, Trash2, Loader2, Users, FileText, CheckCircle2, TrendingUp, X, ChevronDown, Check, UploadCloud, Bell, Send, Clock, SkipForward, Mail, Edit2 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import StatCard from '@/components/ui/stat-card'
 import { formatDate } from '@/lib/utils'
+import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
 import { TablePagination } from '@/components/ui/table-pagination'
 import ContextFilePanel from '@/components/files/context-file-panel'
+import { NoteCell } from '@/components/ui/note-cell'
 import { getProspects, createProspect, updateProspect, deleteProspect } from '@/app/actions/prospects'
 import { createClient, checkClientExists } from '@/app/actions/clients'
 import { getServices } from '@/app/actions/services'
@@ -68,6 +70,7 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
   const [isUploading, setIsUploading] = useState(false)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+  const filePanelRef = useRef<any>(null)
 
   // ─── Follow-Up state ─────────────────────────────────────────────────────
   const [followUps, setFollowUps] = useState<ProspectFollowUp[]>([])
@@ -311,6 +314,11 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
 
       if (editingProspect) {
         await updateProspect(editingProspect.id, payload)
+        
+        if (filePanelRef.current?.hasPendingFiles()) {
+          await filePanelRef.current.uploadPendingFiles(editingProspect.id)
+        }
+        
         toast.success('Prospect updated')
       } else {
         await createProspect(payload)
@@ -506,8 +514,8 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                     <td className="px-4 py-3 text-text-secondary">
                       {p.proposal_submission_date ? formatDate(p.proposal_submission_date) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-text-secondary max-w-[200px] truncate" title={p.comments || ''}>
-                      {p.comments || <span className="text-text-muted">—</span>}
+                    <td className="px-4 py-3 max-w-[200px]">
+                      <NoteCell note={p.comments} />
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={p.client_converted ? 'success' : 'danger'}>
@@ -624,11 +632,10 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                 {/* Comments / Remarks */}
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Comments / Remarks</label>
-                  <textarea
+                  <AutoResizeTextarea
                     {...register('comments')}
                     placeholder="Enter any comments or remarks..."
-                    rows={3}
-                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none"
+                    className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[80px]"
                   />
                 </div>
 
@@ -663,9 +670,11 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
 
                 {/* Document Upload Area */}
                 <div className="pt-2 border-t border-border mt-2">
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">
-                    Documents (Optional)
-                  </label>
+                  {!editingProspect && (
+                    <label className="block text-xs font-medium text-text-secondary mb-1.5">
+                      Documents (Optional)
+                    </label>
+                  )}
 
                   {existingUrls.length > 0 && (
                     <div className="space-y-2 mb-3">
@@ -696,7 +705,9 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                     </div>
                   )}
 
-                  {files.length > 0 && (
+                  {!editingProspect && (
+                    <>
+                      {files.length > 0 && (
                     <div className="space-y-2 mb-3">
                       {files.map((f, idx) => (
                         <div key={idx} className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
@@ -714,6 +725,8 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                         </div>
                       ))}
                     </div>
+                  )}
+                  </>
                   )}
 
                   {(existingUrls.length > 0 || files.length > 0) ? (
@@ -755,9 +768,12 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                 {editingProspect && (
                   <div className="pt-4 border-t border-border mt-4">
                     <ContextFilePanel
+                      ref={filePanelRef}
                       contextId={editingProspect.id}
                       contextType="prospect"
                       defaultCategory="reference"
+                      title="Documents"
+                      deferUpload={true}
                     />
                   </div>
                 )}
@@ -910,12 +926,11 @@ export default function ProspectsClient({ initialProspects, isAdmin = false }: P
                           <label className="block text-xs font-medium text-text-secondary mb-1">
                             {fuChannel === 'email' ? 'Email Message (editable)' : 'Reminder Note'}
                           </label>
-                          <textarea
+                          <AutoResizeTextarea
                             value={fuNote}
                             onChange={e => setFuNote(e.target.value)}
-                            rows={8}
                             placeholder={fuChannel === 'email' ? 'Professional follow-up message...' : 'Optional reminder note...'}
-                            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-y min-h-[150px] shadow-sm"
+                            className="w-full px-3 py-2 bg-bg border border-border rounded-lg text-xs text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all resize-none min-h-[150px] shadow-sm"
                           />
                         </div>
 
