@@ -1,16 +1,24 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState } from 'react'
-import { User, Key, Loader2, Eye, EyeOff, Check, X, Shield, Settings2, AppWindow } from 'lucide-react'
+import { useActionState, useEffect, useRef, useState, useCallback } from 'react'
+import { User, Key, Loader2, Eye, EyeOff, Check, X, Shield, Settings2, AppWindow, Bell, Smartphone, Globe, Mail, Monitor, Trash2 } from 'lucide-react'
 import { changePasswordAction, verifyCurrentPassword } from '@/app/actions/password'
 import { toast } from 'sonner'
 import type { Profile } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCurrentProfile } from '@/app/actions/team'
 import AdminSettings from './admin-settings'
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  getPushSubscriptions,
+  removePushSubscription,
+  sendTestNotification,
+} from '@/app/actions/notifications'
+import { requestAndRegisterPush } from '@/components/providers/push-notification-provider'
 
 const ROLE_BADGE_MAP: Record<string, 'default' | 'success' | 'warning' | 'info' | 'muted'> = {
   admin: 'danger' as any,
@@ -26,7 +34,7 @@ interface SettingsClientProps {
 }
 
 export default function SettingsClient({ currentProfile, initialAdminData, allowedModules = [] }: SettingsClientProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'services' | 'access'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'services' | 'access' | 'notifications'>('profile')
 
   const [passState, passAction, isPending] = useActionState(changePasswordAction, undefined)
   const formRef = useRef<HTMLFormElement>(null)
@@ -96,6 +104,7 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
     ...(allowedModules.includes('settings-roles') ? [{ id: 'roles', label: 'Roles Management', icon: Shield }] : []),
     ...(allowedModules.includes('settings-services') ? [{ id: 'services', label: 'Services List', icon: Settings2 }] : []),
     ...(allowedModules.includes('settings-access') ? [{ id: 'access', label: 'Module Access', icon: AppWindow }] : []),
+    { id: 'notifications', label: 'Notifications', icon: Bell },
   ]
 
   return (
@@ -296,10 +305,421 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
           )}
 
           {/* Admin Settings Tabs */}
-          {activeTab !== 'profile' && allowedModules.includes(`settings-${activeTab}`) && (
+          {activeTab !== 'profile' && activeTab !== 'notifications' && allowedModules.includes(`settings-${activeTab}`) && (
             <AdminSettings activeTab={activeTab as any} initialData={initialAdminData} />
           )}
+
+          {/* Notifications Tab */}
+          {activeTab === 'notifications' && <NotificationsPanel />}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Event Types for per-event preferences ───────────────────────────────────
+
+const EVENT_GROUPS = [
+  {
+    label: 'Tasks',
+    events: [
+      { key: 'task_assigned',  label: 'Task Assigned' },
+      { key: 'task_status',    label: 'Task Status Updated' },
+      { key: 'task_overdue',   label: 'Task Overdue (Scheduled)' },
+      { key: 'task_due_soon',  label: 'Task Due Soon (Scheduled)' },
+    ],
+  },
+  {
+    label: 'Projects',
+    events: [
+      { key: 'project_assigned', label: 'Project Assigned' },
+      { key: 'project_update',   label: 'Project Update' },
+    ],
+  },
+  {
+    label: 'Collaboration',
+    events: [
+      { key: 'mention',  label: 'Mention' },
+      { key: 'comment',  label: 'Comment' },
+    ],
+  },
+  {
+    label: 'Finance',
+    events: [
+      { key: 'invoice_update',   label: 'Invoice Update' },
+      { key: 'payment_received', label: 'Payment Received' },
+      { key: 'approval_required',label: 'Approval Required' },
+      { key: 'approval_granted', label: 'Approval Granted' },
+    ],
+  },
+  {
+    label: 'System',
+    events: [
+      { key: 'system_alert', label: 'System Alert' },
+      { key: 'reminder',     label: 'Reminder' },
+      { key: 'team_update',  label: 'Team Update' },
+      { key: 'file_uploaded',label: 'File Uploaded' },
+    ],
+  },
+]
+
+const DEFAULT_RULES: Record<string, string[]> = {
+  task_assigned:     ['in_app', 'push', 'email'],
+  task_status:       ['in_app', 'push'],
+  task_overdue:      ['in_app', 'push', 'email'],
+  task_due_soon:     ['in_app', 'push'],
+  project_assigned:  ['in_app', 'push', 'email'],
+  project_update:    ['in_app'],
+  mention:           ['in_app', 'push'],
+  comment:           ['in_app', 'push'],
+  invoice_update:    ['in_app', 'push', 'email'],
+  payment_received:  ['in_app', 'push'],
+  approval_required: ['in_app', 'push', 'email'],
+  approval_granted:  ['in_app', 'push'],
+  system_alert:      ['in_app', 'push', 'email'],
+  reminder:          ['in_app', 'push'],
+  team_update:       ['in_app'],
+  file_uploaded:     ['in_app'],
+}
+
+// ─── Notifications Panel ──────────────────────────────────────────────────────
+
+function NotificationsPanel() {
+  const queryClient = useQueryClient()
+
+  const { data: prefs, isLoading: prefsLoading } = useQuery({
+    queryKey: ['notificationPreferences'],
+    queryFn:  getNotificationPreferences,
+  })
+
+  const { data: devices = [], isLoading: devicesLoading } = useQuery({
+    queryKey: ['pushSubscriptions'],
+    queryFn:  getPushSubscriptions,
+  })
+
+  const [overrides, setOverrides] = useState<Record<string, string[]>>({})
+  const [inApp, setInApp]   = useState(true)
+  const [push, setPush]     = useState(true)
+  const [email, setEmail]   = useState(true)
+  const [quietEnabled, setQuietEnabled] = useState(false)
+  const [quietStart, setQuietStart]     = useState(22)
+  const [quietEnd, setQuietEnd]         = useState(8)
+  const [requestingPush, setRequestingPush] = useState(false)
+
+  // Sync state from DB
+  useEffect(() => {
+    if (!prefs) return
+    setInApp(prefs.inAppEnabled)
+    setPush(prefs.pushEnabled)
+    setEmail(prefs.emailEnabled)
+    setQuietEnabled(prefs.quietHoursEnabled)
+    setQuietStart(prefs.quietHoursStart ?? 22)
+    setQuietEnd(prefs.quietHoursEnd ?? 8)
+    setOverrides((prefs.channelOverrides as Record<string, string[]>) ?? {})
+  }, [prefs])
+
+  const saveMutation = useMutation({
+    mutationFn: (data: Parameters<typeof updateNotificationPreferences>[0]) =>
+      updateNotificationPreferences(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notificationPreferences'] })
+      toast.success('Preferences saved')
+    },
+    onError: () => toast.error('Failed to save preferences'),
+  })
+
+  const removeDeviceMutation = useMutation({
+    mutationFn: (id: string) => removePushSubscription(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pushSubscriptions'] })
+      toast.success('Device removed')
+    },
+  })
+
+  const handleSave = () => {
+    saveMutation.mutate({
+      inAppEnabled: inApp,
+      pushEnabled:  push,
+      emailEnabled: email,
+      channelOverrides: overrides,
+      quietHoursEnabled: quietEnabled,
+      quietHoursStart: quietEnabled ? quietStart : null,
+      quietHoursEnd:   quietEnabled ? quietEnd   : null,
+    })
+  }
+
+  const toggleOverride = (eventKey: string, channel: string) => {
+    const current = overrides[eventKey] ?? DEFAULT_RULES[eventKey] ?? []
+    const updated = current.includes(channel)
+      ? current.filter(c => c !== channel)
+      : [...current, channel]
+    setOverrides(prev => ({ ...prev, [eventKey]: updated }))
+  }
+
+  const getChannels = (eventKey: string): string[] => {
+    return overrides[eventKey] ?? DEFAULT_RULES[eventKey] ?? []
+  }
+
+  const handleEnablePush = async () => {
+    setRequestingPush(true)
+    const result = await requestAndRegisterPush()
+    setRequestingPush(false)
+
+    if (result.reason) {
+      // Unsupported context — e.g. iOS Safari before Add to Home Screen.
+      toast.error(result.reason, { duration: 8000 })
+      return
+    }
+    if (result.permission === 'denied') {
+      toast.error('Notifications blocked. Please allow them in your browser settings.')
+      return
+    }
+    if (!result.success) {
+      toast.error('Permission granted, but registering this device failed. Check the console.')
+      return
+    }
+    toast.success('Push notifications enabled on this device!')
+    queryClient.invalidateQueries({ queryKey: ['pushSubscriptions'] })
+  }
+
+  const pushPermission = typeof window !== 'undefined' && 'Notification' in window
+    ? Notification.permission
+    : 'default'
+
+  const deviceIcon = (type: string) => {
+    if (type.includes('android') || type.includes('ios') || type.includes('pwa'))
+      return <Smartphone size={13} className="text-primary" />
+    return <Monitor size={13} className="text-blue-400" />
+  }
+
+  if (prefsLoading) {
+    return (
+      <div className="space-y-4">
+        {[1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-bg-secondary border border-border animate-pulse" />)}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+
+      {/* Global Toggles */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell size={14} className="text-text-muted" />
+          <h3 className="text-sm font-semibold text-text">Delivery Channels</h3>
+        </div>
+        <div className="space-y-3">
+          {[
+            { key: 'inApp', label: 'In-App Notifications', desc: 'Bell icon + notification center', icon: <Globe size={14} />, val: inApp, set: setInApp },
+            { key: 'push',  label: 'Browser / Desktop Push', desc: 'OS native notifications even when tab is closed', icon: <Monitor size={14} />, val: push, set: setPush },
+            { key: 'email', label: 'Email Notifications', desc: 'Sent to your account email for important events', icon: <Mail size={14} />, val: email, set: setEmail },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between gap-4 py-2">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 text-text-muted">{item.icon}</div>
+                <div>
+                  <p className="text-xs font-semibold text-text">{item.label}</p>
+                  <p className="text-[11px] text-text-muted mt-0.5">{item.desc}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => item.set(!item.val)}
+                className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${item.val ? 'bg-primary' : 'bg-bg-tertiary border border-border'}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${item.val ? 'left-5.5 left-[22px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Enable Push CTA */}
+      {pushPermission !== 'granted' && (
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold text-text">Enable Desktop Notifications</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Get push notifications in your browser, even when AgencyOS is not open.</p>
+          </div>
+          <button
+            onClick={handleEnablePush}
+            disabled={requestingPush || pushPermission === 'denied'}
+            className="shrink-0 px-3 py-1.5 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {requestingPush ? <Loader2 size={12} className="animate-spin" /> : 'Enable'}
+          </button>
+        </div>
+      )}
+      {pushPermission === 'denied' && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+          <p className="text-xs font-semibold text-red-400">Notifications blocked by browser</p>
+          <p className="text-[11px] text-text-muted mt-1">Go to your browser settings → Site settings → Notifications → Allow for this site.</p>
+        </div>
+      )}
+
+      {/* Test Notification Button */}
+      <div className="flex justify-end pt-2">
+        <button
+          onClick={async () => {
+            const toastId = toast.loading('Sending test notification...')
+            const res = await sendTestNotification()
+            if (!res.success) {
+              toast.error(res.error || 'Failed to send', { id: toastId })
+              return
+            }
+            if (!res.push?.configured) {
+              toast.warning('Sent, but push is not configured on the server (VAPID keys missing)', { id: toastId })
+            } else if (!res.push.activeDevices) {
+              toast.warning('Sent, but no push-enabled devices registered — click Enable above', { id: toastId })
+            } else {
+              toast.success(`Test notification sent to ${res.push.activeDevices} device(s)!`, { id: toastId })
+            }
+          }}
+          className="px-4 py-2 bg-bg-tertiary hover:bg-bg-tertiary/80 border border-border text-text-secondary hover:text-text text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
+        >
+          <Bell size={14} />
+          Send Test Notification
+        </button>
+      </div>
+
+      {/* Per-event Matrix */}
+      <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
+          <Settings2 size={14} className="text-text-muted" />
+          <h3 className="text-sm font-semibold text-text">Per-Event Preferences</h3>
+          <span className="text-[11px] text-text-muted ml-1">— override delivery channels for each event type</span>
+        </div>
+
+        {/* Header row */}
+        <div className="grid grid-cols-[1fr_52px_52px_52px] px-5 py-2 border-b border-border bg-bg-tertiary/40">
+          <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Event</span>
+          <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider text-center">App</span>
+          <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider text-center">Push</span>
+          <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider text-center">Email</span>
+        </div>
+
+        <div className="divide-y divide-border">
+          {EVENT_GROUPS.map(group => (
+            <div key={group.label}>
+              <div className="px-5 py-2 bg-bg-tertiary/20">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">{group.label}</span>
+              </div>
+              {group.events.map(ev => {
+                const channels = getChannels(ev.key)
+                return (
+                  <div key={ev.key} className="grid grid-cols-[1fr_52px_52px_52px] px-5 py-2.5 hover:bg-bg-tertiary/20 transition-colors">
+                    <span className="text-xs text-text-secondary self-center">{ev.label}</span>
+                    {(['in_app', 'push', 'email'] as const).map(ch => (
+                      <div key={ch} className="flex items-center justify-center">
+                        <button
+                          onClick={() => toggleOverride(ev.key, ch)}
+                          className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                            channels.includes(ch)
+                              ? 'bg-primary text-white'
+                              : 'bg-bg-tertiary border border-border text-transparent hover:border-primary/50'
+                          }`}
+                        >
+                          <Check size={10} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quiet Hours */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-semibold text-text">Quiet Hours</p>
+            <p className="text-[11px] text-text-muted mt-0.5">No push or email notifications during this window</p>
+          </div>
+          <button
+            onClick={() => setQuietEnabled(!quietEnabled)}
+            className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${quietEnabled ? 'bg-primary' : 'bg-bg-tertiary border border-border'}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${quietEnabled ? 'left-[22px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+        {quietEnabled && (
+          <div className="flex items-center gap-3 mt-3">
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">From</label>
+              <select
+                value={quietStart}
+                onChange={e => setQuietStart(Number(e.target.value))}
+                className="mt-1 w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-primary"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i.toString().padStart(2,'0')}:00</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">To</label>
+              <select
+                value={quietEnd}
+                onChange={e => setQuietEnd(Number(e.target.value))}
+                className="mt-1 w-full bg-bg border border-border rounded-lg px-3 py-2 text-xs text-text focus:outline-none focus:border-primary"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i.toString().padStart(2,'0')}:00</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Registered Devices */}
+      <div className="bg-bg-secondary border border-border rounded-xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Smartphone size={14} className="text-text-muted" />
+          <h3 className="text-sm font-semibold text-text">Push-Enabled Devices</h3>
+        </div>
+        {devicesLoading ? (
+          <div className="space-y-2">
+            {[1,2].map(i => <div key={i} className="h-10 rounded-lg bg-bg-tertiary animate-pulse" />)}
+          </div>
+        ) : (devices as any[]).length === 0 ? (
+          <p className="text-xs text-text-muted py-2">No devices registered for push notifications yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {(devices as any[]).map((device: any) => (
+              <div key={device.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-bg-tertiary/50 border border-border">
+                <div className="flex items-center gap-2.5">
+                  {deviceIcon(device.deviceType)}
+                  <div>
+                    <p className="text-xs font-medium text-text">{device.deviceName || 'Unknown Device'}</p>
+                    <p className="text-[10px] text-text-muted">{device.browserName} · {device.deviceType}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeDeviceMutation.mutate(device.id)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saveMutation.isPending}
+          className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-60 shadow-glow-sm"
+        >
+          {saveMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          {saveMutation.isPending ? 'Saving...' : 'Save Preferences'}
+        </button>
       </div>
     </div>
   )

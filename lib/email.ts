@@ -148,3 +148,86 @@ export async function sendFollowUpEmail(opts: {
     return { success: false, error }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification Email — sent from the Notification Engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+const NOTIF_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  task_assigned:     { label: 'Task Assigned',     color: '#6366f1' },
+  task_status:       { label: 'Task Update',       color: '#3b82f6' },
+  task_overdue:      { label: 'Task Overdue',      color: '#ef4444' },
+  task_due_soon:     { label: 'Due Soon',          color: '#f97316' },
+  project_assigned:  { label: 'Project Assigned',  color: '#06b6d4' },
+  approval_required: { label: 'Approval Required', color: '#f59e0b' },
+  approval_granted:  { label: 'Approved',          color: '#22c55e' },
+  invoice_update:    { label: 'Invoice Update',    color: '#10b981' },
+  payment_received:  { label: 'Payment Received',  color: '#10b981' },
+  system_alert:      { label: 'System Alert',      color: '#ef4444' },
+  reminder:          { label: 'Reminder',          color: '#f97316' },
+}
+
+export async function sendNotificationEmail(opts: {
+  toEmail: string
+  recipientName: string
+  notification: {
+    title: string
+    body: string
+    link?: string
+    type: string
+  }
+}) {
+  const { toEmail, recipientName, notification } = opts
+
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)
+  if (!valid) {
+    console.warn('sendNotificationEmail: invalid email, skipping.', toEmail)
+    return { success: false, error: 'Invalid email' }
+  }
+
+  const typeMeta = NOTIF_TYPE_LABELS[notification.type] ?? { label: 'Notification', color: '#6366f1' }
+  const appUrl   = process.env.NEXTAUTH_URL || 'https://agencyos.app'
+  const viewUrl  = notification.link ? `${appUrl}${notification.link}` : appUrl
+
+  const html = `
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#0f0f0f 0%,#1a1a2e 100%);padding:28px 36px;border-bottom:3px solid ${typeMeta.color};">
+        <div style="display:inline-block;background:${typeMeta.color}22;border:1px solid ${typeMeta.color}44;border-radius:8px;padding:5px 12px;margin-bottom:14px;">
+          <span style="font-size:11px;font-weight:700;color:${typeMeta.color};letter-spacing:0.5px;text-transform:uppercase;">${typeMeta.label}</span>
+        </div>
+        <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">AgencyOS</h1>
+      </div>
+      <div style="padding:32px 36px;">
+        <p style="margin:0 0 6px;font-size:15px;color:#6b7280;">Hi <strong style="color:#111827;">${recipientName}</strong>,</p>
+        <div style="background:#f9fafb;border-left:4px solid ${typeMeta.color};border-radius:8px;padding:18px 20px;margin:20px 0;">
+          <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${notification.title}</p>
+          <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${notification.body}</p>
+        </div>
+        <div style="text-align:center;margin:28px 0 8px;">
+          <a href="${viewUrl}" style="display:inline-block;background:${typeMeta.color};color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            View in AgencyOS →
+          </a>
+        </div>
+      </div>
+      <div style="background:#f9fafb;padding:16px 36px;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;line-height:1.6;">
+          You received this because your notification preferences include email for this event type.<br/>
+          <a href="${appUrl}/settings" style="color:#6366f1;text-decoration:none;">Manage notification preferences</a>
+        </p>
+      </div>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from:    `"AgencyOS" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to:      toEmail,
+      subject: `${typeMeta.label}: ${notification.title}`,
+      html,
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Error sending notification email:', error)
+    return { success: false, error }
+  }
+}

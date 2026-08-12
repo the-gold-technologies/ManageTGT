@@ -264,5 +264,63 @@ export interface ProspectFollowUp {
   updatedAt: string
 }
 
+// ─── Notification System Types ────────────────────────────────────────────────
+
+export type NotificationEventType =
+  | 'task_assigned' | 'task_status' | 'task_overdue' | 'task_due_soon'
+  | 'mention' | 'comment'
+  | 'project_assigned' | 'project_update'
+  | 'approval_required' | 'approval_granted'
+  | 'invoice_update' | 'payment_received'
+  | 'file_uploaded' | 'team_update' | 'system_alert' | 'reminder'
+
+export type DeliveryChannel = 'in_app' | 'push' | 'email'
+export type NotificationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+
+export interface AppNotification {
+  id: string
+  user_id: string
+  type: NotificationEventType | string
+  title: string
+  message: string
+  link?: string | null
+  is_read: boolean
+  readAt?: string | null
+  priority: NotificationPriority | string
+  entityType?: string | null
+  entityId?: string | null
+  channels: string[]
+  createdAt: string
+  orgId: string
+}
+
+export interface NotificationPreference {
+  id: string
+  userId: string
+  inAppEnabled: boolean
+  pushEnabled: boolean
+  emailEnabled: boolean
+  channelOverrides: Record<string, DeliveryChannel[]>
+  quietHoursEnabled: boolean
+  quietHoursStart?: number | null
+  quietHoursEnd?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PushSubscriptionRecord {
+  id: string
+  userId: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  deviceName?: string | null
+  deviceType: string
+  browserName?: string | null
+  isActive: boolean
+  lastSeenAt: string
+  createdAt: string
+}
+
 
 

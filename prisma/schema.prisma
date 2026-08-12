@@ -30,7 +30,9 @@ model User {
   tasksAssignedBy Task[]         @relation("AssignedBy")
   activityLogs    ActivityLog[]  @relation("PerformedBy")
   salesClosures   SalesClosure[] @relation("ClosedBy")
-  notifications   Notification[]
+  notifications              Notification[]
+  notificationPreference     NotificationPreference?
+  pushSubscriptions           PushSubscription[]
   ChatParticipant ChatParticipant[]
   ChatMessage     ChatMessage[]
 
@@ -440,19 +442,72 @@ model SalesClosure {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  user_id   String
-  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  type      String
-  title     String
-  message   String   @db.Text
-  link      String?
-  is_read   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  user_id    String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       String
+  title      String
+  message    String    @db.Text
+  link       String?
+  is_read    Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  // Extended fields for the unified notification system
+  readAt     DateTime?
+  priority   String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  entityType String?   // "task" | "project" | "invoice" | "comment"
+  entityId   String?   // ID of the source entity
+  channels   String[]  @default([]) // ["in_app","push","email"]
 
   @@index([user_id])
   @@index([is_read])
-  orgId String @default("default_org_id")
+  orgId        String       @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Global channel toggles
+  inAppEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+  emailEnabled Boolean @default(true)
+
+  // Per-event-type channel overrides stored as JSON
+  // e.g. { "task_status": ["in_app"], "task_assigned": ["in_app","push","email"] }
+  channelOverrides Json @default("{}")
+
+  // Quiet hours — no push/email during this window
+  quietHoursEnabled Boolean @default(false)
+  quietHoursStart   Int? // 22 = 10 PM
+  quietHoursEnd     Int? // 8  = 8 AM
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orgId        String       @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint    String  @unique
+  p256dh      String  // Public key for encryption
+  auth        String  // Authentication secret
+  deviceName  String? // "Chrome on Windows", "iPhone 15"
+  deviceType  String  @default("web") // "web" | "android_pwa" | "ios_pwa"
+  browserName String? // "Chrome", "Safari", "Firefox"
+  isActive    Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  orgId        String       @default("default_org_id")
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
 
@@ -669,7 +724,9 @@ model Organization {
   expenses          Expense[]
   salesTargets      SalesTarget[]
   salesClosures     SalesClosure[]
-  notifications     Notification[]
+  notifications            Notification[]
+  notificationPreferences  NotificationPreference[]
+  pushSubscriptions        PushSubscription[]
   calendarEvents       CalendarEvent[]
   prospects            Prospect[]
   fileRecords          FileRecord[]

@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { createNotification } from './notifications'
+import { dispatchNotification } from '@/lib/notification-engine'
 
 export async function getTasks() {
   try {
@@ -62,28 +62,34 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
       return task
     })
 
-    // Notify assignee if someone else changed the status
+    // Notify assignees if someone else changed the status
     if (result.assigned_member_ids?.length > 0) {
       for (const assigneeId of result.assigned_member_ids) {
         if (assigneeId !== session?.user?.id) {
-          await createNotification({
-            user_id: assigneeId,
-            type: 'task_status',
-            title: 'Task Status Updated',
-            message: `Status changed to ${status} for task: ${result.title}`,
-            link: '/my-tasks'
+          await dispatchNotification({
+            userId:     assigneeId,
+            orgId:      result.orgId,
+            type:       'task_status',
+            title:      'Task Status Updated',
+            body:       `Status changed to ${status} for task: ${result.title}`,
+            link:       '/my-tasks',
+            entityType: 'task',
+            entityId:   result.id,
           })
         }
       }
     }
     // Notify assigner if someone else changed the status
     if (result.assigned_by && result.assigned_by !== session?.user?.id) {
-      await createNotification({
-        user_id: result.assigned_by,
-        type: 'task_status',
-        title: 'Task Status Updated',
-        message: `Status changed to ${status} for task: ${result.title}`,
-        link: '/my-tasks'
+      await dispatchNotification({
+        userId:     result.assigned_by,
+        orgId:      result.orgId,
+        type:       'task_status',
+        title:      'Task Status Updated',
+        body:       `Status changed to ${status} for task: ${result.title}`,
+        link:       '/my-tasks',
+        entityType: 'task',
+        entityId:   result.id,
       })
     }
 
@@ -139,16 +145,20 @@ export async function createTask(data: any) {
       return task
     })
     
-    // Notify the assignee
+    // Notify the assignees
     if (result.assigned_member_ids?.length > 0) {
       for (const assigneeId of result.assigned_member_ids) {
         if (assigneeId !== session?.user?.id) {
-          await createNotification({
-            user_id: assigneeId,
-            type: 'task_assigned',
-            title: 'New Task Assigned',
-            message: `You have been assigned to task: ${result.title}`,
-            link: '/my-tasks'
+          await dispatchNotification({
+            userId:     assigneeId,
+            orgId:      result.orgId,
+            type:       'task_assigned',
+            title:      'New Task Assigned',
+            body:       `You have been assigned to task: ${result.title}`,
+            link:       '/my-tasks',
+            entityType: 'task',
+            entityId:   result.id,
+            priority:   'HIGH',
           })
         }
       }

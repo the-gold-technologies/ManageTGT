@@ -38,6 +38,9 @@ app.prepare().then(() => {
     }
   });
 
+  // Expose io globally so the notification engine can emit to user rooms
+  global.__socketIo = io;
+
   const activeUsers = new Map(); // socketId -> userId
 
   io.on('connection', (socket) => {
@@ -48,6 +51,12 @@ app.prepare().then(() => {
       activeUsers.set(socket.id, userId);
       // Broadcast to all that this user is online
       io.emit('user:presence', { userId, status: 'online' });
+    });
+
+    // Join user's personal notification room
+    socket.on('notifications:join', (userId) => {
+      socket.join(`notif:${userId}`);
+      console.log(`[Socket] Socket ${socket.id} joined notification room for user ${userId}`);
     });
 
     // Join a specific conversation room (e.g., DM or Project channel)
@@ -126,6 +135,8 @@ app.prepare().then(() => {
   server.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
     console.log(`> Socket.io server running`);
+
+    // BullMQ notification workers are now started inside Next.js instrumentation.ts
   });
 }).catch((err) => {
   console.error('Error starting Next.js app', err);

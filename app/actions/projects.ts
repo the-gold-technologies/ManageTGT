@@ -2,7 +2,7 @@
 
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { createNotification } from './notifications'
+import { dispatchNotification } from '@/lib/notification-engine'
 import { logActivity } from './tasks'
 import { auth } from '@/auth'
 
@@ -104,12 +104,16 @@ export async function createProject(data: any) {
     
     // Notify the team lead if they are assigned and they are not the creator
     if (team_lead_id && team_lead_id !== session?.user?.id) {
-      await createNotification({
-        user_id: team_lead_id,
-        type: 'project_assigned',
-        title: 'Assigned as Team Lead',
-        message: `You have been assigned as the team lead for project: ${restData.name}`,
-        link: '/projects'
+      await dispatchNotification({
+        userId:     team_lead_id,
+        orgId:      project.orgId,
+        type:       'project_assigned',
+        title:      'Assigned as Team Lead',
+        body:       `You have been assigned as the team lead for project: ${restData.name}`,
+        link:       '/projects',
+        entityType: 'project',
+        entityId:   project.id,
+        priority:   'HIGH',
       })
     }
 
@@ -117,12 +121,16 @@ export async function createProject(data: any) {
     if (assigned_member_ids && assigned_member_ids.length > 0) {
       for (const member_id of assigned_member_ids) {
         if (member_id !== session?.user?.id) {
-          await createNotification({
-            user_id: member_id,
-            type: 'project_assigned',
-            title: 'Assigned to Project',
-            message: `You have been assigned as a team member for project: ${restData.name}`,
-            link: '/projects'
+          await dispatchNotification({
+            userId:     member_id,
+            orgId:      project.orgId,
+            type:       'project_assigned',
+            title:      'Assigned to Project',
+            body:       `You have been assigned as a team member for project: ${restData.name}`,
+            link:       '/projects',
+            entityType: 'project',
+            entityId:   project.id,
+            priority:   'HIGH',
           })
         }
       }
@@ -233,12 +241,16 @@ export async function updateProject(id: string, data: any) {
     if (oldProject) {
       // Notify new team lead
       if (team_lead_id && team_lead_id !== oldProject.team_lead_id && team_lead_id !== session?.user?.id) {
-        await createNotification({
-          user_id: team_lead_id,
-          type: 'project_assigned',
-          title: 'Assigned as Team Lead',
-          message: `You have been assigned as the team lead for project: ${project.name}`,
-          link: '/projects'
+        await dispatchNotification({
+          userId:     team_lead_id,
+          orgId:      project.orgId,
+          type:       'project_assigned',
+          title:      'Assigned as Team Lead',
+          body:       `You have been assigned as the team lead for project: ${project.name}`,
+          link:       '/projects',
+          entityType: 'project',
+          entityId:   project.id,
+          priority:   'HIGH',
         })
       }
 
@@ -248,12 +260,16 @@ export async function updateProject(id: string, data: any) {
         const newMembers = assigned_member_ids.filter((mId: string) => !oldMembers.includes(mId))
         for (const member_id of newMembers) {
           if (member_id !== session?.user?.id) {
-            await createNotification({
-              user_id: member_id,
-              type: 'project_assigned',
-              title: 'Assigned to Project',
-              message: `You have been assigned as a team member for project: ${project.name}`,
-              link: '/projects'
+            await dispatchNotification({
+              userId:     member_id,
+              orgId:      project.orgId,
+              type:       'project_assigned',
+              title:      'Assigned to Project',
+              body:       `You have been assigned as a team member for project: ${project.name}`,
+              link:       '/projects',
+              entityType: 'project',
+              entityId:   project.id,
+              priority:   'HIGH',
             })
           }
         }

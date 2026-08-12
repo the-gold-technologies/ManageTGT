@@ -38,9 +38,14 @@ const prisma = basePrisma.$extends({
           
           // Add orgId to create operations
           if (['create', 'createMany', 'upsert'].includes(operation)) {
-            if (operation === 'create' || operation === 'upsert') {
+            if (operation === 'create') {
               // @ts-ignore
               args.data = { ...args.data, orgId };
+            } else if (operation === 'upsert') {
+              // @ts-ignore
+              if (args.create) args.create = { ...args.create, orgId };
+              // @ts-ignore
+              if (args.update) args.update = { ...args.update, orgId };
             } else if (operation === 'createMany') {
               // @ts-ignore
               args.data = Array.isArray(args.data) 

@@ -6,6 +6,7 @@ const nextConfig = {
     root: __dirname,
   },
   experimental: {
+    instrumentationHook: true,
     staleTimes: {
       dynamic: 30,
       static: 180,
