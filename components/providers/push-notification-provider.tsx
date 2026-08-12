@@ -10,6 +10,23 @@ export function PushNotificationProvider({ children }: { children: React.ReactNo
   const { data: session, status } = useSession()
   const queryClient = useQueryClient()
   const initialized = useRef(false)
+  const timezoneSynced = useRef(false)
+
+  // Quiet hours are stored as plain hours, so the server needs to know which
+  // day they belong to. Runs regardless of push support, since quiet hours also
+  // gate email.
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) return
+    if (timezoneSynced.current) return
+    timezoneSynced.current = true
+
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (!timezone) return
+
+    void import('@/app/actions/notifications')
+      .then(({ syncUserTimezone }) => syncUserTimezone(timezone))
+      .catch(err => console.warn('[PushProvider] timezone sync failed:', err))
+  }, [status, session?.user?.id])
 
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user?.id) return

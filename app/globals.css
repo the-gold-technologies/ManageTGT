@@ -337,3 +337,33 @@ body {
 .ProseMirror {
   min-height: 24px;
 }
+
+/* ─── Chat mentions ─────────────────────────────────────────────────────────
+   Pills produced by highlightMentionsHtml(). Kept in global CSS because the
+   markup is injected as an HTML string, so Tailwind classes on it would not be
+   seen by the compiler's content scan. */
+.chat-mention {
+  display: inline;
+  padding: 0.05em 0.3em;
+  margin: 0 0.05em;
+  border-radius: 4px;
+  font-weight: 600;
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+/* A mention of you reads louder than a mention of someone else. */
+.chat-mention-self {
+  background: color-mix(in oklab, var(--color-primary) 22%, transparent);
+}
+
+/* @here / @channel / @everyone address a group, so they are marked apart from a
+   personal mention. Text stays on --color-text rather than the amber itself:
+   semantic colours are shared between themes here, and amber-on-amber fails
+   contrast against the light background. */
+.chat-mention-broadcast {
+  background: color-mix(in oklab, var(--color-warning) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-warning) 45%, transparent);
+  color: var(--color-text);
+}

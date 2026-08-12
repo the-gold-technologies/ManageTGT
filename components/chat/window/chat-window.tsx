@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
-import { ArrowLeft, Hash, X, Pin, Search, Loader2, MessageSquare, Users, ChevronDown } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, Hash, X, Pin, Loader2, MessageSquare, Users, ArrowDown } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { MessageRow } from './message-row'
+import { NotificationMenu } from './notification-menu'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface ChatWindowProps {
@@ -26,6 +27,10 @@ interface ChatWindowProps {
   isMobile: boolean
   typingUsers?: Set<string>
   participants?: any[]
+  /** Refetch conversations so the sidebar's muted state stays in step. */
+  onNotifySettingsChanged?: () => void
+  /** Id of the first unread message, used to place the "New" divider. */
+  firstUnreadId?: string | null
 }
 
 export function ChatWindow({
@@ -47,9 +52,43 @@ export function ChatWindow({
   onOpenGroupInfo,
   isMobile,
   typingUsers = new Set(),
-  participants = []
+  participants = [],
+  onNotifySettingsChanged,
+  firstUnreadId = null
 }: ChatWindowProps) {
   const [showPinned, setShowPinned] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [isNearBottom, setIsNearBottom] = useState(true)
+
+  // "Near" rather than "at" the bottom, so a few pixels of drift or a half
+  // -scrolled image does not count as having scrolled away.
+  const NEAR_BOTTOM_PX = 120
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    setIsNearBottom(distance <= NEAR_BOTTOM_PX)
+  }
+
+  /**
+   * Follow new messages only when the reader is already at the live edge.
+   *
+   * Scrolling unconditionally means that reading back through history gets
+   * interrupted every time anyone posts — you lose your place mid-sentence.
+   */
+  useEffect(() => {
+    if (!isNearBottom) return
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // isNearBottom is intentionally not a dependency: this should fire on new
+    // messages, not the moment the reader happens to scroll back down.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length])
+
+  const jumpToLatest = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setIsNearBottom(true)
+  }
 
   if (!activeConv) {
     return (
@@ -149,6 +188,12 @@ export function ChatWindow({
             </button>
           )}
 
+          <NotificationMenu
+            conversationId={activeConv.id}
+            isGroup={isGroup}
+            onChanged={onNotifySettingsChanged}
+          />
+
           <button
             onClick={onClose}
             className="p-2 hover:bg-bg-tertiary rounded-lg text-text-muted hover:text-text transition-colors"
@@ -214,7 +259,11 @@ export function ChatWindow({
       </AnimatePresence>
 
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex flex-col bg-bg">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto relative z-10 custom-scrollbar flex flex-col bg-bg"
+      >
         {isLoading ? (
           <div className="flex justify-center items-center flex-1">
             <Loader2 className="animate-spin text-primary" size={28} />
@@ -288,6 +337,19 @@ export function ChatWindow({
                     </div>
                   )}
 
+                  {/* Where you left off. Placed once, above the first message
+                      you have not read, and it stays put while you read so the
+                      feed does not reflow under you. */}
+                  {firstUnreadId === msg.id && (
+                    <div className="flex items-center gap-3 px-5 py-2">
+                      <div className="flex-1 h-px bg-danger/50" />
+                      <span className="text-[10px] font-bold text-danger uppercase tracking-wider shrink-0">
+                        New
+                      </span>
+                      <div className="flex-1 h-px bg-danger/50" />
+                    </div>
+                  )}
+
                   {isFirstInGroup && index !== 0 && !showDateSep && (
                     <div className="h-2" />
                   )}
@@ -315,6 +377,24 @@ export function ChatWindow({
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Jump to latest — only while the reader has scrolled away from the live
+          edge, which is also when auto-follow is suppressed. */}
+      <AnimatePresence>
+        {!isNearBottom && messages.length > 0 && (
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.15 }}
+            onClick={jumpToLatest}
+            className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-bg-secondary border border-border shadow-lg text-text-secondary hover:text-text hover:border-primary transition-colors text-[12px] font-semibold"
+          >
+            <ArrowDown size={14} />
+            Jump to latest
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Typing Indicator */}
       <AnimatePresence>

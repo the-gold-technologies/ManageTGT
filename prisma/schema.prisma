@@ -479,10 +479,16 @@ model NotificationPreference {
   // e.g. { "task_status": ["in_app"], "task_assigned": ["in_app","push","email"] }
   channelOverrides Json @default("{}")
 
-  // Quiet hours — no push/email during this window
+  // Words that notify like a mention when they appear in a chat message.
+  keywords String[] @default([])
+
+  // Quiet hours — no push/email during this window, evaluated in the user's own
+  // timezone. Without `timezone` the window would follow the server's clock,
+  // which silences the wrong people at the wrong time of day.
   quietHoursEnabled Boolean @default(false)
   quietHoursStart   Int? // 22 = 10 PM
   quietHoursEnd     Int? // 8  = 8 AM
+  timezone          String? // IANA name, e.g. "Asia/Kolkata"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -763,6 +769,11 @@ model ChatParticipant {
 
   last_read_message_id String?
 
+  // Per-conversation notification level. DMs default to ALL at creation,
+  // group channels to MENTIONS, matching Slack.
+  notify_level String    @default("MENTIONS") // ALL | MENTIONS | NONE
+  muted_until  DateTime?
+
   joined_at DateTime @default(now())
 
   @@unique([conversation_id, user_id])
@@ -787,6 +798,12 @@ model ChatMessage {
   is_deleted     Boolean @default(false)
   edited_at      DateTime?
   reactions      Json    @default("{}")
+
+  // Resolved at send time. mention_scope is evaluated at delivery rather than
+  // expanded here, because HERE depends on who is online at that moment and
+  // CHANNEL/EVERYONE membership can change after the message is written.
+  mentioned_user_ids String[] @default([])
+  mention_scope      String   @default("NONE") // NONE | USERS | HERE | CHANNEL | EVERYONE
 
   createdAt DateTime @default(now())
 

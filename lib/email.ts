@@ -231,3 +231,100 @@ export async function sendNotificationEmail(opts: {
     return { success: false, error }
   }
 }
+
+// ─── Missed-message digest ──────────────────────────────────────────────────
+
+/**
+ * A single digest covering everything a person missed in chat.
+ *
+ * Chat deliberately never sends per-message email — that is the fastest way to
+ * train someone to filter your domain into a folder they never open. This is the
+ * one email chat produces, and only when there is something to report.
+ */
+export async function sendChatDigestEmail(opts: {
+  toEmail: string
+  recipientName: string
+  items: { title: string; body: string; at: Date }[]
+  timezone?: string | null
+}) {
+  const { toEmail, recipientName, items, timezone } = opts
+
+  if (items.length === 0) return { success: true, skipped: true }
+
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)
+  if (!valid) {
+    console.warn('sendChatDigestEmail: invalid email, skipping.', toEmail)
+    return { success: false, error: 'Invalid email' }
+  }
+
+  const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://agencyos.app'
+  const accent = '#6366f1'
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+
+  const formatTime = (at: Date) => {
+    try {
+      return at.toLocaleString('en-US', {
+        timeZone: timezone || undefined,
+        weekday: 'short', hour: 'numeric', minute: '2-digit',
+      })
+    } catch {
+      return at.toISOString().slice(0, 16).replace('T', ' ')
+    }
+  }
+
+  const rows = items.map(item => `
+    <div style="border-left:3px solid ${accent};background:#f9fafb;border-radius:6px;padding:12px 14px;margin:0 0 10px;">
+      <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#111827;">${escapeHtml(item.title)}</p>
+      <p style="margin:0 0 6px;font-size:13px;color:#374151;line-height:1.6;">${escapeHtml(item.body)}</p>
+      <p style="margin:0;font-size:11px;color:#9ca3af;">${escapeHtml(formatTime(item.at))}</p>
+    </div>
+  `).join('')
+
+  const countLabel = items.length === 1 ? '1 unread message' : `${items.length} unread messages`
+
+  const html = `
+    <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,#0f0f0f 0%,#1a1a2e 100%);padding:28px 36px;border-bottom:3px solid ${accent};">
+        <div style="display:inline-block;background:${accent}22;border:1px solid ${accent}44;border-radius:8px;padding:5px 12px;margin-bottom:14px;">
+          <span style="font-size:11px;font-weight:700;color:${accent};letter-spacing:0.5px;text-transform:uppercase;">Chat digest</span>
+        </div>
+        <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">AgencyOS</h1>
+      </div>
+      <div style="padding:32px 36px;">
+        <p style="margin:0 0 6px;font-size:15px;color:#6b7280;">Hi <strong style="color:#111827;">${escapeHtml(recipientName)}</strong>,</p>
+        <p style="margin:0 0 20px;font-size:14px;color:#374151;">You have ${countLabel} waiting in chat.</p>
+        ${rows}
+        <div style="text-align:center;margin:28px 0 8px;">
+          <a href="${appUrl}/chat" style="display:inline-block;background:${accent};color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;">
+            Open chat →
+          </a>
+        </div>
+      </div>
+      <div style="background:#f9fafb;padding:16px 36px;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;line-height:1.6;">
+          Sent once a day, and only when you have unread chat messages.<br/>
+          <a href="${appUrl}/settings" style="color:${accent};text-decoration:none;">Manage notification preferences</a>
+        </p>
+      </div>
+    </div>
+  `
+
+  try {
+    await transporter.sendMail({
+      from:    `"AgencyOS" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to:      toEmail,
+      subject: `You missed ${countLabel} in chat`,
+      html,
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Error sending chat digest email:', error)
+    return { success: false, error }
+  }
+}

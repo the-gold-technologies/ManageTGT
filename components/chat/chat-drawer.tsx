@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   getConversations, getMessages, sendMessage, getChatUsers, getOrCreateDM,
@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/chat'
 import { uploadFileAction } from '@/app/actions/upload'
 import { MentionDropdown } from './mention-dropdown'
+import { formatMentionToken } from '@/lib/chat-mentions'
 import { useSocket } from '@/components/providers/socket-provider'
 import { useSession } from 'next-auth/react'
 import { getInitials } from '@/lib/utils'
@@ -48,6 +49,9 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
   // Mentions State
   const [mentionType, setMentionType] = useState<'user' | 'task' | null>(null)
   const [mentionQuery, setMentionQuery] = useState('')
+  const editorApiRef = useRef<{
+    insertMention: (display: string, token?: string) => void
+  } | null>(null)
   const [cursorPos, setCursorPos] = useState({ bottom: 60, left: 20 })
 
   const [replyingToId, setReplyingToId] = useState<string | null>(null)
@@ -90,6 +94,11 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
 
   const activeConv = conversationsData?.find((c: any) => c.id === activeConvId)
 
+  // How many messages were unread when this conversation was opened. Frozen on
+  // open so the divider stays where the reader left off instead of sliding away
+  // as soon as the conversation is marked read.
+  const [unreadAtOpen, setUnreadAtOpen] = useState(0)
+
   const { data: usersData } = useQuery({
     queryKey: ['chat-users'],
     queryFn: async () => {
@@ -111,18 +120,41 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     enabled: !!activeConvId,
   })
 
+  /**
+   * The message the "New" divider sits above: counting back from the newest,
+   * skipping your own messages, because unreadCount is computed the same way.
+   */
+  const firstUnreadId = useMemo<string | null>(() => {
+    if (unreadAtOpen <= 0 || messages.length === 0) return null
+    const fromOthers = messages.filter((m: any) => m.sender_id !== session?.user?.id)
+    if (fromOthers.length < unreadAtOpen) return fromOthers[0]?.id ?? null
+    return fromOthers[fromOthers.length - unreadAtOpen]?.id ?? null
+  }, [messages, unreadAtOpen, session?.user?.id])
+
   // ─── Effects ───────────────────────────────────────────────
+  // Jump to the bottom when a conversation is opened or an attachment changes
+  // the composer height. Following *new messages* is ChatWindow's job, which
+  // only does it when the reader is already at the live edge — scrolling from
+  // here as well would drag them back down while they read history.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, pendingFile])
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [activeConvId, pendingFile])
 
   // Mark conversation as read
   useEffect(() => {
     if (activeConvId) {
+      // Snapshot the unread count before clearing it, so the "New" divider has
+      // something to anchor to. Reading it after the write would always be 0.
+      const opened = queryClient
+        .getQueryData<any[]>(['chat-conversations'])
+        ?.find(c => c.id === activeConvId)
+      setUnreadAtOpen(opened?.unreadCount || 0)
+
       markConversationAsRead(activeConvId).then(() => {
         queryClient.setQueryData(['chat-conversations'], (old: any) => {
           if (!old) return old
-          return old.map((c: any) => c.id === activeConvId ? { ...c, unreadCount: 0 } : c)
+          return old.map((c: any) =>
+            c.id === activeConvId ? { ...c, unreadCount: 0, mentionCount: 0 } : c)
         })
         queryClient.invalidateQueries({ queryKey: ['global-unread-chat-count'] })
       })
@@ -256,7 +288,18 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
   // ─── Handlers ──────────────────────────────────────────────
 
   const handleMentionSelect = (item: { id: string; display: string; type: 'user' | 'task' }) => {
-    // For now, append mention to the editor via a global event or callback
+    const isBroadcast = item.id.startsWith('__')
+
+    // A person mention is inserted as `@[Name](id)`, so the id travels with the
+    // text. Deleting the mention removes the id with it, and the server can
+    // resolve recipients from the message body rather than a parallel list.
+    editorApiRef.current?.insertMention(
+      item.display,
+      item.type === 'user' && !isBroadcast
+        ? formatMentionToken(item.display, item.id)
+        : undefined,
+    )
+
     setMentionType(null)
   }
 
@@ -353,7 +396,12 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     }
 
     try {
-      const res = await sendMessage(activeConvId, msgContent, attachmentUrl || undefined, currentReplyId || undefined)
+      const res = await sendMessage(
+        activeConvId,
+        msgContent,
+        attachmentUrl || undefined,
+        currentReplyId || undefined,
+      )
       if (res.success && res.message) {
         queryClient.setQueryData(['chat-messages', activeConvId], (old: any) =>
           (old || []).map((msg: any) => msg.id === tempId ? { ...res.message, replies: [] } : msg)
@@ -408,7 +456,12 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
     }
 
     try {
-      const res = await sendThreadReply(threadParentId, msgContent, attachmentUrl || undefined, alsoSendToChannel)
+      const res = await sendThreadReply(
+        threadParentId,
+        msgContent,
+        attachmentUrl || undefined,
+        alsoSendToChannel,
+      )
       if (res.success && res.reply) {
         setThreadReplies(prev => prev.map(r => r.id === tempId ? res.reply : r))
         queryClient.invalidateQueries({ queryKey: ['chat-messages', activeConvId] })
@@ -624,6 +677,10 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
                 messagesEndRef={messagesEndRef}
+                firstUnreadId={firstUnreadId}
+                onNotifySettingsChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })
+                }}
                 onOpenGroupInfo={() => setIsGroupInfoOpen(true)}
                 isMobile={isMobile}
                 typingUsers={typingUsers}
@@ -637,6 +694,8 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                     position={cursorPos}
                     onSelect={handleMentionSelect}
                     onClose={() => setMentionType(null)}
+                    allowBroadcast={!!activeConv?.is_group}
+                    allowEveryone={activeConv?.is_group && activeConv?.name === 'General'}
                   />
                   <RichMessageInput
                     onSend={handleSend}
@@ -655,6 +714,7 @@ export default function ChatDrawer({ isOpen, onClose }: ChatDrawerProps) {
                       setMentionQuery(query)
                     }}
                     onMentionClose={() => setMentionType(null)}
+                    onEditorReady={(api) => { editorApiRef.current = api }}
                   />
                 </div>
               )}

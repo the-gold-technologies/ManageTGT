@@ -1,5 +1,5 @@
 // Bump SW_VERSION whenever this file changes to force an update.
-const SW_VERSION = 'v2'
+const SW_VERSION = 'v3'
 
 self.addEventListener('install', function () {
   // Activate this worker immediately instead of waiting for old tabs to close.
@@ -33,6 +33,22 @@ async function handlePush(event) {
     }
   }
 
+  // Control message: the notification was read elsewhere, so clear it here.
+  // This is why reading a conversation on your laptop clears your phone's lock
+  // screen. Note it shows nothing, which spends a little of Chrome's
+  // silent-push budget under userVisibleOnly — acceptable for a rare signal.
+  if (data.action === 'dismiss') {
+    const existing = await self.registration.getNotifications(
+      data.tag ? { tag: data.tag } : undefined
+    )
+    for (const notification of existing) {
+      // With no tag, fall back to matching the conversation this came from.
+      if (!data.tag && data.entityId && notification.data?.entityId !== data.entityId) continue
+      notification.close()
+    }
+    return
+  }
+
   const title = data.title || 'AgencyOS'
 
   try {
@@ -40,12 +56,15 @@ async function handlePush(event) {
       body: data.body || '',
       icon: '/logo.jpg',
       badge: '/logo.jpg',
-      // Collapse duplicates of the same entity instead of stacking them.
-      tag: data.type ? `agencyos-${data.type}` : 'agencyos',
+      // Collapse duplicates instead of stacking them. A caller-supplied tag
+      // groups per conversation, so a chat notification replaces the previous
+      // one from that same conversation rather than piling up.
+      tag: data.tag || (data.type ? `agencyos-${data.type}` : 'agencyos'),
       renotify: true,
       data: {
         link: data.link || '/',
         type: data.type || 'system_alert',
+        entityId: data.entityId || null,
       },
     })
   } catch (err) {

@@ -5,6 +5,7 @@ import { getInitials } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, ChevronRight } from 'lucide-react'
 import { MessageActionBar } from './message-action-bar'
+import { highlightMentionsHtml } from '@/lib/chat-mentions'
 
 interface MessageRowProps {
   msg: any
@@ -86,7 +87,7 @@ export function MessageRow({
             [&_h1]:text-lg [&_h1]:font-bold [&_h1]:my-1
             [&_h2]:text-base [&_h2]:font-bold [&_h2]:my-1
             [&_h3]:text-sm [&_h3]:font-bold [&_h3]:my-1"
-          dangerouslySetInnerHTML={{ __html: content }}
+          dangerouslySetInnerHTML={{ __html: highlightMentionsHtml(content, sessionUserId) }}
         />
       )
     }

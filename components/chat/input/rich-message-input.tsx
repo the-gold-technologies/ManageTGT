@@ -31,6 +31,11 @@ interface RichMessageInputProps {
   onCancelEdit?: () => void
   onMentionTrigger?: (type: 'user' | 'task', query: string) => void
   onMentionClose?: () => void
+  /**
+   * Hands the parent an imperative handle once the editor exists, so the mention
+   * dropdown can replace the partially-typed `@query` with a real mention.
+   */
+  onEditorReady?: (api: { insertMention: (display: string, token?: string) => void }) => void
   disabled?: boolean
 }
 
@@ -48,6 +53,7 @@ export function RichMessageInput({
   onCancelEdit,
   onMentionTrigger,
   onMentionClose,
+  onEditorReady,
   disabled = false
 }: RichMessageInputProps) {
   const [showToolbar, setShowToolbar] = useState(false)
@@ -157,6 +163,36 @@ export function RichMessageInput({
       }
     },
   })
+
+  /**
+   * Swaps the half-typed trigger (`@ali`) for the chosen mention (`@Alice `).
+   *
+   * Works in ProseMirror document coordinates via textBetween rather than
+   * comparing against getText(), whose offsets do not line up with selection
+   * positions once the document contains more than a single text node.
+   */
+  const insertMention = useCallback((display: string, token?: string) => {
+    if (!editor) return
+
+    const { from } = editor.state.selection
+    const windowStart = Math.max(0, from - 80)
+    const textBefore = editor.state.doc.textBetween(windowStart, from, '\n', '\n')
+    const match = textBefore.match(/[@#][\w\s-]*$/)
+    const triggerLength = match ? match[0].length : 0
+
+    editor
+      .chain()
+      .focus()
+      .deleteRange({ from: from - triggerLength, to: from })
+      // `token` carries the user id (`@[Name](id)`); broadcasts have no id and
+      // are inserted as plain words.
+      .insertContent(`${token ?? `@${display}`} `)
+      .run()
+  }, [editor])
+
+  useEffect(() => {
+    if (editor && onEditorReady) onEditorReady({ insertMention })
+  }, [editor, onEditorReady, insertMention])
 
   // Update editor content when editing mode changes
   useEffect(() => {

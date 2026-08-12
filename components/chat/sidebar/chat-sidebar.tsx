@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Plus, Hash, MessageSquare, Loader2, User } from 'lucide-react'
+import { Search, Plus, Hash, MessageSquare, Loader2, BellOff } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
 interface ChatSidebarProps {
@@ -33,6 +33,12 @@ export function ChatSidebar({
   const [searchQuery, setSearchQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread' | 'channels' | 'dms'>('all')
 
+  // Muted conversations are excluded: the point of muting is that they stop
+  // demanding attention, so they must not inflate the unread filter either.
+  const totalUnreadConversations = conversations.filter(
+    c => (c.unreadCount || 0) > 0 && !c.isMuted
+  ).length
+
   const filteredConversations = conversations.filter(c => {
     // Basic search
     const searchMatch = c.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -42,7 +48,7 @@ export function ChatSidebar({
 
     if (filter === 'channels') return c.is_group
     if (filter === 'dms') return !c.is_group
-    if (filter === 'unread') return (c.unreadCount || 0) > 0
+    if (filter === 'unread') return (c.unreadCount || 0) > 0 && !c.isMuted
     return true
   })
 
@@ -61,8 +67,18 @@ export function ChatSidebar({
     const otherParticipant = !isGroup ? conv.participants.find((p: any) => p.user_id !== sessionUserId)?.user : null
     const name = isGroup ? (conv.name || 'General') : (otherParticipant?.name || 'User')
     const isOnline = otherParticipant ? onlineUsers.has(otherParticipant.id) : false
-    const lastMsg = conv.messages?.[0]
     const isActive = activeConvId === conv.id
+
+    // Unread and mentions are different signals, so they get different weight:
+    // a direct message counts every message, a channel only badges when you were
+    // actually named. Otherwise a busy channel reads as urgent when it isn't.
+    const unread = conv.unreadCount || 0
+    const mentions = conv.mentionCount || 0
+    const isMuted = !!conv.isMuted
+    const badgeCount = isGroup ? mentions : unread
+    // Muted conversations still show unread state, they just never shout.
+    const showBold = unread > 0 && !isMuted
+    const showBadge = badgeCount > 0
 
     return (
       <motion.button
@@ -95,14 +111,32 @@ export function ChatSidebar({
 
         {/* Content */}
         <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-          <h3 className={`font-medium text-[13px] truncate ${isActive ? 'text-text' : (conv.unreadCount > 0 ? 'text-text font-semibold' : 'text-text-secondary')}`}>
+          <h3 className={`text-[13px] truncate ${
+            isActive
+              ? 'text-text font-medium'
+              : showBold
+                ? 'text-text font-semibold'
+                : isMuted
+                  ? 'text-text-muted font-medium'
+                  : 'text-text-secondary font-medium'
+          }`}>
             {name} {(!isGroup && otherParticipant?.id === sessionUserId) && <span className="text-text-muted font-normal ml-1">(you)</span>}
           </h3>
-          {(conv.unreadCount > 0) && (
-            <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-white shrink-0">
-              {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
-            </div>
-          )}
+
+          <div className="flex items-center gap-1 shrink-0">
+            {isMuted && (
+              <span title="Notifications muted" className="text-text-muted flex items-center">
+                <BellOff size={11} />
+              </span>
+            )}
+            {showBadge && (
+              <div className={`min-w-4 h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                isMuted ? 'bg-bg-tertiary text-text-muted' : 'bg-primary text-white'
+              }`}>
+                {badgeCount > 99 ? '99+' : badgeCount}
+              </div>
+            )}
+          </div>
         </div>
       </motion.button>
     )
@@ -140,6 +174,13 @@ export function ChatSidebar({
         <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
           {[
             { id: 'all', label: 'All', icon: null },
+            // The 'unread' branch already existed in the filter logic but had no
+            // control to reach it.
+            {
+              id: 'unread',
+              label: totalUnreadConversations > 0 ? `Unread (${totalUnreadConversations})` : 'Unread',
+              icon: null,
+            },
             { id: 'channels', label: 'Channels', icon: <Hash size={12} /> },
             { id: 'dms', label: 'Direct messages', icon: <MessageSquare size={12} /> }
           ].map((f) => (
@@ -167,10 +208,23 @@ export function ChatSidebar({
           <AnimatePresence mode="popLayout">
             {filteredConversations.length === 0 && filter !== 'dms' ? (
               <motion.div key="empty-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center p-8 text-text-muted text-sm">
-                No chats found.
+                {filter === 'unread' ? "You're all caught up." : 'No chats found.'}
               </motion.div>
             ) : (
               <>
+                {/* Unread is a flat list — grouping by type gets in the way when
+                    you are working through a backlog. */}
+                {filter === 'unread' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-1">
+                    <div className="px-3 mb-2 flex items-center justify-between text-text-muted">
+                      <span className="text-[11px] font-bold uppercase tracking-wider">
+                        Unread
+                      </span>
+                    </div>
+                    {filteredConversations.map(conv => renderConversationItem(conv))}
+                  </motion.div>
+                )}
+
                 {(filter === 'all' || filter === 'channels') && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-1">
                     <div className="px-3 mb-2 flex items-center justify-between text-text-muted">

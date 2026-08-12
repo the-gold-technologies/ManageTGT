@@ -6,26 +6,18 @@
  */
 
 import { Queue, Worker, type Job } from 'bullmq'
-import IORedis from 'ioredis'
+import type IORedis from 'ioredis'
 import prisma from '@/lib/prisma'
+import { getQueueRedis } from '@/lib/redis'
 
 // ─── Redis Connection ─────────────────────────────────────────────────────────
 
-let redisConnection: IORedis | null = null
-
+/**
+ * Shared with server.js via lib/redis.js, so the whole process uses one queue
+ * connection rather than opening a second pool.
+ */
 export function getRedisConnection(): IORedis {
-  if (!redisConnection) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
-    redisConnection = new IORedis(redisUrl, {
-      maxRetriesPerRequest: null, // Required by BullMQ
-      enableReadyCheck: false,
-      lazyConnect: true,
-    })
-    redisConnection.on('error', (err) => {
-      console.warn('[NotificationQueue] Redis connection error:', err.message)
-    })
-  }
-  return redisConnection
+  return getQueueRedis()
 }
 
 // ─── Queue ────────────────────────────────────────────────────────────────────
@@ -64,6 +56,8 @@ export function startNotificationWorkers() {
         await scanDueSoonTasks()
       } else if (job.name === 'scan-overdue-invoices') {
         await scanOverdueInvoices()
+      } else if (job.name === 'send-chat-digests') {
+        await sendChatDigests()
       }
     },
     {
@@ -100,6 +94,7 @@ async function scheduleRepeatableJobs() {
       { id: 'scan-overdue-tasks',    pattern: '0 * * * *' },  // hourly at :00
       { id: 'scan-due-soon-tasks',   pattern: '30 * * * *' }, // hourly at :30
       { id: 'scan-overdue-invoices', pattern: '0 9 * * *' },  // daily at 09:00
+      { id: 'send-chat-digests',     pattern: '0 8 * * *' },  // daily at 08:00
     ]
 
     for (const { id, pattern } of schedules) {
@@ -119,19 +114,63 @@ async function handlePushJob(data: {
   title: string
   body: string
   link?: string
+  type?: string
+  tag?: string
+  entityId?: string
   priority: string
+  deviceClass?: 'desktop' | 'mobile'
+  cancelIfRead?: { conversationId: string; messageId: string }
 }) {
   try {
+    // A deferred send (the "hold mobile while active on desktop" rule) is
+    // cancelled if the recipient read past the message before it fired.
+    if (data.cancelIfRead && await hasReadPast(data.userId, data.cancelIfRead)) {
+      console.log(`[NotificationQueue] Deferred push cancelled — ${data.userId} already read it`)
+      return
+    }
+
     const { sendWebPushToUser } = await import('./web-push')
     await sendWebPushToUser(data.userId, {
-      title: data.title,
-      body:  data.body,
-      link:  data.link,
-    })
+      title:    data.title,
+      body:     data.body,
+      link:     data.link,
+      type:     data.type,
+      tag:      data.tag,
+      entityId: data.entityId,
+    }, { deviceClass: data.deviceClass })
   } catch (err) {
     console.error('[NotificationQueue] Push job failed:', err)
     throw err // Re-throw to trigger BullMQ retry
   }
+}
+
+/**
+ * True when the user's read pointer for the conversation has reached or passed
+ * the given message. Compares timestamps rather than ids because the pointer
+ * names a different message than the one being delivered.
+ */
+async function hasReadPast(
+  userId: string,
+  ref: { conversationId: string; messageId: string },
+): Promise<boolean> {
+  const participant = await prisma.chatParticipant.findFirst({
+    where:  { conversation_id: ref.conversationId, user_id: userId },
+    select: { last_read_message_id: true },
+  })
+
+  if (!participant?.last_read_message_id) return false
+
+  const [target, lastRead] = await Promise.all([
+    prisma.chatMessage.findUnique({
+      where: { id: ref.messageId }, select: { createdAt: true },
+    }),
+    prisma.chatMessage.findUnique({
+      where: { id: participant.last_read_message_id }, select: { createdAt: true },
+    }),
+  ])
+
+  if (!target || !lastRead) return false
+  return lastRead.createdAt >= target.createdAt
 }
 
 async function handleEmailJob(data: {
@@ -260,6 +299,84 @@ async function scanDueSoonTasks() {
       })
     }
   }
+}
+
+/**
+ * Daily catch-up for chat. Collects unread chat notifications from the last day
+ * and sends each person a single email, honouring their email toggle.
+ *
+ * Only unread notifications qualify, so anyone who has already caught up in the
+ * app gets nothing — a digest about messages you have read is just noise.
+ */
+async function sendChatDigests() {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
+  const pending = await prisma.notification.findMany({
+    where: {
+      type:      { in: ['chat_message', 'chat_mention'] },
+      is_read:   false,
+      createdAt: { gte: since },
+    },
+    select: {
+      user_id: true,
+      title:   true,
+      message: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 2000,
+  })
+
+  if (pending.length === 0) {
+    console.log('[NotificationQueue] Chat digest: nothing unread')
+    return
+  }
+
+  const byUser = new Map<string, typeof pending>()
+  for (const row of pending) {
+    const list = byUser.get(row.user_id)
+    if (list) list.push(row)
+    else byUser.set(row.user_id, [row])
+  }
+
+  const [users, prefs] = await Promise.all([
+    prisma.user.findMany({
+      where:  { id: { in: [...byUser.keys()] } },
+      select: { id: true, email: true, name: true },
+    }),
+    prisma.notificationPreference.findMany({
+      where:  { userId: { in: [...byUser.keys()] } },
+      select: { userId: true, emailEnabled: true, timezone: true },
+    }),
+  ])
+
+  const prefsByUser = new Map(prefs.map(p => [p.userId, p]))
+  const { sendChatDigestEmail } = await import('./email')
+
+  let sent = 0
+  for (const user of users) {
+    if (!user.email) continue
+
+    // No preference row means defaults, and email defaults to on.
+    const pref = prefsByUser.get(user.id)
+    if (pref && !pref.emailEnabled) continue
+
+    const items = (byUser.get(user.id) ?? []).map(row => ({
+      title: row.title,
+      body:  row.message,
+      at:    row.createdAt,
+    }))
+
+    const result = await sendChatDigestEmail({
+      toEmail:       user.email,
+      recipientName: user.name || 'there',
+      items,
+      timezone:      pref?.timezone ?? null,
+    })
+    if (result.success && !result.skipped) sent++
+  }
+
+  console.log(`[NotificationQueue] Chat digest: ${sent} email(s) sent`)
 }
 
 async function scanOverdueInvoices() {

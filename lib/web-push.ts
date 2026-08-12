@@ -15,9 +15,22 @@ if (publicKey && privateKey) {
 
 // ─── Send to a single endpoint ───────────────────────────────────────────────
 
+export interface WebPushPayload {
+  title: string
+  body: string
+  link?: string
+  type?: string
+  /** Groups notifications so a newer one replaces the older it supersedes. */
+  tag?: string
+  /** Lets the service worker match a notification for later dismissal. */
+  entityId?: string
+  /** 'dismiss' closes a matching notification instead of showing one. */
+  action?: 'dismiss'
+}
+
 export async function sendWebPush(
   subscription: webpush.PushSubscription,
-  payload: { title: string; body: string; link?: string; type?: string }
+  payload: WebPushPayload
 ) {
   if (!publicKey || !privateKey) {
     console.warn('[WebPush] Cannot send — VAPID keys missing')
@@ -41,19 +54,32 @@ export async function sendWebPush(
 
 // ─── Send to a user (all active devices) ──────────────────────────────────────
 
+// deviceType values that count as a phone/tablet rather than a computer.
+const MOBILE_DEVICE_TYPES = ['android_pwa', 'ios_pwa']
+
 export async function sendWebPushToUser(
   userId: string,
-  payload: { title: string; body: string; link?: string; type?: string }
+  payload: WebPushPayload,
+  options: { deviceClass?: 'desktop' | 'mobile' } = {}
 ) {
   if (!publicKey || !privateKey) return { success: false, sentCount: 0 }
 
   try {
     const subs = await prisma.pushSubscription.findMany({
-      where: { userId, isActive: true },
+      where: {
+        userId,
+        isActive: true,
+        ...(options.deviceClass === 'mobile'
+          ? { deviceType: { in: MOBILE_DEVICE_TYPES } }
+          : options.deviceClass === 'desktop'
+            ? { deviceType: { notIn: MOBILE_DEVICE_TYPES } }
+            : {}),
+      },
       select: { id: true, endpoint: true, p256dh: true, auth: true },
     })
 
-    console.log(`[WebPush] Found ${subs.length} active subscriptions for user ${userId}`)
+    const scope = options.deviceClass ? ` (${options.deviceClass} only)` : ''
+    console.log(`[WebPush] Found ${subs.length} active subscriptions for user ${userId}${scope}`)
 
     if (subs.length === 0) return { success: true, sentCount: 0 }
 

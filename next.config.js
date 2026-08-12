@@ -6,7 +6,8 @@ const nextConfig = {
     root: __dirname,
   },
   experimental: {
-    instrumentationHook: true,
+    // instrumentationHook removed: instrumentation.ts is enabled by default from
+    // Next 15, and the key is rejected as unrecognized in Next 16.
     staleTimes: {
       dynamic: 30,
       static: 180,

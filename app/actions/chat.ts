@@ -63,29 +63,53 @@ export async function getConversations() {
       lastReadMap = new Map(lastReadMessages.map(m => [m.id, m.createdAt]))
     }
 
-    const unreadCounts = await Promise.all(conversations.map(async c => {
+    // Unread and mention counts are separate numbers because they mean
+    // different things: unread drives bold text, mentions drive the badge.
+    const counts = await Promise.all(conversations.map(async c => {
       const participant = c.participants.find(p => p.user_id === session.user.id)
-      if (!participant) return 0
-      
+      if (!participant) return { unreadCount: 0, mentionCount: 0 }
+
       let afterDate = participant.joined_at
       if (participant.last_read_message_id) {
         const lastReadDate = lastReadMap.get(participant.last_read_message_id)
         if (lastReadDate) afterDate = lastReadDate
       }
-      
-      return prisma.chatMessage.count({
-        where: {
-          conversation_id: c.id,
-          createdAt: { gt: afterDate },
-          sender_id: { not: session.user.id }
-        }
-      })
+
+      const unreadWhere = {
+        conversation_id: c.id,
+        createdAt: { gt: afterDate },
+        sender_id: { not: session.user.id },
+      }
+
+      const [unreadCount, mentionCount] = await Promise.all([
+        prisma.chatMessage.count({ where: unreadWhere }),
+        prisma.chatMessage.count({
+          where: {
+            ...unreadWhere,
+            OR: [
+              { mentioned_user_ids: { has: session.user.id } },
+              { mention_scope: { in: ['HERE', 'CHANNEL', 'EVERYONE'] } },
+            ],
+          },
+        }),
+      ])
+
+      return { unreadCount, mentionCount }
     }))
 
-    const conversationsWithUnread = conversations.map((conv, idx) => ({
-      ...conv,
-      unreadCount: unreadCounts[idx]
-    }))
+    const conversationsWithUnread = conversations.map((conv, idx) => {
+      const participant = conv.participants.find(p => p.user_id === session.user.id)
+      const mutedUntil = participant?.muted_until ?? null
+      return {
+        ...conv,
+        unreadCount:  counts[idx].unreadCount,
+        mentionCount: counts[idx].mentionCount,
+        notifyLevel:  participant?.notify_level ?? 'MENTIONS',
+        mutedUntil,
+        isMuted: participant?.notify_level === 'NONE' ||
+                 (mutedUntil !== null && mutedUntil > new Date()),
+      }
+    })
 
     return { success: true, conversations: conversationsWithUnread }
   } catch (error) {
@@ -148,10 +172,31 @@ export async function getMessages(conversationId: string) {
 }
 
 // 3. Send a new message
-export async function sendMessage(conversationId: string, content: string, attachmentUrl?: string, replyToId?: string) {
+export async function sendMessage(
+  conversationId: string,
+  content: string,
+  attachmentUrl?: string,
+  replyToId?: string,
+  mentionedUserIds?: string[],
+) {
   try {
     const session = await auth()
     if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const { parseMentionScope, toPlainText, parseMentionedIds, notifyChatMessage } =
+      await import('@/lib/chat-notifications')
+
+    const text = toPlainText(content)
+    // Mentions are read out of the message body, which is authoritative — then
+    // narrowed to actual participants so a crafted request cannot notify
+    // arbitrary users. The client argument is accepted only as a fallback for
+    // callers that have not been updated.
+    const namedIds = await filterToParticipants(
+      conversationId,
+      [...parseMentionedIds(content), ...(mentionedUserIds ?? [])],
+      session.user.id,
+    )
+    const mentionScope = parseMentionScope(text, namedIds.length > 0)
 
     const message = await prisma.chatMessage.create({
       data: {
@@ -159,7 +204,9 @@ export async function sendMessage(conversationId: string, content: string, attac
         sender_id: session.user.id,
         content,
         attachment_url: attachmentUrl || null,
-        reply_to_id: replyToId || null
+        reply_to_id: replyToId || null,
+        mentioned_user_ids: namedIds,
+        mention_scope: mentionScope,
       },
       include: {
         sender: {
@@ -179,11 +226,47 @@ export async function sendMessage(conversationId: string, content: string, attac
       data: { updatedAt: new Date() }
     })
 
+    // Never let a notification failure fail the send.
+    await notifyChatMessage({
+      conversationId,
+      messageId:        message.id,
+      senderId:         session.user.id,
+      senderName:       message.sender?.name || session.user.name || 'Someone',
+      text:             text || (attachmentUrl ? 'Sent an attachment' : ''),
+      mentionedUserIds: namedIds,
+      mentionScope,
+      orgId:            session.user.orgId,
+    })
+
     return { success: true, message }
   } catch (error) {
     console.error('Error sending message:', error)
     return { success: false, error: 'Failed to send message' }
   }
+}
+
+/**
+ * Narrows client-supplied mention ids to real participants of the conversation,
+ * excluding the sender. Mentions are resolved in the browser (which knows the id
+ * behind each name), so they must be re-checked here before they can direct a
+ * notification at anyone.
+ */
+async function filterToParticipants(
+  conversationId: string,
+  candidateIds: string[] | undefined,
+  senderId: string,
+): Promise<string[]> {
+  if (!candidateIds?.length) return []
+
+  const unique = [...new Set(candidateIds)].filter(id => id && id !== senderId)
+  if (unique.length === 0) return []
+
+  const participants = await prisma.chatParticipant.findMany({
+    where:  { conversation_id: conversationId, user_id: { in: unique } },
+    select: { user_id: true },
+  })
+
+  return participants.map(p => p.user_id)
 }
 
 // 4. Create or get a 1-on-1 DM conversation
@@ -211,14 +294,15 @@ export async function getOrCreateDM(otherUserId: string) {
       return { success: true, conversationId: existing.id }
     }
 
-    // Create new DM
+    // Create new DM. Direct messages notify on every message; only group
+    // channels default to mentions-only.
     const newConv = await prisma.chatConversation.create({
       data: {
         is_group: false,
         participants: {
           create: [
-            { user_id: session.user.id },
-            { user_id: otherUserId }
+            { user_id: session.user.id, notify_level: 'ALL' },
+            { user_id: otherUserId, notify_level: 'ALL' }
           ]
         }
       }
@@ -508,8 +592,14 @@ export async function markConversationAsRead(conversationId: string) {
           last_read_message_id: latestMessage.id
         }
       })
+
+      // Clear this conversation's banner from the user's other devices. Not
+      // awaited for correctness — the read itself is already committed — but
+      // awaited so the action does not resolve before the push is handed off.
+      const { dismissConversationNotifications } = await import('@/lib/chat-notifications')
+      await dismissConversationNotifications(session.user.id, conversationId)
     }
-    
+
     return { success: true }
   } catch (error) {
     console.error('Error marking conversation as read:', error)
@@ -675,7 +765,8 @@ export async function sendThreadReply(
   parentMessageId: string,
   content: string,
   attachmentUrl?: string,
-  alsoSendToChannel: boolean = false
+  alsoSendToChannel: boolean = false,
+  mentionedUserIds?: string[],
 ) {
   try {
     const session = await auth()
@@ -688,13 +779,30 @@ export async function sendThreadReply(
     })
     if (!parentMsg) return { success: false, error: 'Parent message not found' }
 
+    const { parseMentionScope, toPlainText, parseMentionedIds, notifyChatMessage, getThreadFollowers } =
+      await import('@/lib/chat-notifications')
+
+    const text = toPlainText(content)
+    const namedIds = await filterToParticipants(
+      parentMsg.conversation_id,
+      [...parseMentionedIds(content), ...(mentionedUserIds ?? [])],
+      session.user.id,
+    )
+    const mentionScope = parseMentionScope(text, namedIds.length > 0)
+
+    // Followers must be read before the reply is written, or the sender ends up
+    // in their own audience.
+    const followers = await getThreadFollowers(parentMessageId)
+
     const reply = await prisma.chatMessage.create({
       data: {
         conversation_id: parentMsg.conversation_id,
         sender_id: session.user.id,
         content,
         attachment_url: attachmentUrl || null,
-        reply_to_id: parentMessageId
+        reply_to_id: parentMessageId,
+        mentioned_user_ids: namedIds,
+        mention_scope: mentionScope,
       },
       include: {
         sender: { select: { id: true, name: true, image: true } },
@@ -706,6 +814,21 @@ export async function sendThreadReply(
     await prisma.chatConversation.update({
       where: { id: parentMsg.conversation_id },
       data: { updatedAt: new Date() }
+    })
+
+    await notifyChatMessage({
+      conversationId:   parentMsg.conversation_id,
+      messageId:        reply.id,
+      senderId:         session.user.id,
+      senderName:       reply.sender?.name || session.user.name || 'Someone',
+      text:             text || (attachmentUrl ? 'Sent an attachment' : ''),
+      mentionedUserIds: namedIds,
+      mentionScope,
+      orgId:            session.user.orgId,
+      // "Also send to channel" promotes the reply to a normal channel message,
+      // so it addresses everyone instead of only the thread's followers.
+      restrictToUserIds: alsoSendToChannel ? undefined : followers,
+      isThreadReply:     !alsoSendToChannel,
     })
 
     return { success: true, reply, conversationId: parentMsg.conversation_id, alsoSendToChannel }
@@ -789,6 +912,88 @@ export async function updateChannelDescription(conversationId: string, descripti
     return { success: true }
   } catch (error) {
     console.error('Error updating channel description:', error)
+    return { success: false, error: 'Failed' }
+  }
+}
+
+// 23. Per-conversation notification settings
+export type ChatNotifyLevel = 'ALL' | 'MENTIONS' | 'NONE'
+
+export async function getConversationNotifySettings(conversationId: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const participant = await prisma.chatParticipant.findFirst({
+      where:  { conversation_id: conversationId, user_id: session.user.id },
+      select: { notify_level: true, muted_until: true },
+    })
+
+    if (!participant) return { success: false, error: 'Not a participant' }
+
+    return {
+      success: true,
+      level:      participant.notify_level as ChatNotifyLevel,
+      mutedUntil: participant.muted_until,
+    }
+  } catch (error) {
+    console.error('Error reading notify settings:', error)
+    return { success: false, error: 'Failed' }
+  }
+}
+
+export async function setConversationNotifyLevel(
+  conversationId: string,
+  level: ChatNotifyLevel,
+) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    if (!['ALL', 'MENTIONS', 'NONE'].includes(level)) {
+      return { success: false, error: 'Invalid level' }
+    }
+
+    // updateMany scopes the write to this user's own participant row.
+    const result = await prisma.chatParticipant.updateMany({
+      where: { conversation_id: conversationId, user_id: session.user.id },
+      data:  { notify_level: level },
+    })
+
+    if (result.count === 0) return { success: false, error: 'Not a participant' }
+    return { success: true, level }
+  } catch (error) {
+    console.error('Error setting notify level:', error)
+    return { success: false, error: 'Failed' }
+  }
+}
+
+/**
+ * Mutes a conversation for a period. Pass null to unmute. Separate from
+ * notify_level so a timed mute doesn't lose the user's underlying preference.
+ */
+export async function muteConversation(conversationId: string, minutes: number | null) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    if (minutes !== null && (!Number.isFinite(minutes) || minutes <= 0)) {
+      return { success: false, error: 'Invalid duration' }
+    }
+
+    const mutedUntil = minutes === null
+      ? null
+      : new Date(Date.now() + minutes * 60 * 1000)
+
+    const result = await prisma.chatParticipant.updateMany({
+      where: { conversation_id: conversationId, user_id: session.user.id },
+      data:  { muted_until: mutedUntil },
+    })
+
+    if (result.count === 0) return { success: false, error: 'Not a participant' }
+    return { success: true, mutedUntil }
+  } catch (error) {
+    console.error('Error muting conversation:', error)
     return { success: false, error: 'Failed' }
   }
 }

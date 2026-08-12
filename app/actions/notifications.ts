@@ -239,6 +239,53 @@ export async function removePushSubscription(id: string) {
   }
 }
 
+/**
+ * Records the browser's IANA timezone so quiet hours are evaluated in the
+ * user's own day rather than the server's. Called on app load, so it needs to
+ * be cheap and silent: it writes only when the value actually changed.
+ */
+export async function syncUserTimezone(timezone: string) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false }
+
+    // Reject anything the runtime cannot resolve, rather than storing junk that
+    // would silently fall back to server time on every notification.
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    } catch {
+      return { success: false, error: 'Invalid timezone' }
+    }
+
+    const existing = await prisma.notificationPreference.findUnique({
+      where:  { userId: session.user.id },
+      select: { timezone: true },
+    })
+
+    if (existing?.timezone === timezone) return { success: true, unchanged: true }
+
+    const dbUser = await prisma.user.findUnique({
+      where:  { id: session.user.id },
+      select: { orgId: true },
+    })
+
+    await prisma.notificationPreference.upsert({
+      where:  { userId: session.user.id },
+      create: {
+        userId: session.user.id,
+        orgId:  dbUser?.orgId || 'default_org_id',
+        timezone,
+      },
+      update: { timezone },
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error syncing timezone:', error)
+    return { success: false }
+  }
+}
+
 export async function sendTestNotification() {
   try {
     const session = await auth()

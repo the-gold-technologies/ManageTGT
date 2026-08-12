@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, Hash, User, Briefcase, CheckCircle2, Circle } from 'lucide-react'
+import { Loader2, Hash, User, Briefcase, CheckCircle2, Circle, AtSign } from 'lucide-react'
 import { getChatUsers, searchTasks } from '@/app/actions/chat'
 
 interface MentionDropdownProps {
@@ -11,9 +11,33 @@ interface MentionDropdownProps {
   onSelect: (item: { id: string, display: string, type: 'user' | 'task' }) => void
   onClose: () => void
   position: { bottom: number, left: number }
+  /** Group channels can address everyone at once; DMs cannot. */
+  allowBroadcast?: boolean
+  /** `@everyone` only means anything in the General channel. */
+  allowEveryone?: boolean
 }
 
-export function MentionDropdown({ type, query, onSelect, onClose, position }: MentionDropdownProps) {
+/**
+ * Broadcast targets. The ids are sentinels, not user ids — the server derives
+ * the audience from the `@here`/`@channel`/`@everyone` text at delivery time,
+ * because who is online (and who is a member) changes after sending.
+ */
+const BROADCAST_ITEMS = [
+  { id: '__here__',     display: 'here',     hint: 'Notify members who are online' },
+  { id: '__channel__',  display: 'channel',  hint: 'Notify every member' },
+  { id: '__everyone__', display: 'everyone', hint: 'Notify everyone in the org' },
+]
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function displayFor(item: any, kind: 'user' | 'task' | null): string {
+  if (item.isBroadcast) return item.display
+  return kind === 'user' ? item.name : item.title
+}
+
+export function MentionDropdown({
+  type, query, onSelect, onClose, position,
+  allowBroadcast = false, allowEveryone = false,
+}: MentionDropdownProps) {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -25,13 +49,24 @@ export function MentionDropdown({ type, query, onSelect, onClose, position }: Me
       setLoading(true)
       try {
         if (type === 'user') {
+          const q = query.toLowerCase()
+
+          // Broadcasts first — they are what people reach for when it's urgent.
+          const broadcasts = allowBroadcast
+            ? BROADCAST_ITEMS
+                .filter(b => allowEveryone || b.id !== '__everyone__')
+                .filter(b => b.display.startsWith(q))
+                .map(b => ({ ...b, isBroadcast: true }))
+            : []
+
           const res = await getChatUsers()
-          if (res.success && res.users) {
-            const filtered = res.users.filter((u: any) => 
-              u.name.toLowerCase().includes(query.toLowerCase())
-            )
-            setItems(filtered.slice(0, 5))
-          }
+          const people = res.success && res.users
+            ? res.users
+                .filter((u: any) => u.name.toLowerCase().includes(q))
+                .slice(0, 5)
+            : []
+
+          setItems([...broadcasts, ...people])
         } else if (type === 'task') {
           const res = await searchTasks(query)
           if (res.success && res.tasks) {
@@ -48,7 +83,7 @@ export function MentionDropdown({ type, query, onSelect, onClose, position }: Me
 
     const delay = setTimeout(fetchItems, 150)
     return () => clearTimeout(delay)
-  }, [type, query])
+  }, [type, query, allowBroadcast, allowEveryone])
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -65,11 +100,7 @@ export function MentionDropdown({ type, query, onSelect, onClose, position }: Me
         e.preventDefault()
         if (items[selectedIndex]) {
           const item = items[selectedIndex]
-          onSelect({
-            id: item.id,
-            display: type === 'user' ? item.name : item.title,
-            type
-          })
+          onSelect({ id: item.id, display: displayFor(item, type), type })
         }
       } else if (e.key === 'Escape') {
         e.preventDefault()
@@ -114,17 +145,23 @@ export function MentionDropdown({ type, query, onSelect, onClose, position }: Me
             items.map((item, index) => (
               <button
                 key={item.id}
-                onClick={() => onSelect({
-                  id: item.id,
-                  display: type === 'user' ? item.name : item.title,
-                  type
-                })}
+                onClick={() => onSelect({ id: item.id, display: displayFor(item, type), type })}
                 className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition-colors ${
                   index === selectedIndex ? 'bg-primary/10 text-primary' : 'hover:bg-bg-secondary text-text'
                 }`}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                {type === 'user' ? (
+                {item.isBroadcast ? (
+                  <>
+                    <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                      <AtSign size={13} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium truncate">@{item.display}</span>
+                      <span className="text-[10px] text-text-muted truncate">{item.hint}</span>
+                    </div>
+                  </>
+                ) : type === 'user' ? (
                   <>
                     <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-[10px] shrink-0 font-medium">
                       {item.name.substring(0, 2).toUpperCase()}

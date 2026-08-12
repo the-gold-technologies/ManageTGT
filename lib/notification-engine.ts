@@ -17,6 +17,8 @@ export type NotificationEventType =
   | 'task_due_soon'
   | 'mention'
   | 'comment'
+  | 'chat_message'
+  | 'chat_mention'
   | 'project_assigned'
   | 'project_update'
   | 'approval_required'
@@ -31,6 +33,22 @@ export type NotificationEventType =
 export type DeliveryChannel = 'in_app' | 'push' | 'email'
 export type NotificationPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
+export type DeviceClass = 'desktop' | 'mobile'
+
+/**
+ * One scheduled push send. A single notification can carry several of these so
+ * that, for example, desktop is pushed immediately while mobile is deferred and
+ * dropped if the message gets read in the meantime.
+ */
+export interface PushJobPlan {
+  /** Restrict this send to one class of device. Omit to reach every device. */
+  deviceClass?: DeviceClass
+  /** Defer the send. Used for the "hold mobile while active on desktop" rule. */
+  delayMs?: number
+  /** Skip the send if the recipient has already read past this message. */
+  cancelIfRead?: { conversationId: string; messageId: string }
+}
+
 export interface NotificationEvent {
   userId: string
   orgId: string
@@ -41,6 +59,16 @@ export interface NotificationEvent {
   entityType?: string
   entityId?: string
   priority?: NotificationPriority
+  /**
+   * Overrides the default "one push to every device" behaviour. Ignored unless
+   * the resolved channels include push.
+   */
+  pushPlan?: PushJobPlan[]
+  /**
+   * Groups this notification on the device so a newer one replaces the older it
+   * supersedes, and gives read-elsewhere dismissal something to target.
+   */
+  pushTag?: string
 }
 
 // ─── Default Delivery Rules ──────────────────────────────────────────────────
@@ -52,6 +80,10 @@ const DELIVERY_RULES: Record<NotificationEventType, DeliveryChannel[]> = {
   task_due_soon:     ['in_app', 'push'],
   mention:           ['in_app', 'push'],
   comment:           ['in_app', 'push'],
+  // Chat deliberately never emails. Per-message chat email is universally
+  // regretted; missed mentions belong in a digest instead.
+  chat_message:      ['in_app', 'push'],
+  chat_mention:      ['in_app', 'push'],
   project_assigned:  ['in_app', 'push', 'email'],
   project_update:    ['in_app'],
   approval_required: ['in_app', 'push', 'email'],
@@ -66,11 +98,37 @@ const DELIVERY_RULES: Record<NotificationEventType, DeliveryChannel[]> = {
 
 // ─── Quiet Hours Check ───────────────────────────────────────────────────────
 
-function isQuietHours(start: number | null | undefined, end: number | null | undefined): boolean {
+/**
+ * Current hour (0-23) in the given IANA timezone. Falls back to the server's
+ * clock only when no zone is stored or the stored one is unusable.
+ */
+function hourInZone(timezone: string | null | undefined): number {
+  if (!timezone) return new Date().getHours()
+  try {
+    const formatted = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour:     'numeric',
+      hour12:   false,
+    }).format(new Date())
+    // "24" appears in some locales for midnight; normalise it to 0.
+    const hour = parseInt(formatted, 10) % 24
+    return Number.isNaN(hour) ? new Date().getHours() : hour
+  } catch {
+    // Invalid timezone name — better to notify than to silence indefinitely.
+    console.warn(`[NotificationEngine] Unknown timezone "${timezone}", using server time`)
+    return new Date().getHours()
+  }
+}
+
+function isQuietHours(
+  start: number | null | undefined,
+  end: number | null | undefined,
+  timezone: string | null | undefined,
+): boolean {
   if (start == null || end == null) return false
-  const now = new Date()
-  const currentHour = now.getHours()
-  if (start <= end) {
+  const currentHour = hourInZone(timezone)
+  if (start === end) return false // a zero-length window silences nothing
+  if (start < end) {
     return currentHour >= start && currentHour < end
   }
   // Spans midnight (e.g. 22:00 → 08:00)
@@ -104,7 +162,7 @@ async function resolveChannels(
   if (!prefs.emailEnabled) channels = channels.filter(c => c !== 'email')
 
   // Apply quiet hours for push and email
-  if (isQuietHours(prefs.quietHoursStart, prefs.quietHoursEnd)) {
+  if (prefs.quietHoursEnabled && isQuietHours(prefs.quietHoursStart, prefs.quietHoursEnd, prefs.timezone)) {
     channels = channels.filter(c => c !== 'push' && c !== 'email')
   }
 
@@ -165,13 +223,27 @@ export async function dispatchNotification(event: NotificationEvent): Promise<vo
         const queue = getNotificationQueue()
 
         if (channels.includes('push')) {
-          await queue.add('send-push', {
-            userId:    event.userId,
-            title:     event.title,
-            body:      event.body,
-            link:      event.link,
-            priority:  event.priority ?? 'MEDIUM',
-          }, { attempts: 3, backoff: { type: 'exponential', delay: 2000 } })
+          // One job per plan entry, or a single unrestricted job by default.
+          const plans: PushJobPlan[] = event.pushPlan?.length ? event.pushPlan : [{}]
+
+          for (const plan of plans) {
+            await queue.add('send-push', {
+              userId:       event.userId,
+              title:        event.title,
+              body:         event.body,
+              link:         event.link,
+              type:         event.type,
+              tag:          event.pushTag,
+              entityId:     event.entityId,
+              priority:     event.priority ?? 'MEDIUM',
+              deviceClass:  plan.deviceClass,
+              cancelIfRead: plan.cancelIfRead,
+            }, {
+              attempts: 3,
+              backoff:  { type: 'exponential', delay: 2000 },
+              ...(plan.delayMs ? { delay: plan.delayMs } : {}),
+            })
+          }
         }
 
         if (channels.includes('email')) {
@@ -208,12 +280,23 @@ async function fallbackDeliver(event: NotificationEvent, channels: DeliveryChann
   if (channels.includes('push')) {
     try {
       const { sendWebPushToUser } = await import('./web-push')
-      await sendWebPushToUser(event.userId, {
-        title: event.title,
-        body: event.body,
-        link: event.link || undefined,
-        type: event.type,
-      })
+      // Without a queue there is nothing to defer with, so deferred sends are
+      // dropped rather than fired early — firing them now would defeat the
+      // whole point of holding mobile back.
+      const plans = event.pushPlan?.length
+        ? event.pushPlan.filter(p => !p.delayMs)
+        : [{} as PushJobPlan]
+
+      for (const plan of plans) {
+        await sendWebPushToUser(event.userId, {
+          title:    event.title,
+          body:     event.body,
+          link:     event.link || undefined,
+          type:     event.type,
+          tag:      event.pushTag,
+          entityId: event.entityId,
+        }, { deviceClass: plan.deviceClass })
+      }
     } catch (e) {
       console.warn('[NotificationEngine] Direct web-push fallback failed:', e)
     }
