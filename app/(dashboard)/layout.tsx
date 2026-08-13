@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import Sidebar from '@/components/layout/sidebar'
 import TopBar from '@/components/layout/topbar'
+import MobileBottomNav from '@/components/layout/mobile-bottom-nav'
 import { auth } from '@/auth'
 import prisma from '@/lib/prisma'
 
@@ -57,10 +58,11 @@ export default async function DashboardLayout({
       <Sidebar allowedModules={allowedModules} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar user={userProfile} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 pb-24 md:p-6 md:pb-6 relative">
           {children}
         </main>
       </div>
+      <MobileBottomNav allowedModules={allowedModules} />
     </div>
   )
 }

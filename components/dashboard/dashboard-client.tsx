@@ -178,10 +178,10 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
         <div className="xl:col-span-9 flex flex-col gap-6">
           
           {/* Quick Actions Bar — role-gated */}
-          <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-5 md:gap-7 -mb-1">
+          <motion.div variants={itemVariants} className="flex flex-nowrap md:flex-wrap items-center gap-5 md:gap-7 -mb-1 overflow-x-auto pb-2 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {/* Create Project — needs projects module */}
             {isProjectsVisible && (
-              <div onClick={() => setProjectModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group">
+              <div onClick={() => setProjectModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group shrink-0">
                 <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-primary transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-primary/50 group-hover:shadow-[0_0_15px_rgba(var(--primary),0.15)]">
                   <Plus size={16} />
                 </div>
@@ -189,7 +189,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
               </div>
             )}
             {/* Add Task — visible to all, opens task modal */}
-            <div onClick={() => setTaskModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group">
+            <div onClick={() => setTaskModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group shrink-0">
               <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-success transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-success/50 group-hover:shadow-[0_0_15px_rgba(var(--success),0.15)]">
                 <CheckSquare size={16} />
               </div>
@@ -197,7 +197,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
             </div>
             {/* Add Client — admin only */}
             {role === 'admin' && (
-              <div onClick={() => setClientModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group">
+              <div onClick={() => setClientModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group shrink-0">
                 <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-info transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-info/50 group-hover:shadow-[0_0_15px_rgba(var(--info),0.15)]">
                   <Users size={16} />
                 </div>
@@ -206,7 +206,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
             )}
             {/* Create Invoice — needs revenue module */}
             {hasRevenueAccess && (
-              <div onClick={() => setInvoiceModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group">
+              <div onClick={() => setInvoiceModalOpen(true)} className="flex items-center gap-2.5 cursor-pointer group shrink-0">
                 <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-warning transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-warning/50 group-hover:shadow-[0_0_15px_rgba(var(--warning),0.15)]">
                   <FileText size={16} />
                 </div>
@@ -214,7 +214,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
               </div>
             )}
             {/* Manage Files — visible to all */}
-            <div onClick={() => router.push('/files')} className="flex items-center gap-2.5 cursor-pointer group">
+            <div onClick={() => router.push('/files')} className="flex items-center gap-2.5 cursor-pointer group shrink-0">
               <div className="w-9 h-9 rounded-full bg-bg-secondary border border-border flex items-center justify-center text-accent-cyan transition-all duration-300 group-hover:bg-bg-tertiary group-hover:border-accent-cyan/50 group-hover:shadow-[0_0_15px_rgba(var(--accent-cyan),0.15)]">
                 <FolderKanban size={16} />
               </div>
@@ -314,7 +314,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
             
             {/* Pending Payments (1/3 of row 2) */}
             {hasRevenueAccess && (
-              <div className="col-span-1 lg:col-span-2">
+              <div className="col-span-2 lg:col-span-2">
                 <StatCard
                   title="Pending Payments"
                   value={formatCurrency(stats.pendingPayments)}

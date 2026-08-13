@@ -108,15 +108,15 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
   ]
 
   return (
-    <div className="w-full h-[calc(100vh-112px)] flex flex-col">
-      <div className="flex flex-col md:flex-row gap-8 flex-1 min-h-0">
+    <div className="w-full min-h-full flex flex-col">
+      <div className="flex flex-col md:flex-row gap-8 flex-1">
         {/* Sidebar Nav */}
-        <div className="w-full md:w-64 shrink-0 space-y-1">
+        <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col overflow-x-auto gap-2 md:gap-0 md:space-y-1 pb-2 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {tabs.map(tab => (
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)} 
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-glow-sm' : 'text-text-secondary hover:text-text hover:bg-bg-secondary'}`}
+              className={`whitespace-nowrap shrink-0 md:w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-glow-sm' : 'text-text-secondary hover:text-text hover:bg-bg-secondary'}`}
             >
               <tab.icon size={16} />
               {tab.label}
@@ -125,7 +125,7 @@ export default function SettingsClient({ currentProfile, initialAdminData, allow
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 min-w-0 h-full flex flex-col">
+        <div className="flex-1 flex flex-col">
           {activeTab === 'profile' && (
             <div className="space-y-6">
               {/* Profile Card */}

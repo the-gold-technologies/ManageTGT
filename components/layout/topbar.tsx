@@ -100,7 +100,7 @@ export default function TopBar({ user }: TopBarProps) {
   }
 
   return (
-    <header className="flex items-center justify-between px-6 h-16 shrink-0 pt-4">
+    <header className="flex items-center justify-between px-4 md:px-6 h-16 shrink-0 pt-4">
       {/* Left: greeting or title */}
       <div>
         {isDashboard ? (

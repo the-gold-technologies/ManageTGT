@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, Receipt } from 'lucide-react'
+import { Plus, Search, Receipt, ChevronDown } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getInvoices } from '@/app/actions/finance'
 import { getProjects } from '@/app/actions/projects'
 import { getClients } from '@/app/actions/clients'
 import { toast } from 'sonner'
-import type { Invoice, Project, Client } from '@/types'
+import type { Invoice, Project, Client, InvoiceStatus } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import StatCard from '@/components/ui/stat-card'
@@ -152,23 +152,36 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center shrink-0">
-        <div className="flex gap-3 w-full sm:w-auto flex-1">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search invoices..."
-              className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all" />
-          </div>
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {STATUSES.map(s => (
-              <button key={s} onClick={() => { setStatusFilter(s); setPage(1) }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${statusFilter === s ? 'bg-primary text-white' : 'bg-bg-secondary border border-border text-text-secondary hover:text-text'}`}>
-                {s === 'all' ? 'All' : INVOICE_STATUS_CONFIG[s as keyof typeof INVOICE_STATUS_CONFIG]?.label}
-              </button>
-            ))}
-          </div>
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Search */}
+        <div className="relative shrink-0 w-40 lg:w-64">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input 
+            value={search} 
+            onChange={e => { setSearch(e.target.value); setPage(1) }} 
+            placeholder="Search invoices..."
+            className="w-full pl-8 pr-3 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]" 
+          />
         </div>
-        <div className="flex gap-3 items-center w-full sm:w-auto">
+        
+        {/* Status Filter */}
+        <div className="shrink-0 relative">
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as InvoiceStatus | 'all'); setPage(1) }}
+            className="bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary pl-3 pr-8 py-2 focus:outline-none focus:border-primary/50 appearance-none h-[36px] w-full"
+          >
+            {STATUSES.map(s => (
+              <option key={s} value={s}>
+                {s === 'all' ? 'All Status' : INVOICE_STATUS_CONFIG[s as keyof typeof INVOICE_STATUS_CONFIG]?.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        </div>
+
+        {/* Date Filter */}
+        <div className="shrink-0">
           <DateFilterDropdown
             value={dateFilter}
             onChange={v => { setDateFilter(v); setPage(1) }}
@@ -176,6 +189,10 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
               setCustomDateStart(start); setCustomDateEnd(end); setDateFilter('custom'); setPage(1)
             }} 
           />
+        </div>
+
+        {/* Export */}
+        <div className="shrink-0">
           <ExportDropdown 
             data={filtered} 
             headers={exportHeaders} 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Plus, Hash, MessageSquare, Loader2, BellOff } from 'lucide-react'
+import { Search, Plus, Hash, MessageSquare, Loader2, BellOff, X } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 
 interface ChatSidebarProps {
@@ -150,10 +150,10 @@ export function ChatSidebar({
           <h2 className="text-xl font-bold text-text tracking-tight">Chats</h2>
           <div className="flex items-center gap-2">
             <button 
-              onClick={onOpenCreateChannel}
-              className="p-2 bg-primary text-white hover:bg-primary-hover rounded-full transition-colors shadow-glow-sm"
+              onClick={onClose}
+              className="p-2 bg-bg-secondary text-text-muted hover:text-text hover:bg-bg-tertiary rounded-full transition-colors"
             >
-              <Plus size={18} />
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -171,7 +171,7 @@ export function ChatSidebar({
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {[
             { id: 'all', label: 'All', icon: null },
             // The 'unread' branch already existed in the filter logic but had no
@@ -182,7 +182,7 @@ export function ChatSidebar({
               icon: null,
             },
             { id: 'channels', label: 'Channels', icon: <Hash size={12} /> },
-            { id: 'dms', label: 'Direct messages', icon: <MessageSquare size={12} /> }
+            { id: 'dms', label: 'DMs', icon: <MessageSquare size={12} /> }
           ].map((f) => (
             <button
               key={f.id}

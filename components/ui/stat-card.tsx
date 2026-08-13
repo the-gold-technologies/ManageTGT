@@ -73,25 +73,25 @@ export default function StatCard({
       </div>
 
       {/* BOTTOM ROW: Value+Change on left, Sparkline on right */}
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-4 mt-2">
         {/* Left: value + change */}
-        <div className="min-w-0">
+        <div className="min-w-[120px] shrink-0">
           <div className={cn("text-2xl font-bold tracking-tight leading-none mb-1.5", isOrange ? "text-white" : "text-text")}>
             {value}
           </div>
           {change !== undefined && (
-            <div className="flex items-center gap-1.5 pt-2">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-1">
               <span
                 className={cn(
-                  'flex items-center gap-1 text-[10px] font-semibold',
+                  'flex items-center gap-1 text-[11px] font-semibold',
                   isOrange ? 'text-white' : (isPositive ? 'text-success' : 'text-danger')
                 )}
               >
-                {isPositive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {isPositive ? '+' : ''}{change}%
               </span>
               {changeLabel && (
-                <span className={cn("text-xs whitespace-nowrap", isOrange ? "text-white/70" : "text-text-muted")}>{changeLabel}</span>
+                <span className={cn("text-[10px] leading-tight", isOrange ? "text-white/70" : "text-text-muted")}>{changeLabel}</span>
               )}
             </div>
           )}
@@ -99,7 +99,7 @@ export default function StatCard({
 
         {/* Right: Sparkline */}
         {chartData.length > 0 && (
-          <div className="h-12 flex-1 min-w-[60px] relative z-10 ml-2">
+          <div className="h-10 sm:h-12 flex-1 min-w-[80px] w-full relative z-10">
             <ResponsiveContainer width="100%" height="100%">
               {sparkType === 'bar' ? (
                 <BarChart data={chartData} barSize={5} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>

@@ -180,21 +180,32 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
 
   return (
     <div className="space-y-5 flex flex-col lg:h-[calc(100vh-112px)] min-h-full">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between shrink-0 gap-4 lg:gap-0">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-text">My Tasks</h2>
           <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative max-w-sm">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks..."
-              className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
-            />
-          </div>
+        <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+          <Plus size={15} /> Add Task
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full flex-nowrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[80px] lg:w-64 lg:flex-none">
+          <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search..."
+            className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
+          />
+        </div>
+
+        {/* Date Filter */}
+        <div className="flex items-center gap-2 shrink-0">
           <DateFilterDropdown 
             value={dateFilter} 
             onChange={setDateFilter} 
@@ -204,10 +215,6 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
               setDateFilter('custom')
             }} 
           />
-
-          <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
-            <Plus size={15} /> Add Task
-          </Button>
         </div>
       </div>
 
@@ -225,13 +232,13 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
           ))}
         </div>
       ) : (
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 lg:min-h-0 min-h-[500px]">
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex lg:grid lg:grid-cols-4 gap-4 flex-1 lg:min-h-0 min-h-[500px] overflow-x-auto snap-x snap-mandatory pb-4 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {COLUMNS.map(col => {
           const colTasks = filteredTasks.filter(t => t.status === col.key)
           return (
             <div 
               key={col.key} 
-              className={cn('rounded-xl border bg-bg-secondary flex flex-col overflow-hidden max-h-full', col.color)}
+              className={cn('shrink-0 w-[85vw] lg:w-auto rounded-xl border bg-bg-secondary flex flex-col overflow-hidden max-h-full snap-center lg:snap-align-none', col.color)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.key)}
             >

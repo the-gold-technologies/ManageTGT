@@ -38,7 +38,7 @@ export function TablePagination({
     }, [])
 
   return (
-    <div className="shrink-0 px-4 py-3 border-t border-border bg-bg-tertiary/30 flex items-center justify-between gap-4 flex-wrap">
+    <div className="px-4 py-3 border-t border-border bg-bg-tertiary/30 flex items-center justify-between gap-4 flex-wrap">
       {/* Left: count + page size selector */}
       <div className="flex items-center gap-3">
         <p className="text-xs text-text-muted">

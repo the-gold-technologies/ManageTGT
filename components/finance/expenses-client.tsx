@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Search, Wallet, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Search, Wallet, Trash2, Loader2, ChevronDown } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getExpenses, addExpense, updateExpense, deleteExpense } from '@/app/actions/finance'
 import { getProjects } from '@/app/actions/projects'
@@ -246,17 +246,25 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 items-center justify-between shrink-0">
-        <div className="flex gap-3 flex-wrap">
-          {['all', ...EXPENSE_TYPES].map(t => (
-            <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${typeFilter === t ? 'bg-primary text-white' : 'bg-bg-secondary border border-border text-text-secondary hover:text-text'}`}>
-              {t === 'all' ? 'All' : EXPENSE_LABELS[t]}
-            </button>
-          ))}
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Type Filter */}
+        <div className="shrink-0 relative">
+          <select
+            value={typeFilter}
+            onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }}
+            className="bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary pl-3 pr-8 py-2 focus:outline-none focus:border-primary/50 appearance-none h-[36px] w-full min-w-[140px]"
+          >
+            {['all', ...EXPENSE_TYPES].map(t => (
+              <option key={t} value={t}>
+                {t === 'all' ? 'All Expenses' : EXPENSE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
         </div>
         
-        <div className="flex gap-3 items-center">
+        {/* Date Filter */}
+        <div className="shrink-0">
           <DateFilterDropdown
             value={dateFilter}
             onChange={v => { setDateFilter(v); setPage(1) }}
@@ -264,6 +272,10 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
               setCustomDateStart(start); setCustomDateEnd(end); setDateFilter('custom'); setPage(1)
             }} 
           />
+        </div>
+
+        {/* Export */}
+        <div className="shrink-0">
           <ExportDropdown 
             data={filtered} 
             headers={exportHeaders} 

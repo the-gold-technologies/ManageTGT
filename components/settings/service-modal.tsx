@@ -55,10 +55,11 @@ export default function ServiceModal({ open, onClose }: ServiceModalProps) {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] !m-0"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-bg-secondary border border-border rounded-xl z-[70] flex flex-col shadow-2xl overflow-hidden !m-0"
+            initial={{ opacity: 0, x: 'calc(100% + 1rem)' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 'calc(100% + 1rem)' }}
+            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            className="fixed right-4 top-4 bottom-4 w-[calc(100%-2rem)] max-w-md bg-bg-secondary border border-border rounded-2xl z-[70] flex flex-col shadow-2xl overflow-hidden !m-0"
           >
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h3 className="font-semibold text-text">New Service</h3>
@@ -71,7 +72,8 @@ export default function ServiceModal({ open, onClose }: ServiceModalProps) {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 flex flex-col gap-4 flex-1 overflow-y-auto">
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Service Name *</label>
                 <input
@@ -93,7 +95,9 @@ export default function ServiceModal({ open, onClose }: ServiceModalProps) {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 mt-2">
+              </div>
+
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-border mt-auto shrink-0">
                 <button
                   type="button"
                   onClick={onClose}
@@ -103,11 +107,11 @@ export default function ServiceModal({ open, onClose }: ServiceModalProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !name.trim()}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
-                  Create
+                  {isSubmitting && <Loader2 size={14} className="animate-spin" />}
+                  {isSubmitting ? 'Creating...' : 'Create Service'}
                 </button>
               </div>
             </form>

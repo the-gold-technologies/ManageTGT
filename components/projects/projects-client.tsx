@@ -2,7 +2,7 @@
 
 import { useState, Fragment, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, FolderKanban, IndianRupee, X } from 'lucide-react'
+import { Plus, Search, FolderKanban, IndianRupee, X, ChevronDown } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { parseISO, startOfDay, isSameDay, isSameWeek, isSameMonth, isSameQuarter, isSameYear } from 'date-fns'
@@ -215,17 +215,36 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full flex-nowrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[80px] lg:w-64 lg:flex-none">
+          <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            placeholder="Search projects..."
-            className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+            placeholder="Search..."
+            className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
           />
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto flex-1">
+
+        {/* Mobile Status Dropdown */}
+        <div className="lg:hidden shrink-0 relative">
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            className="bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary pl-3 pr-8 py-2 focus:outline-none focus:border-primary/50 appearance-none h-[36px] w-full"
+          >
+            {STATUSES.map(s => (
+              <option key={s} value={s}>
+                {s === 'all' ? 'All Status' : PROJECT_STATUS_CONFIG[s as keyof typeof PROJECT_STATUS_CONFIG]?.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        </div>
+
+        {/* Desktop Status Pills */}
+        <div className="hidden lg:flex flex-wrap items-center gap-2 flex-1">
           {STATUSES.map(s => (
             <button
               key={s}
@@ -241,7 +260,8 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 shrink-0">
           <DateFilterDropdown
             value={dateFilter}
             onChange={v => { setDateFilter(v); setPage(1) }}
@@ -252,12 +272,14 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
               setPage(1)
             }}
           />
-          <ExportDropdown
-            data={filtered}
-            headers={exportHeaders}
-            filename={`projects_export_${new Date().toISOString().split('T')[0]}`}
-            mapData={mapExportData}
-          />
+          <div className="hidden lg:block">
+            <ExportDropdown
+              data={filtered}
+              headers={exportHeaders}
+              filename={`projects_export_${new Date().toISOString().split('T')[0]}`}
+              mapData={mapExportData}
+            />
+          </div>
         </div>
       </div>
 
@@ -274,9 +296,8 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           <p className="text-sm text-text-muted mt-1">Create your first project to get started</p>
         </div>
       ) : (
-        <div className="relative flex flex-col flex-1 min-h-0 group bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
-          <Glow />
-          <div className="relative z-10 overflow-x-auto overflow-y-auto flex-1">
+        <div className="flex flex-col flex-1 min-h-0 bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
             <table className="min-w-max w-full text-sm">
               <thead>
                 <tr className="bg-bg-tertiary border-b border-border">
@@ -297,7 +318,12 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                   {isAdmin && <th className="text-center px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">Payments</th>}
                 </tr>
               </thead>
-              <motion.tbody variants={containerVariants} initial="hidden" animate="show">
+              <motion.tbody
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="divide-y divide-border"
+              >
                 {paginated.map(project => {
                   const overdue = isOverdue(project.expected_completion) && !['completed', 'delivered'].includes(project.status)
                   const invoices = project.invoices ?? []
@@ -309,20 +335,20 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                       key={project.id}
                       variants={itemVariants}
                       onClick={() => { setEditingProject(project); setModalOpen(true) }}
-                      className="border-b border-border bg-bg-secondary hover:bg-bg-tertiary transition-colors cursor-pointer"
+                      className="group hover:bg-bg-tertiary/40 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium text-text">{project.name}</p>
+                        <div className="flex flex-col">
+                          <p className="font-semibold text-text">{project.name}</p>
                           <p className="text-xs text-text-muted">{project.project_code}</p>
                         </div>
                       </td>
-                      {isAdmin && <td className="px-4 py-3 text-text-secondary">{project.client?.name ?? '—'}</td>}
+                      {isAdmin && <td className="px-4 py-3"><span className="text-text-secondary text-xs">{project.client?.name ?? '—'}</span></td>}
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {project.service_type ? (
                             project.service_type.split(',').map((s, idx) => (
-                              <span key={idx} className="text-xs bg-bg-tertiary text-text-secondary px-2 py-1 rounded-md whitespace-nowrap">
+                              <span key={idx} className="text-[11px] bg-bg-tertiary text-text-secondary px-1.5 py-0.5 rounded-md whitespace-nowrap">
                                 {s.trim()}
                               </span>
                             ))
@@ -333,41 +359,22 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                       </td>
                       {isAdmin && (
                         <>
-                          <td className="px-4 py-3 font-medium text-text">{formatCurrency(project.quoted_price)}</td>
-                          <td className="px-4 py-3 font-medium text-success">
-                            {invoices.length > 0 ? formatCurrency(totalReceived) : <span className="text-text-muted text-xs">—</span>}
-                          </td>
-                          <td className="px-4 py-3 font-medium">
-                            {invoices.length > 0 ? (
-                              <span className={cn(balance > 0 ? 'text-warning' : 'text-success')}>{formatCurrency(balance)}</span>
-                            ) : <span className="text-text-muted text-xs">—</span>}
-                          </td>
+                          <td className="px-4 py-3 font-medium text-text text-xs">{formatCurrency(project.quoted_price)}</td>
+                          <td className="px-4 py-3 font-medium text-success text-xs">{invoices.length > 0 ? formatCurrency(totalReceived) : <span className="text-text-muted">—</span>}</td>
+                          <td className="px-4 py-3 font-medium text-xs">{invoices.length > 0 ? (<span className={cn(balance > 0 ? 'text-warning' : 'text-success')}>{formatCurrency(balance)}</span>) : <span className="text-text-muted">—</span>}</td>
                         </>
                       )}
-                      <td className="px-4 py-3 text-text-secondary text-xs">
-                        {project.start_date ? formatDate(project.start_date) : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn('text-xs', overdue ? 'text-danger font-semibold' : 'text-text-secondary')}>
-                          {formatDate(project.expected_completion)}
-                          {overdue && ' ⚠'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant={STATUS_BADGE_MAP[project.status]}>
-                          {PROJECT_STATUS_CONFIG[project.status]?.label}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <NoteCell note={project.notes} />
-                      </td>
+                      <td className="px-4 py-3 text-text-secondary text-xs">{project.start_date ? formatDate(project.start_date) : '—'}</td>
+                      <td className="px-4 py-3"><span className={cn('text-xs', overdue ? 'text-danger font-semibold' : 'text-text-secondary')}>{formatDate(project.expected_completion)}{overdue && ' ⚠'}</span></td>
+                      <td className="px-4 py-3"><Badge variant={STATUS_BADGE_MAP[project.status]}>{PROJECT_STATUS_CONFIG[project.status]?.label}</Badge></td>
+                      <td className="px-4 py-3"><NoteCell note={project.notes} /></td>
                       {isAdmin && (
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex justify-center">
                             <button
                               onClick={() => setPaymentProject(project)}
                               title="Click to view"
-                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-semibold tracking-wide text-text-secondary bg-bg-tertiary/50 hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all uppercase"
+                              className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold tracking-wide text-text-secondary bg-bg-tertiary hover:text-primary hover:bg-primary/10 border border-border hover:border-primary/20 transition-all uppercase"
                             >
                               <IndianRupee size={12} strokeWidth={2.5} />
                             </button>
@@ -560,7 +567,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
                     ) : (
                       <div className="rounded-xl border border-border overflow-hidden">
                         <table className="w-full text-sm">
-                          <thead>
+                          <thead className="hidden md:table-header-group">
                             <tr className="bg-bg-tertiary border-b border-border">
                               {['Date', 'Received', 'Balance', 'Mode / Notes'].map(h => (
                                 <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider whitespace-nowrap">{h}</th>
@@ -636,4 +643,6 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
     </div>
   )
 }
+
+
 

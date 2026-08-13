@@ -164,10 +164,10 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
   }, [allowedModules])
 
   return (
-    <div className="flex h-[calc(100vh-64px)] gap-0 -m-6">
-      {/* ── Left Sidebar ── */}
-      <aside className="w-52 shrink-0 border border-border bg-bg-secondary flex flex-col gap-1 py-5 px-3 overflow-y-auto rounded-xl ml-4 mt-4 mb-3">
-        <div className="px-2 mb-3">
+    <div className="absolute inset-x-4 top-4 bottom-24 md:inset-6 flex flex-col lg:flex-row">
+      {/* ── Left Sidebar / Mobile Top Nav ── */}
+      <aside className="w-full lg:w-52 shrink-0 border border-border bg-bg-secondary flex flex-row lg:flex-col gap-2 lg:gap-1 py-3 lg:py-5 px-3 overflow-x-auto lg:overflow-y-auto rounded-xl lg:mr-4 mb-3 lg:mb-0 snap-x lg:snap-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shadow-sm">
+        <div className="hidden lg:block px-2 mb-3">
           <h2 className="text-xs font-semibold text-text-muted uppercase tracking-widest">Browse</h2>
         </div>
 
@@ -176,7 +176,7 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
             key={ctx.value}
             onClick={() => setActiveContext(ctx.value)}
             className={cn(
-              'flex items-center gap-2.5 h-9 px-3 rounded-lg text-sm font-medium transition-all w-full text-left',
+              'flex items-center gap-2.5 px-3 py-2 lg:h-9 lg:py-0 rounded-lg text-sm font-medium transition-all text-left whitespace-nowrap shrink-0 lg:w-full',
               activeContext === ctx.value
                 ? 'bg-primary text-primary-foreground shadow-glow-sm'
                 : 'text-text-secondary hover:text-text hover:bg-bg-tertiary'
@@ -206,10 +206,10 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
       </aside>
 
       {/* ── Main Content ── */}
-      <div className="flex-1 flex flex-col overflow-hidden mb-3">
+      <div className="flex-1 flex flex-col overflow-hidden bg-bg-secondary border border-border rounded-xl shadow-sm">
 
         {/* Top bar */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-border shrink-0 bg-bg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 lg:px-6 py-4 border-b border-border shrink-0 bg-bg/50">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-text-secondary">Category:</span>
             <div className="relative">
@@ -226,14 +226,14 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative w-64">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 lg:gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 min-w-[120px] lg:w-64 lg:flex-none">
+              <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search files..."
-                className="w-full pl-9 pr-8 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all"
+                className="w-full pl-3 sm:pl-8 lg:pl-9 pr-8 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text">
@@ -267,9 +267,11 @@ export default function FileManagerClient({ initialFiles, clients, projects, use
               <RefreshCw size={15} className={cn(isFetching && "animate-spin")} />
             </button>
 
-            <Button onClick={() => setUploadOpen(true)} className="gap-2 shrink-0">
-              <Upload size={14} />
-              Upload File
+            <Button onClick={() => setUploadOpen(true)} className="gap-2 shrink-0 hidden sm:flex h-[36px]">
+              <Upload size={15} /> Upload
+            </Button>
+            <Button onClick={() => setUploadOpen(true)} className="shrink-0 sm:hidden h-[36px] px-3" title="Upload">
+              <Upload size={15} />
             </Button>
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
   CalendarDays, AlignLeft, Rows3, Filter, X, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getCalendarEvents, deleteCalendarEvent } from '@/app/actions/calendar'
 import type { UnifiedCalendarEvent } from '@/app/actions/calendar'
@@ -22,7 +23,7 @@ import CalendarDayView from './calendar-day-view'
 import CalendarAgendaView from './calendar-agenda-view'
 import EventDetailSidebar from './event-detail-sidebar'
 import CalendarEventModal from './calendar-event-modal'
-import { EventDot } from './event-chip'
+import { EventDot, EventChip } from './event-chip'
 
 // ─────────────────────────────────────────────────────────────
 // Types & constants
@@ -285,31 +286,59 @@ export default function CalendarClient({
 
 
   return (
-    <div className="flex flex-col h-full">
-      {/* ── Page header (lives here so New Event can open the modal) ── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+    <div className="absolute inset-x-4 top-4 bottom-24 md:inset-6 flex flex-col gap-4">
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between px-2 md:px-0 shrink-0">
         <div>
           <h1 className="text-xl font-bold text-text">Calendar</h1>
-          <p className="text-sm text-text-muted mt-0.5">All tasks, projects, invoices &amp; events in one place</p>
+          <p className="text-sm text-text-muted mt-0.5 hidden md:block">All tasks, projects, invoices &amp; events in one place</p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-text-muted px-2.5 py-1 bg-bg-secondary border border-border rounded-lg">
+          <span className="text-xs text-text-muted px-2.5 py-1 bg-bg-secondary border border-border rounded-lg hidden sm:inline-block">
             {eventCount} events this period
           </span>
-          <button
-            onClick={() => { setEditEvent(null); setDefaultModalDate(currentDate); setModalOpen(true) }}
-            className="flex items-center gap-2 h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary-hover shadow-glow-sm transition-colors"
-          >
-            <Plus size={15} />
-            New Event
-          </button>
+          <Button onClick={() => { setEditEvent(null); setDefaultModalDate(currentDate); setModalOpen(true) }}>
+            <Plus size={15} /> <span className="hidden sm:inline">New Event</span><span className="sm:hidden">New</span>
+          </Button>
         </div>
       </div>
 
-      {/* ── Body: sidebar + calendar grid ─────────────────────── */}
-      <div className="flex flex-1 min-h-0 gap-4 px-3 pt-3 pb-3">
-      {/* ── Left sidebar ──────────────────────────────────────── */}
-      <div className="w-60 shrink-0 flex flex-col gap-3 overflow-y-auto">
+      {/* ── Mobile Body: Specialized Agenda View ──────────────────────── */}
+      <div className="flex md:hidden flex-col gap-4 flex-1 min-h-0 px-3 pb-3">
+        {/* Mini Calendar wrapper */}
+        <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden shrink-0">
+          <MiniCalendar
+            selected={currentDate}
+            onSelect={(d) => setCurrentDate(d)}
+            events={filteredEvents}
+          />
+        </div>
+
+        {/* Selected Day Agenda */}
+        <div className="flex flex-col flex-1 gap-3 overflow-y-auto">
+          <h3 className="text-sm font-semibold text-text px-1">
+            {isToday(currentDate) ? 'Today' : format(currentDate, 'EEEE, MMM d, yyyy')}
+          </h3>
+          <div className="flex flex-col gap-2">
+            {filteredEvents.filter(e => isSameDay(e.start, currentDate)).length > 0 ? (
+              filteredEvents.filter(e => isSameDay(e.start, currentDate)).map(evt => (
+                <div key={evt.id} className="bg-bg-secondary border border-border rounded-xl p-1.5 shadow-sm" onClick={() => setSelectedEvent(evt)}>
+                  <EventChip event={evt} compact={false} />
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-text-muted text-center py-8 border border-dashed border-border rounded-xl bg-bg-secondary/50">
+                No events for this day
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Desktop Body: sidebar + calendar grid ─────────────────────── */}
+      <div className="hidden md:flex flex-1 min-h-0 gap-4 px-3 pt-3 pb-3">
+      {/* ── Left sidebar (hidden on mobile) ─────────────────── */}
+      <div className="hidden md:flex w-60 shrink-0 flex-col gap-3 overflow-y-auto">
         {/* Mini calendar */}
         <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden shrink-0">
           <MiniCalendar
@@ -343,7 +372,7 @@ export default function CalendarClient({
       </div>
 
       {/* ── Main calendar area ────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 bg-bg-secondary border border-border rounded-2xl overflow-hidden relative">
         {/* Toolbar */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
           {/* Nav */}
@@ -493,7 +522,7 @@ export default function CalendarClient({
 
           {/* Event detail sidebar */}
           {selectedEvent && (
-            <div className="w-72 border-l border-border shrink-0 overflow-hidden flex flex-col bg-bg-secondary">
+            <div className="absolute right-0 top-0 bottom-0 w-[280px] sm:w-80 border-l border-border shadow-2xl overflow-hidden flex flex-col bg-bg-secondary z-20">
               <EventDetailSidebar
                 event={selectedEvent}
                 onClose={() => setSelectedEvent(null)}

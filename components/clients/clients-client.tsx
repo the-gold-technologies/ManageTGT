@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
   Plus, Search, Building2, Mail, Phone, Pencil, Trash2,
-  FileText, ChevronLeft, ChevronRight, MapPin
+  FileText, ChevronLeft, ChevronRight, MapPin, ChevronDown
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -145,20 +145,36 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
       </div>
 
       {/* ── Filter Bar (same pattern as Projects page) ─── */}
-      <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full flex-nowrap">
         {/* Search */}
-        <div className="relative flex-1 max-w-sm">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <div className="relative flex-1 min-w-[80px] lg:w-64 lg:flex-none">
+          <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
           <input
             value={search}
             onChange={e => handleSearch(e.target.value)}
-            placeholder="Search clients..."
-            className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
+            placeholder="Search..."
+            className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
           />
         </div>
 
-        {/* GST filter pills */}
-        <div className="flex items-center gap-2 overflow-x-auto flex-1">
+        {/* Mobile GST Filter Dropdown */}
+        <div className="lg:hidden shrink-0 relative">
+          <select
+            value={gstFilter}
+            onChange={(e) => handleGst(e.target.value as GstFilter)}
+            className="bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary pl-3 pr-8 py-2 focus:outline-none focus:border-primary/50 appearance-none h-[36px] w-full"
+          >
+            {GST_FILTERS.map(f => (
+              <option key={f.value} value={f.value}>
+                {f.value === 'all' ? 'All GST' : f.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        </div>
+
+        {/* Desktop GST filter pills */}
+        <div className="hidden lg:flex flex-wrap items-center gap-2 flex-1">
           {GST_FILTERS.map(f => (
             <button
               key={f.value}
@@ -176,7 +192,7 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
         </div>
 
         {/* Date + Export */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <DateFilterDropdown
             value={dateFilter}
             onChange={handleDate}
@@ -186,12 +202,14 @@ export default function ClientsClient({ initialClients }: ClientsClientProps) {
               setDateFilter('custom')
             }}
           />
-          <ExportDropdown
-            data={filtered}
-            headers={exportHeaders}
-            filename={`clients_export_${new Date().toISOString().split('T')[0]}`}
-            mapData={mapExportData}
-          />
+          <div className="hidden lg:block">
+            <ExportDropdown
+              data={filtered}
+              headers={exportHeaders}
+              filename={`clients_export_${new Date().toISOString().split('T')[0]}`}
+              mapData={mapExportData}
+            />
+          </div>
         </div>
       </div>
 

@@ -123,7 +123,7 @@ export function ChatWindow({
   return (
     <div className="flex-1 flex flex-col min-h-0 relative w-full h-full bg-bg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg z-10 shrink-0">
+      <div className="relative flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg z-30 shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
           {isMobile && (
             <button onClick={onBack} className="p-2 hover:bg-bg-tertiary rounded-lg text-text-muted hover:text-text transition-colors shrink-0">
@@ -211,7 +211,7 @@ export function ChatWindow({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-b border-border bg-bg-secondary z-10 shrink-0 overflow-hidden"
+            className="relative border-b border-border bg-bg-secondary z-20 shrink-0 overflow-hidden"
           >
             <div className="p-3 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
               <div className="flex items-center justify-between mb-1">

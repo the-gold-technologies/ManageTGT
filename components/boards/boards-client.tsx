@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, CheckSquare, AlertCircle, KanbanSquare, Calendar, FileText, X } from 'lucide-react'
+import { Plus, Search, CheckSquare, AlertCircle, KanbanSquare, Calendar, FileText, X, ChevronDown } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Task, Project, Profile, TaskStatus } from '@/types'
@@ -143,36 +143,43 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
 
   return (
     <div className="space-y-5 flex flex-col lg:h-[calc(100vh-112px)] min-h-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between shrink-0 gap-4 sm:gap-0">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-text flex items-center gap-2">
-            Project Boards
-          </h2>
-          <p className="text-sm text-text-secondary mt-0.5">Manage tasks visually across your projects</p>
+          <h2 className="text-xl font-bold text-text">Project Boards</h2>
+          <p className="text-sm text-text-secondary mt-0.5">{filteredTasks?.length ?? 0} total tasks</p>
         </div>
-        <div className="flex items-center gap-3">
-           <div className="relative max-w-sm">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search board..."
-              className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all"
-            />
-          </div>
+        <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+          <Plus size={15} /> Add Task
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full flex-nowrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[80px] lg:w-64 lg:flex-none">
+          <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search board..."
+            className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
+          />
+        </div>
+
+        {/* Project Filter */}
+        <div className="shrink-0 relative">
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="px-3 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary/50 transition-all max-w-[200px]"
+            className="bg-bg-secondary border border-border rounded-lg text-sm text-text-secondary pl-3 pr-8 py-2 focus:outline-none focus:border-primary/50 appearance-none h-[36px] w-full max-w-[200px]"
           >
             <option value="all">All Projects</option>
             {projectsData.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
-          <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
-            <Plus size={15} /> Add Task
-          </Button>
+          <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
         </div>
       </div>
 
@@ -190,13 +197,13 @@ export default function BoardsClient({ userRole, userId }: BoardsClientProps) {
           ))}
         </div>
       ) : (
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 lg:min-h-0 min-h-[500px]">
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="flex lg:grid lg:grid-cols-4 gap-4 flex-1 lg:min-h-0 min-h-[500px] overflow-x-auto snap-x snap-mandatory pb-4 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {COLUMNS.map(col => {
           const colTasks = filteredTasks.filter(t => t.status === col.key)
           return (
             <div 
               key={col.key} 
-              className={cn('rounded-xl border bg-bg-secondary flex flex-col overflow-hidden max-h-full', col.color)}
+              className={cn('shrink-0 w-[85vw] lg:w-auto rounded-xl border bg-bg-secondary flex flex-col overflow-hidden max-h-full snap-center lg:snap-align-none', col.color)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.key)}
             >
