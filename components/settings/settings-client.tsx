@@ -16,7 +16,6 @@ import {
   updateNotificationPreferences,
   getPushSubscriptions,
   removePushSubscription,
-  sendTestNotification,
 } from '@/app/actions/notifications'
 import { requestAndRegisterPush } from '@/components/providers/push-notification-provider'
 
@@ -556,31 +555,6 @@ function NotificationsPanel() {
           <p className="text-[11px] text-text-muted mt-1">Go to your browser settings → Site settings → Notifications → Allow for this site.</p>
         </div>
       )}
-
-      {/* Test Notification Button */}
-      <div className="flex justify-end pt-2">
-        <button
-          onClick={async () => {
-            const toastId = toast.loading('Sending test notification...')
-            const res = await sendTestNotification()
-            if (!res.success) {
-              toast.error(res.error || 'Failed to send', { id: toastId })
-              return
-            }
-            if (!res.push?.configured) {
-              toast.warning('Sent, but push is not configured on the server (VAPID keys missing)', { id: toastId })
-            } else if (!res.push.activeDevices) {
-              toast.warning('Sent, but no push-enabled devices registered — click Enable above', { id: toastId })
-            } else {
-              toast.success(`Test notification sent to ${res.push.activeDevices} device(s)!`, { id: toastId })
-            }
-          }}
-          className="px-4 py-2 bg-bg-tertiary hover:bg-bg-tertiary/80 border border-border text-text-secondary hover:text-text text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
-        >
-          <Bell size={14} />
-          Send Test Notification
-        </button>
-      </div>
 
       {/* Per-event Matrix */}
       <div className="bg-bg-secondary border border-border rounded-xl overflow-hidden">
