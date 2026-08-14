@@ -286,3 +286,37 @@ export async function syncUserTimezone(timezone: string) {
   }
 }
 
+export async function sendTestNotification() {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+    const { dispatchNotification } = await import('@/lib/notification-engine')
+    
+    await dispatchNotification({
+      userId: session.user.id,
+      orgId: 'default_org_id',
+      type: 'system_alert',
+      title: 'It Works! 🎉',
+      body: 'Your notification system is fully operational.',
+      link: '/settings',
+    })
+
+    // Report why push may not arrive — push failures are otherwise silent.
+    const { isWebPushConfigured } = await import('@/lib/web-push')
+    const activeDevices = await prisma.pushSubscription.count({
+      where: { userId: session.user.id, isActive: true },
+    })
+
+    return {
+      success: true,
+      push: {
+        configured: isWebPushConfigured(),
+        activeDevices,
+      },
+    }
+  } catch (error) {
+    console.error('Error sending test notification:', error)
+    return { success: false, error: 'Failed to send test notification' }
+  }
+}
