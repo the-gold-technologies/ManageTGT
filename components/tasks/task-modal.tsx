@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Task, Project, Profile, TaskFile } from '@/types'
 import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile, createSubtask, toggleSubtask, deleteSubtask, addTaskComment } from '@/app/actions/tasks'
-import { uploadFileAction } from '@/app/actions/upload'
+import { createFileRecord } from '@/app/actions/files'
 import ContextFilePanel from '@/components/files/context-file-panel'
 import dynamic from 'next/dynamic'
 import '@uiw/react-md-editor/markdown-editor.css'
@@ -134,22 +134,39 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       setUploadingFiles(true)
       for (const file of selectedFiles) {
         const formData = new window.FormData()
-        formData.append('file', file)
+        formData.append('files', file)
         formData.append('folder', `tasks/${targetTaskId}`)
-        
-        const uploadResult = await uploadFileAction(formData)
-        
-        if (uploadResult.success) {
+
+        // Use the API route directly (avoids server action body size issues)
+        const res = await fetch('/api/upload', { method: 'POST', body: formData })
+        const uploadResult = await res.json()
+
+        if (uploadResult.success && uploadResult.urls?.[0]) {
+          const url = uploadResult.urls[0]
+          const storagePath = url.split('/agencyos_files/')[1] || url
+
+          // Add to TaskFile (for task modal file list)
           await addTaskFile({
             task_id: targetTaskId,
             file_name: file.name,
-            file_url: uploadResult.url,
+            file_url: url,
             file_size: file.size
+          })
+
+          // Also add to FileRecord so it shows in the Files page under Task tab
+          await createFileRecord({
+            name: file.name,
+            url,
+            storage_path: storagePath,
+            size: file.size,
+            mime_type: file.type,
+            category: 'deliverable',
+            task_id: targetTaskId,
           })
         }
       }
-        setUploadingFiles(false)
-      }
+      setUploadingFiles(false)
+    }
 
       qc.invalidateQueries({ queryKey: ['tasks'] })
       onClose()
