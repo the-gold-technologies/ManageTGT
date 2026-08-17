@@ -48,6 +48,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const isEdit = !!task
   const isRestricted = false // All users can create and edit tasks
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [existingFiles, setExistingFiles] = useState<TaskFile[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -92,6 +93,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       // Delay resetting state to avoid sync state updates in effect
       setTimeout(() => {
         setSelectedFiles([])
+        setExistingFiles(task?.files || [])
         setConfirmDelete(false)
       }, 0)
     }
@@ -213,6 +215,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
       } catch { /* non-critical */ }
       qc.invalidateQueries({ queryKey: ['tasks'] })
       qc.invalidateQueries({ queryKey: ['context-files', 'task', taskId] })
+      setExistingFiles(prev => prev.filter(f => f.id !== fileId))
       toast.success('Attachment removed')
     } catch (err: any) {
       toast.error(err.message || 'Failed to remove attachment')
@@ -366,9 +369,9 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                 <label className="block text-xs font-medium text-text-secondary mb-3">Attachments</label>
                 
                 {/* Existing Files */}
-                {isEdit && task?.files && task.files.length > 0 && (
+                {isEdit && existingFiles.length > 0 && (
                   <div className="space-y-2 mb-3">
-                    {task.files.map(f => {
+                    {existingFiles.map(f => {
                       const isImage = !!f.file_name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
                       const isPdf = !!f.file_name.match(/\.pdf$/i)
                       const sizeStr = f.file_size ? `${(f.file_size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'
@@ -418,7 +421,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                 )}
 
                     {/* Upload Zone */}
-                {((isEdit && task?.files && task.files.length > 0) || selectedFiles.length > 0) ? (
+                {((isEdit && existingFiles.length > 0) || selectedFiles.length > 0) ? (
                   <div className="relative group cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 mt-1 bg-bg-secondary border border-border rounded-lg hover:bg-bg-tertiary transition-colors text-sm font-medium text-text">
                     <input 
                       type="file" 
