@@ -180,41 +180,47 @@ export default function TasksClient({ initialTasks, projects: initialProjects, p
 
   return (
     <div className="space-y-5 flex flex-col lg:h-[calc(100vh-112px)] min-h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0">
-        <div>
-          <h2 className="text-xl font-bold text-text">My Tasks</h2>
-          <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
-        </div>
-        <Button onClick={() => { setEditingTask(null); setModalOpen(true) }}>
-          <Plus size={15} /> Add Task
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full flex-nowrap">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[80px] lg:w-64 lg:flex-none">
-          <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
-          />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-text">My Tasks</h2>
+            <p className="text-sm text-text-secondary mt-0.5">{roleFilteredTasks?.length ?? 0} total tasks</p>
+          </div>
+          <Button className="lg:hidden shrink-0" onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+            <Plus size={15} /> Add Task
+          </Button>
         </div>
 
-        {/* Date Filter */}
-        <div className="flex items-center gap-2 shrink-0">
-          <DateFilterDropdown 
-            value={dateFilter} 
-            onChange={setDateFilter} 
-            onCustomDateChange={(start, end) => {
-              setCustomDateStart(start)
-              setCustomDateEnd(end)
-              setDateFilter('custom')
-            }} 
-          />
+        {/* Filters & Actions */}
+        <div className="flex flex-row items-center gap-2 lg:gap-3 w-full lg:w-auto shrink-0 flex-nowrap overflow-x-auto lg:overflow-visible pb-1 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[120px] lg:w-64 lg:flex-none">
+            <Search size={14} className="absolute left-2.5 lg:left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none hidden sm:block" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-2 sm:pl-8 lg:pl-9 pr-2 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
+            />
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-2 shrink-0">
+            <DateFilterDropdown 
+              value={dateFilter} 
+              onChange={setDateFilter} 
+              onCustomDateChange={(start, end) => {
+                setCustomDateStart(start)
+                setCustomDateEnd(end)
+                setDateFilter('custom')
+              }} 
+            />
+          </div>
+
+          <Button className="hidden lg:flex shrink-0" onClick={() => { setEditingTask(null); setModalOpen(true) }}>
+            <Plus size={15} /> Add Task
+          </Button>
         </div>
       </div>
 
