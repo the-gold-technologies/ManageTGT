@@ -26,6 +26,11 @@ function isPdf(mimeType: string | null, name: string) {
   return (mimeType || '').includes('pdf') || name?.endsWith('.pdf')
 }
 
+function isDoc(name: string) {
+  const ext = name?.split('.').pop()?.toLowerCase() || ''
+  return ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'].includes(ext)
+}
+
 function getContextLabel(file: any) {
   if (file.client) return { label: 'Client', value: file.client.name }
   if (file.project) return { label: 'Project', value: `${file.project.project_code} — ${file.project.name}` }
@@ -45,6 +50,7 @@ interface Props {
 export default function FilePreviewModal({ file, onClose, categoryColors }: Props) {
   const img = isImage(file.mime_type, file.name)
   const pdf = isPdf(file.mime_type, file.name)
+  const doc = isDoc(file.name)
   const context = getContextLabel(file)
   const categoryColor = categoryColors[file.category] ?? categoryColors.general
   const categoryLabel = file.category?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
@@ -125,6 +131,12 @@ export default function FilePreviewModal({ file, onClose, categoryColors }: Prop
                 <iframe
                   src={file.url}
                   className="w-full h-full border-0"
+                  title={file.name}
+                />
+              ) : doc ? (
+                <iframe
+                  src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url)}`}
+                  className="w-full h-full border-0 bg-white"
                   title={file.name}
                 />
               ) : (

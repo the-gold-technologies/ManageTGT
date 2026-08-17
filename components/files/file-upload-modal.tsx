@@ -36,6 +36,9 @@ interface Props {
   currentUserId: string
   allowedModules?: string[]
   editingFile?: any
+  defaultContext?: string
+  defaultContextId?: string
+  defaultFolderId?: string
 }
 
 interface FileWithPreview {
@@ -46,7 +49,7 @@ interface FileWithPreview {
   url?: string
 }
 
-export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId, allowedModules, editingFile }: Props) {
+export default function FileUploadModal({ open, onClose, clients, projects, onSuccess, currentUserId, allowedModules, editingFile, defaultContext, defaultContextId, defaultFolderId }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -74,12 +77,12 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
     } else {
       setFiles([])
       setCategory('general')
-      setContextType('none')
-      setContextId('')
+      setContextType((defaultContext as ContextType) || 'none')
+      setContextId(defaultContextId || '')
       setSourceDate('')
       setSourceNote('')
     }
-  }, [editingFile, open])
+  }, [editingFile, open, defaultContext, defaultContextId])
 
   const reset = () => {
     setFiles([])
@@ -211,6 +214,7 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
         source_date: sourceDate || null,
         source_note: sourceNote || null,
         uploaded_by: currentUserId,
+        folder_id: defaultFolderId || null,
         ...contextField,
       })
 

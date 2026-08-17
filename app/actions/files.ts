@@ -24,9 +24,11 @@ export interface GetFilesFilters {
   category?: FileCategory
   search?: string
   includeArchived?: boolean
+  folderId?: string | null  // null = root level only, undefined = all
   /** If provided (non-admin), only return files where shared_with includes this userId */
   userId?: string
 }
+
 
 export interface CreateFileRecordInput {
   name: string
@@ -46,6 +48,8 @@ export interface CreateFileRecordInput {
   expense_id?: string | null
   // versioning
   parent_id?: string | null
+  // folder
+  folder_id?: string | null
   // uploader (pass explicitly from server actions that already have session)
   uploaded_by?: string | null
   uploader_name?: string | null
@@ -71,7 +75,7 @@ export async function getFiles(filters: GetFilesFilters = {}) {
     if (!session?.user?.id) return { success: false, error: 'Unauthorized', files: [] }
 
     const admin = await isAdmin()
-    const { context, contextId, category, search, includeArchived = false, userId } = filters
+    const { context, contextId, category, search, includeArchived = false, userId, folderId } = filters
 
     const where: any = {
       is_archived: includeArchived ? undefined : false,
@@ -117,6 +121,11 @@ export async function getFiles(filters: GetFilesFilters = {}) {
       where.category = category
     }
 
+    // Folder filter: null = root (no folder), string = specific custom folder
+    if (folderId !== undefined) {
+      where.folder_id = folderId
+    }
+
     // Search by name
     if (search) {
       where.AND.push({
@@ -151,6 +160,7 @@ export async function getFiles(filters: GetFilesFilters = {}) {
   }
 }
 
+
 // ─── Create File Record ───────────────────────────────────────────────────────
 
 export async function createFileRecord(input: CreateFileRecordInput) {
@@ -182,6 +192,7 @@ export async function createFileRecord(input: CreateFileRecordInput) {
         task_id: input.task_id ?? null,
         invoice_id: input.invoice_id ?? null,
         expense_id: input.expense_id ?? null,
+        folder_id: input.folder_id ?? null,
         version,
         parent_id: input.parent_id ?? null,
         uploaded_by: input.uploaded_by ?? session?.user?.id ?? null,

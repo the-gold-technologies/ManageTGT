@@ -64,9 +64,12 @@ interface FileCardProps {
   onVersions: () => void
   onDeleted: () => void
   onEdit: () => void
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragEnd?: () => void
 }
 
-export default function FileCard({ file, view, categoryColors, onPreview, onShare, onVersions, onDeleted, onEdit }: FileCardProps) {
+export default function FileCard({ file, view, categoryColors, onPreview, onShare, onVersions, onDeleted, onEdit, draggable: isDraggable, onDragStart, onDragEnd }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -119,8 +122,12 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97 }}
+          draggable={isDraggable}
+          onDragStart={(e: any) => { e.dataTransfer?.setData('text/plain', file.id); onDragStart?.() }}
+          onDragEnd={onDragEnd}
           className={cn(
-            'group flex items-center gap-4 px-4 py-3 bg-bg-secondary border border-border rounded-xl hover:border-primary/30 hover:bg-bg-tertiary transition-all cursor-pointer'
+            'group flex items-center gap-4 px-4 py-3 bg-bg-secondary border border-border rounded-xl hover:border-primary/30 hover:bg-bg-tertiary transition-all cursor-pointer',
+            isDraggable && 'cursor-grab active:cursor-grabbing'
           )}
           onClick={onPreview}
         >
@@ -222,19 +229,24 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
   // Grid view
   return (
     <>
-      <motion.div
+    <motion.div
         layout
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.15 }}
+        draggable={isDraggable}
+        onDragStart={(e: any) => { e.dataTransfer?.setData('text/plain', file.id); onDragStart?.() }}
+        onDragEnd={onDragEnd}
         className={cn(
-          'group relative flex flex-col bg-bg-secondary border border-border rounded-xl overflow-hidden hover:border-primary/30 hover:shadow-lg transition-all cursor-pointer'
+          'group relative flex flex-col bg-bg-secondary border border-border rounded-xl hover:border-primary/30 hover:shadow-lg transition-all cursor-pointer',
+          isDraggable && 'cursor-grab active:cursor-grabbing'
         )}
         onClick={onPreview}
       >
+
         {/* Thumbnail / Preview area */}
-        <div className="relative h-24 bg-bg-tertiary flex items-center justify-center overflow-hidden">
+        <div className="relative h-24 bg-bg-tertiary flex items-center justify-center overflow-hidden rounded-t-xl">
           {isImg ? (
             <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
           ) : isPdfFile ? (
@@ -251,35 +263,11 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
           )}
 
           {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
-            <button
-              onClick={e => { e.stopPropagation(); onPreview() }}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              title="Preview"
-            >
-              <Eye size={14} />
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); onEdit() }}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              title="Edit"
-            >
-              <Edit3 size={14} />
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); handleDownload() }}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              title="Download"
-            >
-              <Download size={14} />
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); onShare() }}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              title="Share"
-            >
-              <Share2 size={14} />
-            </button>
+          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10 pointer-events-none backdrop-blur-[1px] rounded-xl">
+            <div className="flex flex-col items-center gap-1.5 text-white/90 transform translate-y-2 group-hover:translate-y-0 transition-all duration-200">
+              <Eye size={20} />
+              <span className="text-[11px] font-semibold">Preview</span>
+            </div>
           </div>
 
           {/* Top-left Badges */}
@@ -349,6 +337,18 @@ export default function FileCard({ file, view, categoryColors, onPreview, onShar
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-1 w-40 bg-bg border border-border rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+                  <button onClick={() => { onPreview(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
+                    <Eye size={12} /> Preview
+                  </button>
+                  <button onClick={() => { onEdit(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
+                    <Edit3 size={12} /> Edit
+                  </button>
+                  <button onClick={() => { handleDownload(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
+                    <Download size={12} /> Download
+                  </button>
+                  <button onClick={() => { onShare(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
+                    <Share2 size={12} /> Share
+                  </button>
                   <button onClick={() => { onVersions(); setMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-secondary hover:text-text hover:bg-bg-secondary transition-colors">
                     <GitBranch size={12} /> Version History
                   </button>

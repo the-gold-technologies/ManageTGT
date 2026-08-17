@@ -662,6 +662,10 @@ model FileRecord {
   expense_id    String?
   expense       Expense?  @relation(fields: [expense_id], references: [id], onDelete: Cascade)
 
+  // Custom folder (user-created)
+  folder_id     String?
+  folder        FileFolder? @relation(fields: [folder_id], references: [id], onDelete: SetNull)
+
   // Versioning
   version       Int       @default(1)
   parent_id     String?
@@ -686,8 +690,30 @@ model FileRecord {
   @@index([expense_id])
   @@index([parent_id])
   @@index([uploaded_by])
+  @@index([folder_id])
   orgId String @default("default_org_id")
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model FileFolder {
+  id          String       @id @default(cuid())
+  name        String
+  // context: "all" | "client" | "project" | "prospect" | "task" | "invoice" | "expense"
+  context     String       @default("all")
+  // context_id: the id of the specific entity (e.g., project id) — null means root of context
+  context_id  String?
+  created_by  String?
+  files       FileRecord[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orgId        String       @default("default_org_id")
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([context])
+  @@index([context_id])
+  @@index([orgId])
 }
 
 enum OrgStatus {
@@ -736,6 +762,7 @@ model Organization {
   calendarEvents       CalendarEvent[]
   prospects            Prospect[]
   fileRecords          FileRecord[]
+  fileFolders          FileFolder[]
   prospectFollowUps    ProspectFollowUp[]
   ChatConversation     ChatConversation[]
 }

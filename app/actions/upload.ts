@@ -12,6 +12,16 @@ const ALLOWED_TYPES = [
   'image/png',
   'image/webp',
   'image/gif',
+  'image/svg+xml',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'text/csv',
+  'text/plain',
+  'video/mp4',
+  'video/quicktime',
+  'audio/mpeg',
+  'audio/wav',
 ]
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
@@ -25,10 +35,10 @@ export async function uploadFileAction(formData: FormData) {
 
   // Server-side validation
   if (file.size > MAX_FILE_SIZE) {
-    return { success: false, error: 'File too large. Maximum size is 50MB.' }
+    return { success: false, error: 'File too large. Maximum size is 100MB.' }
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
-    return { success: false, error: 'File type not allowed. Use PDF, Word, Excel, or image files.' }
+    return { success: false, error: 'File type not allowed. Please upload a standard document, image, video, audio, or zip file.' }
   }
 
   try {
@@ -81,11 +91,11 @@ export async function uploadMultipleFilesAction(formData: FormData) {
 
       // Server-side validation per file
       if (file.size > MAX_FILE_SIZE) {
-        errors.push(`${file.name}: too large (max 50MB)`)
+        errors.push(`${file.name}: too large (max 100MB)`)
         continue
       }
       if (!ALLOWED_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: type not allowed`)
+        errors.push(`${file.name}: file type not supported`)
         continue
       }
 
