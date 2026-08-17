@@ -26,12 +26,6 @@ const ALLOWED_TYPES = [
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
-
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
