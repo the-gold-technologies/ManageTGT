@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { dispatchNotification } from '@/lib/notification-engine'
+import { notifyOrgAdmins } from './notifications'
 
 export async function getTasks() {
   try {
@@ -93,6 +94,17 @@ export async function updateTaskStatus(id: string, status: any, completion_date?
       })
     }
 
+    await notifyOrgAdmins({
+      orgId: result.orgId,
+      type: 'task_status',
+      title: 'Task Status Updated',
+      body: `Status changed to ${status} for task: ${result.title}`,
+      link: '/my-tasks',
+      entityType: 'task',
+      entityId: result.id,
+      excludeUserId: session?.user?.id,
+    })
+
     revalidatePath('/', 'layout')
     return { success: true }
   } catch (error) {
@@ -164,6 +176,17 @@ export async function createTask(data: any) {
       }
     }
 
+    await notifyOrgAdmins({
+      orgId: result.orgId,
+      type: 'system_alert',
+      title: 'New Task Created',
+      body: `A new task was created: ${result.title}`,
+      link: '/my-tasks',
+      entityType: 'task',
+      entityId: result.id,
+      excludeUserId: session?.user?.id,
+    })
+
     revalidatePath('/', 'layout')
     return { success: true, task: result }
   } catch (error) {
@@ -198,6 +221,17 @@ export async function updateTask(id: string, data: any) {
       })
 
       return task
+    })
+
+    await notifyOrgAdmins({
+      orgId: result.orgId,
+      type: 'system_alert',
+      title: 'Task Details Updated',
+      body: `Details were updated for task: ${result.title}`,
+      link: '/my-tasks',
+      entityType: 'task',
+      entityId: result.id,
+      excludeUserId: session?.user?.id,
     })
 
     revalidatePath('/', 'layout')
@@ -238,6 +272,21 @@ export async function addTaskFile(data: any) {
       console.warn('FileRecord sync failed for task file:', syncErr)
     }
 
+    const session = await auth()
+    const task = await prisma.task.findUnique({ where: { id: data.task_id }, select: { orgId: true, title: true } })
+    if (task) {
+      await notifyOrgAdmins({
+        orgId: task.orgId,
+        type: 'system_alert',
+        title: 'File Added to Task',
+        body: `A file was added to task: ${task.title}`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: data.task_id,
+        excludeUserId: session?.user?.id,
+      })
+    }
+
     revalidatePath('/my-tasks')
     return { success: true, file }
   } catch (error) {
@@ -248,8 +297,10 @@ export async function addTaskFile(data: any) {
 
 export async function deleteTaskFile(id: string) {
   try {
+    const session = await auth()
     const deletedFile = await prisma.taskFile.delete({
-      where: { id }
+      where: { id },
+      include: { task: { select: { orgId: true, title: true } } }
     })
     
     // Sync: also remove from File Manager (FileRecord)
@@ -264,6 +315,19 @@ export async function deleteTaskFile(id: string) {
       } catch (syncErr) {
         console.warn('Failed to delete corresponding FileRecord:', syncErr)
       }
+    }
+
+    if (deletedFile && deletedFile.task) {
+      await notifyOrgAdmins({
+        orgId: deletedFile.task.orgId,
+        type: 'system_alert',
+        title: 'File Removed from Task',
+        body: `A file was removed from task: ${deletedFile.task.title}`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: deletedFile.task_id,
+        excludeUserId: session?.user?.id,
+      })
     }
 
     revalidatePath('/my-tasks')
@@ -309,9 +373,25 @@ export async function logActivity(data: { task_id?: string, project_id?: string,
 
 export async function createSubtask(taskId: string, title: string) {
   try {
+    const session = await auth()
     const subtask = await prisma.subtask.create({
-      data: { task_id: taskId, title }
+      data: { task_id: taskId, title },
+      include: { task: { select: { orgId: true, title: true } } }
     })
+    
+    if (subtask && subtask.task) {
+      await notifyOrgAdmins({
+        orgId: subtask.task.orgId,
+        type: 'system_alert',
+        title: 'Subtask Added',
+        body: `A subtask was added to task: ${subtask.task.title}`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: taskId,
+        excludeUserId: session?.user?.id,
+      })
+    }
+    
     revalidatePath('/', 'layout')
     return { success: true, subtask }
   } catch (error) {
@@ -322,10 +402,26 @@ export async function createSubtask(taskId: string, title: string) {
 
 export async function toggleSubtask(id: string, is_completed: boolean) {
   try {
+    const session = await auth()
     const subtask = await prisma.subtask.update({
       where: { id },
-      data: { is_completed }
+      data: { is_completed },
+      include: { task: { select: { orgId: true, title: true } } }
     })
+    
+    if (subtask && subtask.task) {
+      await notifyOrgAdmins({
+        orgId: subtask.task.orgId,
+        type: 'system_alert',
+        title: 'Subtask Updated',
+        body: `A subtask in task ${subtask.task.title} was marked as ${is_completed ? 'completed' : 'incomplete'}.`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: subtask.task_id,
+        excludeUserId: session?.user?.id,
+      })
+    }
+    
     revalidatePath('/', 'layout')
     return { success: true, subtask }
   } catch (error) {
@@ -336,9 +432,25 @@ export async function toggleSubtask(id: string, is_completed: boolean) {
 
 export async function deleteSubtask(id: string) {
   try {
-    await prisma.subtask.delete({
-      where: { id }
+    const session = await auth()
+    const subtask = await prisma.subtask.delete({
+      where: { id },
+      include: { task: { select: { orgId: true, title: true } } }
     })
+    
+    if (subtask && subtask.task) {
+      await notifyOrgAdmins({
+        orgId: subtask.task.orgId,
+        type: 'system_alert',
+        title: 'Subtask Deleted',
+        body: `A subtask was deleted from task: ${subtask.task.title}`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: subtask.task_id,
+        excludeUserId: session?.user?.id,
+      })
+    }
+    
     revalidatePath('/', 'layout')
     return { success: true }
   } catch (error) {
@@ -359,6 +471,20 @@ export async function addTaskComment(taskId: string, comment: string) {
         metadata: { comment }
       }
     })
+    
+    const task = await prisma.task.findUnique({ where: { id: taskId }, select: { orgId: true, title: true } })
+    if (task) {
+      await notifyOrgAdmins({
+        orgId: task.orgId,
+        type: 'comment',
+        title: 'New Comment on Task',
+        body: `A comment was added to task: ${task.title}`,
+        link: '/my-tasks',
+        entityType: 'task',
+        entityId: taskId,
+        excludeUserId: session?.user?.id,
+      })
+    }
     
     revalidatePath('/', 'layout')
     return { success: true }

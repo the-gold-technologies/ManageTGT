@@ -320,3 +320,50 @@ export async function sendTestNotification() {
     return { success: false, error: 'Failed to send test notification' }
   }
 }
+
+// ─── Admin Notifications ──────────────────────────────────────────────────────
+
+export async function notifyOrgAdmins(data: {
+  orgId: string
+  type: string
+  title: string
+  body: string
+  link?: string
+  entityType?: string
+  entityId?: string
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+  excludeUserId?: string
+}) {
+  try {
+    const admins = await prisma.user.findMany({
+      where: {
+        orgId: data.orgId,
+        isSuperAdmin: false,
+        role: {
+          name: 'admin'
+        }
+      },
+      select: { id: true }
+    })
+
+    const { dispatchNotification } = await import('@/lib/notification-engine')
+
+    for (const admin of admins) {
+      if (admin.id === data.excludeUserId) continue
+
+      await dispatchNotification({
+        userId: admin.id,
+        orgId: data.orgId,
+        type: data.type as any,
+        title: data.title,
+        body: data.body,
+        link: data.link,
+        entityType: data.entityType,
+        entityId: data.entityId,
+        priority: data.priority ?? 'MEDIUM',
+      })
+    }
+  } catch (error) {
+    console.error('Error notifying org admins:', error)
+  }
+}

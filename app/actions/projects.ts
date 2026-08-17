@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { dispatchNotification } from '@/lib/notification-engine'
+import { notifyOrgAdmins } from './notifications'
 import { logActivity } from './tasks'
 import { auth } from '@/auth'
 
@@ -190,6 +191,17 @@ export async function createProject(data: any) {
       action: `Created project: ${project.name}`,
     })
 
+    await notifyOrgAdmins({
+      orgId: project.orgId,
+      type: 'system_alert',
+      title: 'New Project Created',
+      body: `Project ${project.name} has been created.`,
+      link: '/projects',
+      entityType: 'project',
+      entityId: project.id,
+      excludeUserId: session?.user?.id,
+    })
+
     revalidatePath('/projects')
     revalidatePath('/targets')
     revalidatePath('/')
@@ -275,6 +287,17 @@ export async function updateProject(id: string, data: any) {
         }
       }
     }
+
+    await notifyOrgAdmins({
+      orgId: project.orgId,
+      type: 'project_update',
+      title: 'Project Updated',
+      body: `Project ${project.name} has been updated.`,
+      link: '/projects',
+      entityType: 'project',
+      entityId: project.id,
+      excludeUserId: session?.user?.id,
+    })
 
     revalidatePath('/projects')
     return { success: true, project }
