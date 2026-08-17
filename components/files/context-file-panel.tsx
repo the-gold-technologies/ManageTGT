@@ -16,7 +16,6 @@ import {
   createFileRecord,
   deleteFileRecord,
 } from '@/app/actions/files'
-import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import FilePreviewModal from './file-preview-modal'
 
@@ -171,7 +170,8 @@ const ContextFilePanel = forwardRef<ContextFilePanelRef, Props>(({
     formData.append('folder', folder)
 
     setPendingFiles(prev => prev.map(f => ({ ...f, status: 'uploading' as const })))
-    const result = await uploadMultipleFilesAction(formData)
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const result = await res.json()
 
     if (!result.success || !result.urls) {
       toast.error('Upload failed')

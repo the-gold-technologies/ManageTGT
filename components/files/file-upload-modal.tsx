@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { uploadMultipleFilesAction } from '@/app/actions/upload'
 import { createFileRecord, updateFileRecord } from '@/app/actions/files'
 import { Button } from '@/components/ui/button'
 
@@ -178,7 +177,8 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
     files.forEach(f => formData.append('files', f.file))
     formData.append('folder', folder)
 
-    const uploadResult = await uploadMultipleFilesAction(formData)
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const uploadResult = await res.json()
 
     if (!uploadResult.success || !uploadResult.urls) {
       toast.error('Upload failed: ' + uploadResult.error)
