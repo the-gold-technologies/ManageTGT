@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Task, Project, Profile, TaskFile } from '@/types'
 import { createTask, updateTask, deleteTask, getTaskActivity, logActivity, addTaskFile, deleteTaskFile, createSubtask, toggleSubtask, deleteSubtask, addTaskComment } from '@/app/actions/tasks'
-import { createFileRecord } from '@/app/actions/files'
+import { createFileRecord, deleteFileRecord } from '@/app/actions/files'
 import ContextFilePanel from '@/components/files/context-file-panel'
 import dynamic from 'next/dynamic'
 import '@uiw/react-md-editor/markdown-editor.css'
@@ -49,6 +49,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const isRestricted = false // All users can create and edit tasks
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
@@ -145,15 +146,7 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
           const url = uploadResult.urls[0]
           const storagePath = url.split('/agencyos_files/')[1] || url
 
-          // Add to TaskFile (for task modal file list)
-          await addTaskFile({
-            task_id: targetTaskId,
-            file_name: file.name,
-            file_url: url,
-            file_size: file.size
-          })
-
-          // Also add to FileRecord so it shows in the Files page under Task tab
+          // createFileRecord auto-syncs to TaskFile table when task_id is set
           await createFileRecord({
             name: file.name,
             url,
@@ -205,6 +198,27 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
   const handleClose = () => {
     setConfirmDelete(false)
     onClose()
+  }
+
+  const handleDeleteFile = async (fileId: string, fileUrl: string, taskId: string) => {
+    setDeletingFileId(fileId)
+    try {
+      // Remove from TaskFile table
+      await deleteTaskFile(fileId)
+      // Also remove from FileRecord table (so Files page stays in sync)
+      try {
+        const { files } = await import('@/app/actions/files').then(m => m.getFiles({ context: 'task', contextId: taskId }))
+        const match = (files ?? []).find((f: any) => f.url === fileUrl)
+        if (match) await deleteFileRecord(match.id)
+      } catch { /* non-critical */ }
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['context-files', 'task', taskId] })
+      toast.success('Attachment removed')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove attachment')
+    } finally {
+      setDeletingFileId(null)
+    }
   }
 
   const inputClass = "w-full px-3 py-2 bg-bg border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -358,9 +372,10 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                       const isImage = !!f.file_name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
                       const isPdf = !!f.file_name.match(/\.pdf$/i)
                       const sizeStr = f.file_size ? `${(f.file_size / 1024 / 1024).toFixed(2)} MB` : 'Unknown size'
+                      const isDeleting = deletingFileId === f.id
 
                       return (
-                        <div key={f.id} className="flex items-center gap-3 p-2 rounded-xl bg-bg-secondary border border-border">
+                        <div key={f.id} className={cn("flex items-center gap-3 p-2 rounded-xl bg-bg-secondary border border-border transition-opacity", isDeleting && "opacity-50 pointer-events-none")}>
                           <div className="w-12 h-12 rounded-lg bg-bg border border-border/50 flex items-center justify-center overflow-hidden shrink-0">
                             {isImage ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -382,9 +397,20 @@ export default function TaskModal({ open, onClose, task, projects, profiles, use
                             <p className="text-xs text-text-muted">{sizeStr}</p>
                           </div>
 
-                          <a href={f.file_url} target="_blank" download className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-bg-tertiary text-text-secondary hover:text-text transition-colors shrink-0">
-                            <Download size={16} />
-                          </a>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <a href={f.file_url} target="_blank" download className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-bg-tertiary text-text-secondary hover:text-text transition-colors">
+                              <Download size={15} />
+                            </a>
+                            <button
+                              type="button"
+                              disabled={isDeleting}
+                              onClick={() => task?.id && handleDeleteFile(f.id, f.file_url, task.id)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-danger/10 text-text-muted hover:text-danger transition-colors"
+                              title="Remove attachment"
+                            >
+                              {isDeleting ? <Loader2 size={15} className="animate-spin text-danger" /> : <Trash2 size={15} />}
+                            </button>
+                          </div>
                         </div>
                       )
                     })}
