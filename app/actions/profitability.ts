@@ -3,11 +3,25 @@
 import prisma from '@/lib/prisma'
 import { calculateProfit, calculateMargin } from '@/lib/utils'
 
-export async function getProfitabilityData() {
+export async function getProfitabilityData(startDate?: Date | string | null, endDate?: Date | string | null) {
+  const invoiceWhere: any = {}
+  const expenseWhere: any = {}
+
+  if (startDate) {
+    invoiceWhere.invoice_date = { gte: new Date(startDate) }
+    expenseWhere.date = { gte: new Date(startDate) }
+  }
+  if (endDate) {
+    if (!invoiceWhere.invoice_date) invoiceWhere.invoice_date = {}
+    if (!expenseWhere.date) expenseWhere.date = {}
+    invoiceWhere.invoice_date.lte = new Date(endDate)
+    expenseWhere.date.lte = new Date(endDate)
+  }
+
   const [projects, invoices, expenses] = await Promise.all([
     prisma.project.findMany({ select: { id: true, project_code: true, name: true, client: { select: { name: true } } } }),
-    prisma.invoice.findMany({ select: { project_id: true, amount_received: true, gst_applied: true } }),
-    prisma.expense.findMany({ select: { project_id: true, amount: true } }),
+    prisma.invoice.findMany({ where: invoiceWhere, select: { project_id: true, amount_received: true, gst_applied: true } }),
+    prisma.expense.findMany({ where: expenseWhere, select: { project_id: true, amount: true } }),
   ])
 
   const generalRevenue = (invoices ?? [])

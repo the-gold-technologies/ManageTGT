@@ -246,7 +246,7 @@ export default function ExpensesClient({ initialExpenses, projects }: ExpensesCl
         </div>
       )}
 
-      <div className="flex flex-row items-center gap-2 lg:gap-3 shrink-0 w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-row flex-wrap items-center gap-2 lg:gap-3 shrink-0 w-full pb-1">
         {/* Type Filter */}
         <div className="shrink-0 relative">
           <select

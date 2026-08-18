@@ -1,13 +1,30 @@
 'use client'
 
+import { useState } from 'react'
 import { formatCurrency, calculateMargin } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import StatCard from '@/components/ui/stat-card'
-import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { getProfitabilityData } from '@/app/actions/profitability'
 import { motion, Variants } from 'framer-motion'
+import DateFilterDropdown, { DateFilterValue } from '@/components/ui/date-filter-dropdown'
+import ExportDropdown from '@/components/ui/export-dropdown'
+import { startOfDay, startOfWeek, startOfMonth, startOfQuarter, startOfYear, endOfDay, endOfWeek, endOfMonth, endOfQuarter, endOfYear } from 'date-fns'
+
+function getDateRange(filter: DateFilterValue, customStart: Date | null, customEnd: Date | null): { start: Date | null, end: Date | null } {
+  const now = new Date()
+  switch (filter) {
+    case 'today': return { start: startOfDay(now), end: endOfDay(now) }
+    case 'this_week': return { start: startOfWeek(now), end: endOfWeek(now) }
+    case 'this_month': return { start: startOfMonth(now), end: endOfMonth(now) }
+    case 'this_quarter': return { start: startOfQuarter(now), end: endOfQuarter(now) }
+    case 'this_year': return { start: startOfYear(now), end: endOfYear(now) }
+    case 'custom': return { start: customStart, end: customEnd }
+    default: return { start: null, end: null }
+  }
+}
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -19,25 +36,83 @@ const itemVariants: Variants = {
 }
 
 export default function ProfitabilityClient() {
+  const [search, setSearch] = useState('')
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>('all')
+  const [customDateStart, setCustomDateStart] = useState<Date | null>(null)
+  const [customDateEnd, setCustomDateEnd] = useState<Date | null>(null)
+
+  const { start, end } = getDateRange(dateFilter, customDateStart, customDateEnd)
+
   const { data, isLoading } = useQuery({
-    queryKey: ['profitability'],
+    queryKey: ['profitability', start?.toISOString(), end?.toISOString()],
     queryFn: async () => {
-      return await getProfitabilityData()
+      return await getProfitabilityData(start?.toISOString(), end?.toISOString())
     }
   })
 
   const profitData = data ?? []
 
-  const totalRevenue = profitData.reduce((s, p) => s + p.revenue, 0)
-  const totalExpenses = profitData.reduce((s, p) => s + p.expense, 0)
+  const filtered = profitData.filter(p => {
+    const s = search.toLowerCase()
+    return p.name.toLowerCase().includes(s) || 
+           p.project_code.toLowerCase().includes(s) || 
+           (p.client || '').toLowerCase().includes(s)
+  })
+
+  const totalRevenue = filtered.reduce((s, p) => s + p.revenue, 0)
+  const totalExpenses = filtered.reduce((s, p) => s + p.expense, 0)
   const totalProfit = totalRevenue - totalExpenses
   const overallMargin = calculateMargin(totalRevenue, totalProfit)
 
+  const exportHeaders = ['Project', 'Client', 'Revenue', 'Expenses', 'Profit', 'Margin']
+  const mapExportData = (p: any) => [
+    `${p.name} (${p.project_code})`,
+    p.client,
+    p.revenue,
+    p.expense,
+    p.profit,
+    `${p.margin}%`
+  ]
+
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-text">Profitability</h2>
-        <p className="text-sm text-text-secondary mt-0.5">Revenue minus expenses per project</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-text">Profitability</h2>
+          <p className="text-sm text-text-secondary mt-0.5">Revenue minus expenses per project</p>
+        </div>
+
+        <div className="flex flex-row flex-wrap items-center gap-2 lg:gap-3 shrink-0 w-full sm:w-auto">
+          <div className="relative shrink-0 w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-primary/50 transition-all h-[36px]"
+            />
+          </div>
+
+          <div className="shrink-0">
+            <DateFilterDropdown
+              value={dateFilter}
+              onChange={setDateFilter}
+              onCustomDateChange={(s, e) => {
+                setCustomDateStart(s); setCustomDateEnd(e); setDateFilter('custom');
+              }} 
+            />
+          </div>
+
+          <div className="shrink-0">
+            <ExportDropdown 
+              data={filtered} 
+              headers={exportHeaders} 
+              filename={`profitability_export_${new Date().toISOString().split('T')[0]}`} 
+              mapData={mapExportData} 
+            />
+          </div>
+        </div>
       </div>
 
       {isLoading ? (
@@ -68,12 +143,12 @@ export default function ProfitabilityClient() {
                   </tr>
                 </thead>
                 <tbody>
-                  {profitData.length === 0 ? (
+                  {filtered.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-10 text-center text-text-muted">No profitability data found</td>
                     </tr>
                   ) : (
-                    profitData.map(row => (
+                    filtered.map(row => (
                       <tr key={row.id} className="border-b border-border hover:bg-bg-tertiary transition-colors">
                         <td className="px-5 py-3">
                           <p className="font-semibold text-text">{row.name}</p>
