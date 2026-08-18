@@ -266,7 +266,7 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-text">{editingFile ? 'Edit File Details' : 'Upload File'}</h3>
-                  {!editingFile && <p className="text-xs text-text-muted">Max 100MB · PDF, Word, Excel, Images</p>}
+                  {!editingFile && <p className="text-xs text-text-muted">Max 50MB · PDF, Word, Excel, Images, Zip, Video</p>}
                 </div>
               </div>
               <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-bg-secondary text-text-muted hover:text-text transition-colors">
@@ -295,12 +295,12 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
                   type="file"
                   multiple
                   className="hidden"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.gif"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.gif,.zip,.rar,.mp4,.mov"
                   onChange={e => e.target.files && addFiles(Array.from(e.target.files))}
                 />
                 <FolderOpen size={28} className="mx-auto mb-2 text-text-muted" />
                 <p className="text-sm font-medium text-text">Drop files here or click to browse</p>
-                <p className="text-xs text-text-muted mt-1">PDF, Word, Excel, Images up to 100MB each</p>
+                <p className="text-xs text-text-muted mt-1">PDF, Word, Excel, Images, Zip, Video up to 50MB each</p>
               </div>
 
               {/* Selected files list */}
