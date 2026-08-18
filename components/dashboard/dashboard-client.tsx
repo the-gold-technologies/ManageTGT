@@ -793,7 +793,7 @@ function DashboardContent({ data: initialData, userRole }: DashboardClientProps)
       <InvoiceModal
         open={invoiceModalOpen}
         onClose={() => setInvoiceModalOpen(false)}
-        invoice={null}
+        invoice={editingInvoice ? (recentData.recentInvoices.find((i: any) => i.id === editingInvoice.id) || editingInvoice) : null}
         projects={projectsData as any}
         clients={clientsData}
       />

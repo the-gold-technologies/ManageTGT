@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Invoice, Project, Client } from '@/types'
-import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment } from '@/app/actions/finance'
+import { createInvoice, updateInvoice, deleteInvoice, recordInvoicePayment, updateInvoicePayment } from '@/app/actions/finance'
 import ContextFilePanel from '@/components/files/context-file-panel'
 import SmartCurrencyInput from '@/components/ui/usd-tooltip-input'
 import { AutoResizeTextarea } from '@/components/ui/auto-resize-textarea'
@@ -67,28 +67,46 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
 
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [newPayment, setNewPayment] = useState({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
 
   const handleAddPayment = async () => {
     if (!newPayment.amount || !invoice) return
     setIsSubmittingPayment(true)
-    const res = await recordInvoicePayment(invoice.id, {
-      amount: Number(newPayment.amount),
-      payment_date: newPayment.date,
-      payment_mode: newPayment.mode,
-      notes: newPayment.notes
-    })
+    
+    let res;
+    if (editingPaymentId) {
+      res = await updateInvoicePayment(editingPaymentId, {
+        amount: Number(newPayment.amount),
+        payment_date: newPayment.date,
+        payment_mode: newPayment.mode,
+        notes: newPayment.notes
+      })
+    } else {
+      res = await recordInvoicePayment(invoice.id, {
+        amount: Number(newPayment.amount),
+        payment_date: newPayment.date,
+        payment_mode: newPayment.mode,
+        notes: newPayment.notes
+      })
+    }
+    
     if (res.success) {
-      toast.success('Payment recorded')
+      toast.success(editingPaymentId ? 'Payment updated' : 'Payment recorded')
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['profitability'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       setShowPaymentForm(false)
+      setEditingPaymentId(null)
       setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' })
-      // Update the form's amount_received so the smart status picks it up
-      setValue('amount_received', Number(getValues('amount_received')) + Number(newPayment.amount), { shouldDirty: true })
+      
+      // We don't try to manually calculate amount_received difference for edits, 
+      // the smart status will reflect when the modal reopens or parent re-renders.
+      if (!editingPaymentId) {
+        setValue('amount_received', Number(getValues('amount_received')) + Number(newPayment.amount), { shouldDirty: true })
+      }
     } else {
-      toast.error('Failed to record payment')
+      toast.error(editingPaymentId ? 'Failed to update payment' : 'Failed to record payment')
     }
     setIsSubmittingPayment(false)
   }
@@ -192,7 +210,8 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
       setShowFullForm(!invoice)
       setFiles([])
     }
-  }, [open, invoice, reset])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, invoice?.id, reset])
 
   const handleDelete = async () => {
     if (!invoice) return
@@ -519,7 +538,11 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                 <div className={showFullForm ? "mt-8 border-t border-border pt-6" : ""}>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-semibold text-text text-sm">Payment History</h4>
-                    <Button type="button" size="sm" onClick={() => setShowPaymentForm(!showPaymentForm)} className="h-8 text-xs bg-primary hover:bg-primary/90 text-white rounded-lg px-3">
+                    <Button type="button" size="sm" onClick={() => {
+                      setEditingPaymentId(null);
+                      setNewPayment({ amount: '', date: new Date().toISOString().split('T')[0], mode: 'bank_transfer', notes: '' });
+                      setShowPaymentForm(!showPaymentForm);
+                    }} className="h-8 text-xs bg-primary hover:bg-primary/90 text-white rounded-lg px-3">
                       <Plus size={14} className="mr-1 inline-block" /> Add Payment
                     </Button>
                   </div>
@@ -585,14 +608,19 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                     return (
                       <div className="space-y-2">
                         {hasLegacy && (
-                          <div className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between opacity-80">
+                          <div className="p-3 bg-bg border border-border rounded-lg flex items-center justify-between">
                             <div>
                               <p className="text-sm font-semibold text-text">₹{legacyAmount.toLocaleString('en-IN')}</p>
                               <p className="text-[10px] text-text-muted mt-0.5">
                                 {invoice.payment_date ? new Date(invoice.payment_date).toLocaleDateString() : 'Initial Record'} &middot; {invoice.payment_mode ? invoice.payment_mode.replace('_', ' ').toUpperCase() : 'LEGACY'}
                               </p>
                             </div>
-                            <p className="text-[10px] text-text-secondary max-w-[50%] truncate text-right italic border border-border px-1.5 py-0.5 rounded bg-bg-secondary">Initial Record</p>
+                            <div className="flex items-center gap-3">
+                              <p className="text-[10px] text-text-secondary truncate italic border border-border px-1.5 py-0.5 rounded bg-bg-secondary">Initial Record</p>
+                              <button type="button" onClick={() => setShowFullForm(true)} className="text-xs font-medium text-primary hover:underline">
+                                Edit
+                              </button>
+                            </div>
                           </div>
                         )}
                         
@@ -602,7 +630,25 @@ export default function InvoiceModal({ open, onClose, invoice, projects, clients
                               <p className="text-sm font-semibold text-text">₹{p.amount.toLocaleString('en-IN')}</p>
                               <p className="text-[10px] text-text-muted mt-0.5">{new Date(p.payment_date).toLocaleDateString()} &middot; {p.payment_mode.replace('_', ' ').toUpperCase()}</p>
                             </div>
-                            {p.notes && <p className="text-xs text-text-secondary max-w-[50%] truncate text-right">{p.notes}</p>}
+                            <div className="flex items-center gap-3">
+                              {p.notes && <p className="text-xs text-text-secondary max-w-[120px] truncate">{p.notes}</p>}
+                              <button type="button" onClick={() => {
+                                if (p.notes === 'Initial Record') {
+                                  setShowFullForm(true);
+                                } else {
+                                  setEditingPaymentId(p.id);
+                                  setNewPayment({
+                                    amount: p.amount.toString(),
+                                    date: new Date(p.payment_date).toISOString().split('T')[0],
+                                    mode: p.payment_mode,
+                                    notes: p.notes || ''
+                                  });
+                                  setShowPaymentForm(true);
+                                }
+                              }} className="text-xs font-medium text-primary hover:underline">
+                                Edit
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>

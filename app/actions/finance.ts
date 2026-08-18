@@ -232,6 +232,45 @@ export async function updateInvoice(id: string, formData: FormData) {
       }
     })
 
+    // Sync Initial Record payment if it exists
+    const initialPayment = await prisma.invoicePayment.findFirst({
+      where: { invoice_id: id, notes: 'Initial Record' }
+    })
+    
+    if (initialPayment) {
+      await prisma.invoicePayment.update({
+        where: { id: initialPayment.id },
+        data: {
+          amount: amount_received,
+          payment_date: payment_date || invoice_date,
+          payment_mode: payment_mode || 'other'
+        }
+      })
+      
+      // Re-calculate total amount received for the invoice since the initial record changed
+      const allPayments = await prisma.invoicePayment.findMany({
+        where: { invoice_id: id }
+      })
+      const totalReceived = allPayments.reduce((sum, p) => sum + p.amount, 0)
+      
+      let newStatus = status
+      if (totalReceived >= final_billing) {
+        newStatus = 'paid'
+      } else if (totalReceived > 0) {
+        newStatus = 'partially_paid'
+      } else {
+        newStatus = 'pending'
+      }
+
+      await prisma.invoice.update({
+        where: { id },
+        data: {
+          amount_received: totalReceived,
+          status: newStatus
+        }
+      })
+    }
+
     // Sync newly uploaded files to FileRecord
     const newlyUploaded = file_urls.filter((u: string) => !(existing?.file_urls ?? []).includes(u))
     if (newlyUploaded.length > 0) {
@@ -506,6 +545,58 @@ export async function recordInvoicePayment(invoiceId: string, data: { amount: nu
   } catch (error) {
     console.error('Error recording payment:', error)
     return { success: false, error: 'Failed to record payment' }
+  }
+}
+
+export async function updateInvoicePayment(paymentId: string, data: { amount: number, payment_date: string, payment_mode: string, notes?: string }) {
+  try {
+    const session = await auth()
+    
+    const payment = await prisma.invoicePayment.findUnique({ where: { id: paymentId } })
+    if (!payment) return { success: false, error: 'Payment not found' }
+
+    await prisma.invoicePayment.update({
+      where: { id: paymentId },
+      data: {
+        amount: data.amount,
+        payment_date: new Date(data.payment_date),
+        payment_mode: data.payment_mode as any,
+        notes: data.notes || '',
+      }
+    })
+
+    // Re-calculate total amount received
+    const allPayments = await prisma.invoicePayment.findMany({
+      where: { invoice_id: payment.invoice_id }
+    })
+    const totalReceived = allPayments.reduce((sum, p) => sum + p.amount, 0)
+    
+    const invoice = await prisma.invoice.findUnique({ where: { id: payment.invoice_id } })
+    if (invoice) {
+      let newStatus = invoice.status
+      if (totalReceived >= invoice.final_billing) {
+        newStatus = 'paid'
+      } else if (totalReceived > 0) {
+        newStatus = 'partially_paid'
+      } else {
+        newStatus = 'pending'
+      }
+
+      await prisma.invoice.update({
+        where: { id: payment.invoice_id },
+        data: {
+          amount_received: totalReceived,
+          status: newStatus,
+        }
+      })
+    }
+
+    revalidatePath('/finance/revenue')
+    revalidatePath('/projects')
+    return { success: true }
+  } catch (error) {
+    console.error('Error updating payment:', error)
+    return { success: false, error: 'Failed to update payment' }
   }
 }
 

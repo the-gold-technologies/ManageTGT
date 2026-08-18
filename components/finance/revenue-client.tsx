@@ -273,7 +273,7 @@ export default function RevenueClient({ initialInvoices, projects, clients }: Re
         </div>
       )}
 
-      <InvoiceModal open={modalOpen} onClose={() => setModalOpen(false)} invoice={editingInvoice} projects={activeProjects} clients={activeClients} />
+      <InvoiceModal open={modalOpen} onClose={() => setModalOpen(false)} invoice={editingInvoice ? inv.find(i => i.id === editingInvoice.id) || editingInvoice : null} projects={activeProjects} clients={activeClients} />
     </div>
   )
 }
