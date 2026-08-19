@@ -2,27 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { auth } from '@/auth'
 
-const ALLOWED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/x-rar-compressed',
-  'text/csv',
-  'text/plain',
-  'video/mp4',
-  'video/quicktime',
-  'audio/mpeg',
-  'audio/wav',
-]
+
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
@@ -55,10 +35,7 @@ export async function POST(req: NextRequest) {
         errors.push(`${file.name}: too large (max 100MB)`)
         continue
       }
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: file type not supported`)
-        continue
-      }
+
 
       const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
       const fileName = `${Math.random().toString(36).substring(2, 10)}_${Date.now()}_${originalName}`
