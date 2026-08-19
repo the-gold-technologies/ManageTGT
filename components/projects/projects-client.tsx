@@ -207,7 +207,7 @@ export default function ProjectsClient({ initialProjects, clients, profiles, use
           <h2 className="text-xl font-bold text-text">Projects</h2>
           <p className="text-sm text-text-secondary mt-0.5">{projects?.length ?? 0} total projects</p>
         </div>
-        {isAdmin && (
+        {(isAdmin || userRole === 'team_lead') && (
           <Button onClick={() => { setEditingProject(null); setModalOpen(true) }}>
             <Plus size={15} /> New Project
           </Button>

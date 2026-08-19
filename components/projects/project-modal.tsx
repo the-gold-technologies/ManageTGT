@@ -223,7 +223,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               {/* Project Name */}
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1.5">Project Name *</label>
-                <input {...register('name')} placeholder="e.g. Company Website Redesign" className={inputClass} disabled={!isAdmin} />
+                <input {...register('name')} placeholder="e.g. Company Website Redesign" className={inputClass} disabled={!(isAdmin || isTeamLead)} />
                 {errors.name && <p className="text-xs text-danger mt-1">{errors.name.message}</p>}
               </div>
 
@@ -254,8 +254,8 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                     <div className="relative flex-1">
                       <button
                         type="button"
-                        onClick={() => isAdmin && setServiceDropdownOpen(!serviceDropdownOpen)}
-                        disabled={!isAdmin}
+                        onClick={() => (isAdmin || isTeamLead) && setServiceDropdownOpen(!serviceDropdownOpen)}
+                        disabled={!(isAdmin || isTeamLead)}
                         className="w-full min-h-[38px] px-3 py-1.5 bg-bg border border-border rounded-lg text-xs text-text flex items-center justify-between gap-2 focus:outline-none focus:border-primary/50 transition-colors disabled:opacity-85 disabled:cursor-not-allowed"
                       >
                         {selectedServices.length > 0 ? (
@@ -263,7 +263,7 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                             {selectedServices.map(s => (
                               <span key={s} className="flex items-center gap-1 bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-md text-[11px]">
                                 {s}
-                                {isAdmin && (
+                                {(isAdmin || isTeamLead) && (
                                   <span
                                     onClick={(e) => { e.stopPropagation(); handleToggleService(s) }}
                                     className="hover:text-danger cursor-pointer ml-0.5 text-xs font-bold"
@@ -275,10 +275,10 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
                         ) : (
                           <span className="text-text-muted text-xs">Select a service...</span>
                         )}
-                        {isAdmin && <ChevronDown size={14} className="text-text-muted shrink-0 ml-auto" />}
+                        {(isAdmin || isTeamLead) && <ChevronDown size={14} className="text-text-muted shrink-0 ml-auto" />}
                       </button>
 
-                      {isAdmin && serviceDropdownOpen && (
+                      {(isAdmin || isTeamLead) && serviceDropdownOpen && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setServiceDropdownOpen(false)} />
                           <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto z-20 p-1.5 space-y-0.5">
@@ -374,11 +374,11 @@ export default function ProjectModal({ open, onClose, project, clients, profiles
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Start Date</label>
-                  <input {...register('start_date')} type="date" className={inputClass} disabled={!isAdmin} />
+                  <input {...register('start_date')} type="date" className={inputClass} disabled={!(isAdmin || isTeamLead)} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-text-secondary mb-1.5">Expected Completion</label>
-                  <input {...register('expected_completion')} type="date" className={inputClass} disabled={!isAdmin} />
+                  <input {...register('expected_completion')} type="date" className={inputClass} disabled={!(isAdmin || isTeamLead)} />
                 </div>
               </div>
 
