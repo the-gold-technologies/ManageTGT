@@ -4,25 +4,65 @@ import prisma from '@/lib/prisma'
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
 
-async function getOrgId(): Promise<string | null> {
+async function getUserContext(): Promise<{ orgId: string | null; uid: string | null; isAdmin: boolean }> {
   const session = await auth()
-  if (!session?.user?.id) return null
+  if (!session?.user?.id) return { orgId: null, uid: null, isAdmin: false }
+  
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { orgId: true },
+    include: { role: true },
   })
-  return user?.orgId ?? null
+  
+  return { 
+    orgId: user?.orgId ?? null, 
+    uid: session.user.id, 
+    isAdmin: user?.role?.name === 'admin' 
+  }
 }
 
 // ─── Get Folders ─────────────────────────────────────────────────────────────
 
 export async function getAllFolders() {
   try {
-    const orgId = await getOrgId()
-    if (!orgId) return { success: false, error: 'Unauthorized', folders: [] }
+    const { orgId, uid, isAdmin } = await getUserContext()
+    if (!orgId || !uid) return { success: false, error: 'Unauthorized', folders: [] }
+
+    const where: any = { orgId }
+
+    if (!isAdmin) {
+      where.OR = [
+        { created_by: uid },
+        {
+          files: {
+            some: {
+              OR: [
+                { shared_with: { has: uid } },
+                { uploaded_by: uid },
+                {
+                  project: {
+                    OR: [
+                      { team_lead_id: uid },
+                      { assigned_member_ids: { has: uid } }
+                    ]
+                  }
+                },
+                {
+                  task: {
+                    OR: [
+                      { assigned_by: uid },
+                      { assigned_member_ids: { has: uid } }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
 
     const folders = await (prisma as any).fileFolder.findMany({
-      where: { orgId },
+      where,
       orderBy: { name: 'asc' },
       include: {
         files: { select: { id: true } },
@@ -38,15 +78,49 @@ export async function getAllFolders() {
 
 export async function getFolders(context: string, contextId?: string) {
   try {
-    const orgId = await getOrgId()
-    if (!orgId) return { success: false, error: 'Unauthorized', folders: [] }
+    const { orgId, uid, isAdmin } = await getUserContext()
+    if (!orgId || !uid) return { success: false, error: 'Unauthorized', folders: [] }
+
+    const where: any = {
+      orgId,
+      context,
+      context_id: contextId ?? null,
+    }
+
+    if (!isAdmin) {
+      where.OR = [
+        { created_by: uid },
+        {
+          files: {
+            some: {
+              OR: [
+                { shared_with: { has: uid } },
+                { uploaded_by: uid },
+                {
+                  project: {
+                    OR: [
+                      { team_lead_id: uid },
+                      { assigned_member_ids: { has: uid } }
+                    ]
+                  }
+                },
+                {
+                  task: {
+                    OR: [
+                      { assigned_by: uid },
+                      { assigned_member_ids: { has: uid } }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
 
     const folders = await (prisma as any).fileFolder.findMany({
-      where: {
-        orgId,
-        context,
-        context_id: contextId ?? null,
-      },
+      where,
       orderBy: { name: 'asc' },
       include: {
         files: { select: { id: true } },
