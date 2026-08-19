@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
       if (uploadError) {
         console.error('Upload Error:', uploadError)
-        errors.push(`${file.name}: upload failed`)
+        errors.push(`${file.name}: ${uploadError.message || 'upload failed'}`)
         continue
       }
 

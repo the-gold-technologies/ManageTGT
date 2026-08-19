@@ -150,7 +150,7 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
         onSuccess()
         handleClose()
       } else {
-        toast.error(result.error || 'Failed to update file')
+        toast.error(result.error ? `Failed to update: ${result.error}` : 'Failed to update file details')
       }
       return
     }
@@ -177,11 +177,19 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
     files.forEach(f => formData.append('files', f.file))
     formData.append('folder', folder)
 
-    const res = await fetch('/api/upload', { method: 'POST', body: formData })
-    const uploadResult = await res.json()
+    let uploadResult: any
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      uploadResult = await res.json()
+    } catch (err: any) {
+      toast.error('Network or server error during upload: ' + (err.message || 'Unknown error'))
+      setFiles(prev => prev.map(f => ({ ...f, status: 'error' as const })))
+      setUploading(false)
+      return
+    }
 
     if (!uploadResult.success || !uploadResult.urls) {
-      toast.error('Upload failed: ' + uploadResult.error)
+      toast.error(uploadResult.error ? `Upload failed: ${uploadResult.error}` : 'Upload failed due to unknown error')
       setFiles(prev => prev.map(f => ({ ...f, status: 'error' as const })))
       setUploading(false)
       return
@@ -223,6 +231,7 @@ export default function FileUploadModal({ open, onClose, clients, projects, onSu
         successCount++
       } else {
         setFiles(prev => prev.map(ff => ff.id === f.id ? { ...ff, status: 'error' } : ff))
+        toast.error(`Database error for ${f.file.name}: ${result.error || 'Failed to save file details'}`)
       }
     }
 
